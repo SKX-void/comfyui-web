@@ -252,7 +252,7 @@
   "57": {
     "inputs": {
       "enable": true,
-      "filename_prefix": "server",
+      "filename_prefix": "server/anima",
       "file_format": "WEBP",
       "quality": 80,
       "embed_workflow": true,

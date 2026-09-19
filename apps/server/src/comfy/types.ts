@@ -64,7 +64,12 @@ export interface ComfyClient {
   stop(): Promise<void>;
   isConnected(): boolean;
 
-  submit(graph: Graph, clientId: string): Promise<SubmitResult>;
+  /**
+   * 提交任务。
+   * `extraData` 会原样放进请求体的 `extra_data`（如 extra_pnginfo），
+   * ComfyUI 的保存节点可据此把额外信息写进图片元数据。
+   */
+  submit(graph: Graph, clientId: string, extraData?: Record<string, unknown>): Promise<SubmitResult>;
   getHistory(promptId: string): Promise<HistoryEntry | null>;
   getQueue(): Promise<QueueInfo>;
   getObjectInfo(): Promise<Record<string, unknown>>;

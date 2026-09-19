@@ -21,6 +21,7 @@
 
   // --- 其它 ---
   "templatesDir": "templates", // 相对仓库根目录
+  "dataDir": ".data", // SQLite 等持久化数据（相对仓库根）
   "logLevel": "info", // fatal|error|warn|info|debug|trace
   "mockStepDelayMs": 120 // 仅 mock 模式：每步模拟耗时
 }

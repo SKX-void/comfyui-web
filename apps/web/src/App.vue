@@ -259,8 +259,6 @@ onMounted(() => {
           </select>
         </div>
 
-        <p v-if="template?.description" class="desc">{{ template.description }}</p>
-
         <TemplateForm
           v-if="template"
           :inputs="template.inputs"
@@ -312,7 +310,10 @@ onMounted(() => {
       </section>
 
       <section class="card wide">
-        <div class="card-head"><h2>最近任务</h2></div>
+        <div class="card-head">
+          <h2>本次会话</h2>
+          <span class="dim small">不持久化 · 后端重启即清空</span>
+        </div>
         <table v-if="history.length" class="table">
           <thead>
             <tr>
@@ -341,7 +342,10 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
-        <p v-else class="dim">还没有任务记录</p>
+        <p v-else class="dim">
+          本次会话还没有任务。出图参数不会长期保存 —— 需要留档时把「输出格式」切到
+          <strong>PNG</strong>，完整工作流会写进图片元数据。
+        </p>
       </section>
     </main>
   </div>
@@ -495,6 +499,9 @@ h2 {
 }
 .dim {
   color: #64748b;
+}
+.dim.small {
+  font-size: 11px;
 }
 .progress-bar {
   height: 10px;

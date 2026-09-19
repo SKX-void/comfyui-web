@@ -75,9 +75,17 @@ export interface TemplateInput {
      * 典型用法：宽与高互换（`width` 声明 `swap: "height"`）。
      */
     swap?: string;
+    /**
+     * 预设绑定。决定该字段（或该行）显示预设切换器，并声明预设值覆盖哪些字段。
+     *
+     * - 字符串简写：`"prompt"` —— 类别即 kind，目标默认是本字段
+     * - 对象形式：`{ kind: "size", targets: ["width","height"] }`
+     *   —— 一条预设同时改多个字段（如宽高对）
+     */
+    preset?: string | { kind: string; targets?: string[] };
   };
-  /** 条件显示：当另一个 input 等于给定值时显示 */
-  visibleIf?: { key: string; equals: unknown };
+  /** 条件显示：按另一个 input 的值决定是否显示 */
+  visibleIf?: { key: string; equals?: unknown; notEquals?: unknown };
 }
 
 /** 值变换器名称 */
@@ -335,6 +343,40 @@ export interface TagItem {
   color: string;
   topGroup: string;
   group: string;
+}
+
+// ---------------------------------------------------------------------------
+// 预设（每类别一张表；uid 预留多用户，v1 固定 'local'）
+// ---------------------------------------------------------------------------
+
+/** 预设字段元数据：dialog 据此展示"详细内容"与生成新建表单 */
+export interface PresetField {
+  /** 数据库列名 */
+  column: string;
+  /** 模板 input 的 key —— 套用时写这个键 */
+  inputKey: string;
+  label: string;
+  type: 'text' | 'int';
+}
+
+/** 单条预设（不含原始列值，只有服务端派生的 values） */
+export interface PresetRecord {
+  id: string;
+  name: string;
+  description: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  /** 键为模板 input 的 key，可直接写进表单值 */
+  values: Record<string, unknown>;
+}
+
+/** 某类别的完整载荷 */
+export interface PresetKindPayload {
+  kind: string;
+  label: string;
+  fields: PresetField[];
+  items: PresetRecord[];
 }
 
 export interface TagGroupItem {

@@ -8,7 +8,7 @@
 import type { TemplateInput } from '@comfyui-server/shared';
 import TagSelector from '@/components/TagSelector.vue';
 import LoraSelector, { type LoraValue } from '@/components/LoraSelector.vue';
-import ModelSelect from '@/components/ModelSelect.vue';
+import SelectMenu from '@/components/SelectMenu.vue';
 
 const props = defineProps<{
   input: TemplateInput;
@@ -33,6 +33,14 @@ function onNumber(e: Event): void {
 function onSwitch(e: Event): void {
   set((e.target as HTMLInputElement).checked);
 }
+/** 下拉选项：model-select 取模型列表；select 取模板里声明的静态选项 */
+function optionsFor(input: TemplateInput): string[] {
+  if (input.type === 'model-select') {
+    return props.models[input.source?.folder ?? ''] ?? [];
+  }
+  return (input.source?.options ?? []).map((o) => o.value);
+}
+
 function lorasOf(): LoraValue[] {
   return Array.isArray(props.value) ? (props.value as LoraValue[]) : [];
 }
@@ -103,11 +111,11 @@ function lorasOf(): LoraValue[] {
     <span>{{ props.value ? '开' : '关' }}</span>
   </label>
 
-  <!-- 模型选择（自定义下拉：原生 select 无法美化，且不支持搜索） -->
-  <ModelSelect
-    v-else-if="props.input.type === 'model-select'"
+  <!-- 模型选择 / 静态枚举（自定义下拉：原生 select 无法美化，且不支持搜索） -->
+  <SelectMenu
+    v-else-if="props.input.type === 'model-select' || props.input.type === 'select'"
     :model-value="String(props.value ?? '')"
-    :options="props.models[props.input.source?.folder ?? ''] ?? []"
+    :options="optionsFor(props.input)"
     :disabled="props.disabled"
     :placeholder="props.input.ui?.placeholder ?? '（请选择）'"
     @update:model-value="set($event)"

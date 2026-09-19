@@ -6,6 +6,7 @@ import type {
   JobEvent,
   LoraBrowseResponse,
   LoraMeta,
+  PresetKindPayload,
   TagGroupItem,
   TagItem,
   TemplateDetail,
@@ -16,10 +17,15 @@ interface ApiErrorBody {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-  });
+  // ⚠️ 只在有 body 时才带 Content-Type。
+  // DELETE 这类无 body 的请求若声明 application/json，Fastify 会直接拒绝：
+  // "Body cannot be empty when content-type is set to 'application/json'"
+  const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
+  if (init?.body !== undefined && init.body !== null && headers['Content-Type'] === undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const res = await fetch(path, { ...init, headers });
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     let details: unknown;
@@ -92,6 +98,26 @@ export const api = {
 
   autocompleteTags: (q: string) =>
     request<{ items: TagItem[] }>(`/api/tags/autocomplete?q=${encodeURIComponent(q)}`),
+
+  // --- 预设 ---
+
+  listPresets: () => request<{ kinds: PresetKindPayload[] }>('/api/presets'),
+
+  savePreset: (
+    kind: string,
+    name: string,
+    body: { description: string; values: Record<string, unknown> },
+  ) =>
+    request<{ ok: boolean }>(
+      `/api/presets/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+
+  deletePreset: (kind: string, name: string) =>
+    request<{ ok: boolean }>(
+      `/api/presets/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`,
+      { method: 'DELETE' },
+    ),
 
   translate: (texts: string[]) =>
     request<{ items: Array<{ original: string; translated: string; color: string }> }>(

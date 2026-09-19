@@ -150,7 +150,7 @@ export class MockComfyClient implements ComfyClient {
     this.emitter.emit('event', { type, data });
   }
 
-  async submit(graph: Graph, _clientId: string): Promise<SubmitResult> {
+  async submit(graph: Graph, _clientId: string, _extraData?: Record<string, unknown>): Promise<SubmitResult> {
     const promptId = randomUUID();
     const saveNodes = Object.entries(graph).filter(
       ([, node]) => SAVE_NODE_TYPES.has(node.class_type),

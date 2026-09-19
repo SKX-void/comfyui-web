@@ -214,8 +214,14 @@ export class RealComfyClient implements ComfyClient {
     return (await res.json()) as T;
   }
 
-  async submit(graph: Graph, clientId: string): Promise<SubmitResult> {
-    const body = JSON.stringify({ prompt: graph, client_id: clientId });
+  async submit(
+    graph: Graph,
+    clientId: string,
+    extraData?: Record<string, unknown>,
+  ): Promise<SubmitResult> {
+    const payload: Record<string, unknown> = { prompt: graph, client_id: clientId };
+    if (extraData) payload.extra_data = extraData;
+    const body = JSON.stringify(payload);
     const res = await this.request<{
       prompt_id: string;
       number: number;

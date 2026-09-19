@@ -16,6 +16,7 @@ const BUILTIN_DEFAULTS = {
     mode: 'real' as 'real' | 'mock',
   },
   templatesDir: 'templates',
+  dataDir: '.data',
   logLevel: 'info',
   mockStepDelayMs: 120,
 };
@@ -27,6 +28,10 @@ export interface ServerConfig {
   comfyBaseUrl: string;
   comfyMode: 'real' | 'mock';
   templatesDir: string;
+  /** 持久化数据目录（SQLite 等），相对仓库根或绝对路径 */
+  dataDir: string;
+  /** SQLite 文件绝对路径 */
+  dbFile: string;
   logLevel: string;
   mockStepDelayMs: number;
   /** 本次实际加载的配置文件（按优先级从低到高），用于日志与健康检查 */
@@ -204,6 +209,7 @@ export function loadConfig(): ServerConfig {
   if (env('COMFY_MODE')) comfyEnv.mode = env('COMFY_MODE');
   if (Object.keys(comfyEnv).length > 0) envOverrides.comfyui = comfyEnv;
   if (env('TEMPLATES_DIR')) envOverrides.templatesDir = env('TEMPLATES_DIR');
+  if (env('DATA_DIR')) envOverrides.dataDir = env('DATA_DIR');
   if (env('LOG_LEVEL')) envOverrides.logLevel = env('LOG_LEVEL');
   if (env('MOCK_STEP_DELAY_MS')) {
     envOverrides.mockStepDelayMs = Number(env('MOCK_STEP_DELAY_MS'));
@@ -229,6 +235,9 @@ export function loadConfig(): ServerConfig {
     ? templatesDirRaw
     : path.join(repoRoot, templatesDirRaw);
 
+  const dataDirRaw = String(merged.dataDir ?? '.data');
+  const dataDir = path.isAbsolute(dataDirRaw) ? dataDirRaw : path.join(repoRoot, dataDirRaw);
+
   const mockStepDelayMs = Number(merged.mockStepDelayMs ?? 120);
   if (!Number.isFinite(mockStepDelayMs) || mockStepDelayMs < 0) {
     throw new Error(`mockStepDelayMs 必须是非负数字，收到: ${String(merged.mockStepDelayMs)}`);
@@ -240,6 +249,8 @@ export function loadConfig(): ServerConfig {
     comfyBaseUrl: normalizeBaseUrl(String(comfyui.baseUrl ?? BUILTIN_DEFAULTS.comfyui.baseUrl)),
     comfyMode: mode,
     templatesDir,
+    dataDir,
+    dbFile: path.join(dataDir, 'comfyui-server.db'),
     logLevel: String(merged.logLevel ?? 'info'),
     mockStepDelayMs,
     configFiles: loadedFiles,

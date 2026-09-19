@@ -123,8 +123,10 @@ v1 表（SQLite）：
 | `job_events` | 事件日志（用于回放 SSE 与排障） |
 | `assets` | 产出图片索引（filename/subfolder/type/尺寸/hash） |
 | `templates` | 模板元数据（可选，也可纯文件系统） |
+| `presets` | 预设（已实现，v1 第一张表） |
 
-> 多用户预留：所有表带 `user_id` 字段，v1 固定写 `"local"`。
+> 多用户预留：所有表带 `uid` 字段，v1 固定写 `"local"`（见 `store/presets.ts` 的 `LOCAL_UID`）。
+> 迁移用 `PRAGMA user_version` 记录版本，只追加不回改。
 
 ---
 
@@ -243,7 +245,7 @@ apps/web/src/
 | HTTP 框架 | Fastify / Hono / Express | **Fastify**（性能+生态+SSE 支持好） |
 | WS 客户端 | `ws` / `undici` | **`ws`**（上游只有 WS，见 [v1-api](./v1-api.md) §B.2） |
 | 校验 | Zod / TypeBox | **Zod**（DX 好）；若需 JSON Schema 复用则 TypeBox |
-| 存储 | SQLite + better-sqlite3 + Drizzle | **Drizzle**（TS 类型好，迁移可控） |
+| 存储 | ~~SQLite + better-sqlite3~~ → **`node:sqlite`（Node 内置）** | 已落地：零依赖、零原生编译。better-sqlite3 是原生模块，与「纯 JS 构建」目标冲突（同 sharp） |
 | 日志 | pino | **pino** |
 | 前端 | Vue 3 + Vite + Pinia + vue-i18n | ✅ **已定**（Q1）——为复用 WeiLin 组件，见 [v1-weilin](./v1-weilin.md) §6 |
 | 包管理 | pnpm workspace | **pnpm** |

@@ -160,6 +160,9 @@ comfyui-server/
 | `GET /api/tags/autocomplete?q=` | 输入补全 |
 | `POST /api/tags/translate` | 中英翻译 |
 | `GET /api/system/health` · `/api/system/stats` · `/api/system/queue` | 系统状态 |
+| `GET /api/presets` | 全部预设（`Record<kind, Record<name, value>>`） |
+| `PUT /api/presets/:kind/:name` | 新增/覆盖预设 |
+| `DELETE /api/presets/:kind/:name` | 删除预设 |
 
 ### WeiLin 数据源的体积约束（实测，务必遵守）
 
@@ -286,6 +289,133 @@ pnpm --filter @comfyui-server/server add sharp
 - 并发请求同一 LoRA 会合并，避免重复解码同一张 5 MB 原图
 - 没有预览图的 LoRA 返回 **204**，前端显示占位块
 - 前端 `<img loading="lazy">`，只加载可见项
+
+---
+
+## 预设
+
+四个输入块各自可以切换预设：**正向提示词 / 正向质量词 / 负向质量词 / 宽高对**。
+点击「预设」拉起对话框，列出该类别全部预设、展示详细内容，由「载入」按钮套用。
+
+### 存储：每类别一张表（范式化）
+
+用 Node **内置的 `node:sqlite`**（不是 `better-sqlite3` —— 那是原生模块，
+与「纯 JS 源码构建」目标冲突，和 sharp 同一类问题）。
+库文件在 `dataDir/comfyui-server.db`（默认 `.data/`，已 gitignore）。
+
+四种预设是**独立实体**，各自一张表：
+
+```sql
+CREATE TABLE preset_size (
+  id          TEXT PRIMARY KEY,       -- 'ps_<uuid>'：跨库合并不撞键
+  uid         TEXT NOT NULL,          -- 预留多用户，v1 固定 'local'
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  width       INTEGER NOT NULL CHECK (width  > 0),
+  height      INTEGER NOT NULL CHECK (height > 0),
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL,
+  UNIQUE (uid, name)
+);
+-- preset_prompt / preset_quality_pos / preset_quality_neg 同构，把 width/height 换成 text
+```
+
+**为什么不用「单表 + JSON 值」**（早期版本踩过）：
+
+| 维度 | JSON 值 | 类型化列（当前） |
+|------|---------|-----------------|
+| `description` | 只能塞进 `$desc` 键 | **真列** |
+| `width/height` | 字符串里的数字 | `INTEGER` + **CHECK 约束** |
+| 查询 | 需要 `json_extract` | `WHERE width > 1024`、`ORDER BY width*height` |
+
+用不上的灵活性（"加类别不用迁移"）不值得拿完整性和可查询性去换。
+
+> 迁移用 `PRAGMA user_version`，只追加不回改。
+> v2 迁移会把 v1 的 JSON 表数据**搬迁**到新表（`$desc` 提升为 `description` 列），
+> 然后删掉旧表。
+
+### API
+
+响应里带**字段元数据**（dialog 展示"详细内容"用），以及一个由列**派生**的
+`values`（键换成模板 input 的 key）：
+
+```jsonc
+// GET /api/presets/size
+{
+  "kind": "size",
+  "label": "宽高对",
+  "fields": [
+    { "column": "width",  "inputKey": "width",  "label": "宽", "type": "int" },
+    { "column": "height", "inputKey": "height", "label": "高", "type": "int" }
+  ],
+  "items": [
+    { "id": "ps_…", "name": "竖版 832×1216", "description": "",
+      "sortOrder": 0, "values": { "width": 832, "height": 1216 } }
+  ]
+}
+```
+
+| 端点 | 说明 |
+|------|------|
+| `GET /api/presets` | 全部类别（前端一次拉齐） |
+| `GET /api/presets/:kind` | 单类别 |
+| `PUT /api/presets/:kind/:name` | body `{ description?, values: {…} }` |
+| `DELETE /api/presets/:kind/:name` | 删除 |
+
+> `values` 的键与服务端列名是**两套**：列名是存储，inputKey 是模板字段。
+> 映射在 `store/presets.ts` 的 `PRESET_KINDS` 登记表里集中定义 ——
+> 加一种预设 = 一条 registry + 一条迁移。
+
+### 模板声明
+
+```jsonc
+{ "key": "prompt",     "ui": { "preset": "prompt" } },   // 简写，目标为自身
+{ "key": "qualityPos", "ui": { "preset": "qualityPos" } },
+{ "key": "qualityNeg", "ui": { "preset": "qualityNeg" } },
+{ "key": "width",      "ui": { "preset": { "kind": "size",          // 一条预设改多个字段
+                                           "targets": ["width", "height"] } } }
+```
+
+界面：单字段的「预设」按钮在标签行右侧；整行（宽高）的在行上方。
+
+---
+
+## 任务历史：刻意不持久化
+
+出图结果是**用过即弃**的，服务端不建 `jobs` 表。「本次会话」卡片只是内存态，
+后端重启即清空（UI 上已注明）。
+
+需要留档时，把「输出格式」切到 **PNG** —— 这相当于一个「存 / 不存」开关：
+
+| 格式 | 832×1216 实测 | 图片元数据 |
+|------|--------------|-----------|
+| **PNG** | 644 KB | ✅ `tEXt.api_workflow` = **完整 API 图 JSON**（17 节点，含正提示词、LoRA 列表、全部参数） |
+| **WEBP q80** | 54 KB | ❌ 仅 `EXIF` 里 1KB 的 A1111 参数串（**缺正提示词**、缺 LoRA 列表） |
+
+### ⚠️ 必须发送 `extra_pnginfo`，否则 PNG 也没有元数据
+
+ComfyUI 的**原生** `SaveImage` 会自动注入 `PROMPT`（完整 API 图）—— 它总是有元数据。
+
+但**第三方**保存节点（如 `SaveImagePlus`）不会。要让它们写入，必须在 `/prompt`
+请求里带 `extra_data.extra_pnginfo`：
+
+```jsonc
+POST /prompt
+{
+  "prompt": { … },
+  "client_id": "…",
+  "extra_data": {
+    "extra_pnginfo": { "api_workflow": { … } }   // ← 键名自定，保存节点会逐个写入
+  }
+}
+```
+
+`JobManager` 已按此发送（`jobs/manager.ts`）。键名刻意**不叫 `workflow`** ——
+那是 ComfyUI UI 格式，前端打开会解析失败；`api_workflow` 只用于我们自己恢复参数。
+
+> 教训：早期版本没发 `extra_pnginfo`，导致换成 `SaveImagePlus` 后
+> PNG 输出里只剩 500 字节的 A1111 参数、正提示词永久丢失。
 
 ---
 

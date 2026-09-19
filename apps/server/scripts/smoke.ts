@@ -4,12 +4,17 @@
  * 运行：pnpm --filter @comfyui-server/server smoke
  */
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
+import { DatabaseSync } from 'node:sqlite';
 import { loadConfig, normalizeBaseUrl, parseJsonc } from '../src/config.js';
 import { TemplateRegistry } from '../src/templates/loader.js';
 import { renderTemplate, coerceValues } from '../src/templates/render.js';
 import { MockComfyClient } from '../src/comfy/mock.js';
 import { JobManager, decodeAssetId } from '../src/jobs/manager.js';
 import { browseLoras } from '../src/weilin/browse.js';
+import { openDatabase, closeDatabase, userVersion } from '../src/store/db.js';
+import { PresetStore, LOCAL_UID, PRESET_KINDS } from '../src/store/presets.js';
 import type { WeilinLoraEntry } from '../src/weilin/client.js';
 import type { JobEvent } from '@comfyui-server/shared';
 
@@ -127,10 +132,13 @@ async function main(): Promise<void> {
     graph[saveNodeId]!.class_type === 'SaveImagePlus',
     graph[saveNodeId]!.class_type,
   );
+  // 不硬编码具体值（模板会变），改为校验不变量：渲染后这些字段应与模板原值一致
   check(
     '未暴露字段保留 graph 原值',
-    graph[saveNodeId]!.inputs.filename_prefix === 'server' &&
-      graph['19']!.inputs.auto_random === false,
+    graph[saveNodeId]!.inputs.filename_prefix ===
+      tpl.graph[saveNodeId]!.inputs.filename_prefix &&
+      graph['19']!.inputs.auto_random === tpl.graph['19']!.inputs.auto_random,
+    `filename_prefix=${JSON.stringify(graph[saveNodeId]!.inputs.filename_prefix)}`,
   );
   const fmt = String(graph[saveNodeId]!.inputs.file_format);
   const quality = Number(graph[saveNodeId]!.inputs.quality);
@@ -375,6 +383,146 @@ async function main(): Promise<void> {
   check('面包屑各级 path 正确', sub.breadcrumbs[1]!.path === 'A' && sub.breadcrumbs[2]!.path === 'A\\sub');
 
   check('前后斜杠被容忍', browseLoras(fixture, '\\A\\').path === 'A');
+
+  // ---------------------------------------------------------------------
+  section('7. 预设仓库（内存 SQLite，零外部依赖）');
+  const pdb = openDatabase(':memory:');
+  check('迁移到 v2', userVersion(pdb) === 2, `user_version=${userVersion(pdb)}`);
+
+  const tables = (
+    pdb
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+      .all() as unknown as Array<{ name: string }>
+  ).map((r) => r.name);
+  check(
+    '四张预设表已建',
+    ['preset_prompt', 'preset_quality_pos', 'preset_quality_neg', 'preset_size'].every((t) =>
+      tables.includes(t),
+    ),
+    tables.join(','),
+  );
+
+  const store = new PresetStore(pdb);
+  check('初始各类别为空', store.listAll().every((k) => k.items.length === 0));
+  check('类别登记表有 4 项', PRESET_KINDS.length === 4);
+
+  store.upsert('prompt', '起手', { values: { prompt: '1girl, solo' } });
+  store.upsert('qualityPos', '写实', {
+    description: '照片风格',
+    values: { qualityPos: 'photorealistic' },
+  });
+  store.upsert('size', '竖版', { values: { width: 832, height: 1216 } });
+  store.upsert('size', '方图', { values: { width: 1024, height: 1024 } });
+
+  const size = store.list('size');
+  check('size 有 2 条', size.items.length === 2);
+  check('带字段元数据（dialog 展示用）', size.fields.length === 2 && size.fields[0]!.label === '宽');
+  check(
+    '★ 服务端派生 values（列 → input key）',
+    size.items[0]!.values.width === 832 && size.items[0]!.values.height === 1216,
+    JSON.stringify(size.items[0]!.values),
+  );
+  check('description 是真列而非 JSON 键', store.list('qualityPos').items[0]!.description === '照片风格');
+  check('sort_order 按插入顺序', size.items.map((i) => i.name).join(',') === '竖版,方图');
+  check('文本类别的派生 values', store.list('prompt').items[0]!.values.prompt === '1girl, solo');
+
+  store.upsert('size', '竖版', { description: '改过', values: { width: 768, height: 1152 } });
+  const after = store.list('size');
+  check('同名覆盖不新增', after.items.length === 2 && after.items[0]!.values.width === 768);
+  check('覆盖时描述也更新', after.items[0]!.description === '改过');
+
+  const rejects: Array<[string, () => void]> = [
+    ['未知 kind 被拒', () => store.upsert('nope', 'x', { values: {} })],
+    ['空名被拒', () => store.upsert('size', '  ', { values: { width: 1, height: 1 } })],
+    ['缺字段被拒', () => store.upsert('size', 'x', { values: { width: 1 } })],
+    ['负数被拒', () => store.upsert('size', 'x', { values: { width: -1, height: 1 } })],
+    ['非整数被拒', () => store.upsert('size', 'x', { values: { width: 1.5, height: 1 } })],
+    ['文本字段非字符串被拒', () => store.upsert('prompt', 'x', { values: { prompt: 123 } })],
+    ['描述非字符串被拒', () => store.upsert('prompt', 'x', { description: 1, values: { prompt: 'a' } })],
+    ['values 非对象被拒', () => store.upsert('prompt', 'x', { values: 'str' })],
+  ];
+  for (const [name, fn] of rejects) {
+    let threw = false;
+    try {
+      fn();
+    } catch {
+      threw = true;
+    }
+    check(name, threw);
+  }
+
+  // 数据库层约束：绕过应用校验直接插入，CHECK 仍应拦下
+  let checkWorked = false;
+  try {
+    pdb
+      .prepare(
+        "INSERT INTO preset_size (id,uid,name,description,width,height,sort_order,created_at,updated_at) VALUES ('z','local','坏','',0,1,0,'x','x')",
+      )
+      .run();
+  } catch {
+    checkWorked = true;
+  }
+  check('CHECK 约束在数据库层生效', checkWorked);
+
+  check('删除存在的预设', store.remove('size', '方图'));
+  check('删除不存在的返回 false', !store.remove('size', '不存在'));
+  check('删除后剩 1 条', store.list('size').items.length === 1);
+
+  const other = new PresetStore(pdb, 'other-user');
+  other.upsert('size', '竖版', { values: { width: 1, height: 1 } });
+  check('不同 uid 可同名且互不覆盖', store.list('size').items[0]!.values.width === 768);
+  check('不同 uid 各自可见', other.list('size').items[0]!.values.width === 1);
+  check('默认 uid 为 local', LOCAL_UID === 'local');
+  closeDatabase(pdb);
+
+  // ---------------------------------------------------------------------
+  section('8. 迁移 v1 → v2（旧 JSON 表数据搬迁）');
+  const migDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-mig-'));
+  const migFile = path.join(migDir, 'old.db');
+  {
+    const old = new DatabaseSync(migFile);
+    old.exec(`
+      CREATE TABLE presets (
+        id TEXT PRIMARY KEY, uid TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL,
+        value TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE (uid, kind, name)
+      );
+      PRAGMA user_version = 1;
+    `);
+    const now = '2026-01-01T00:00:00.000Z';
+    const ins = old.prepare(
+      'INSERT INTO presets (id,uid,kind,name,value,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',
+    );
+    ins.run('p1', 'local', 'prompt', '起手', JSON.stringify({ prompt: '1girl' }), 0, now, now);
+    ins.run(
+      'p2',
+      'local',
+      'qualityPos',
+      '写实',
+      JSON.stringify({ qualityPos: 'photo', $desc: '照片风格' }),
+      0,
+      now,
+      now,
+    );
+    ins.run('p3', 'local', 'size', '竖版', JSON.stringify({ width: 832, height: 1216 }), 0, now, now);
+    old.close();
+  }
+  const migrated = openDatabase(migFile);
+  check('旧库升级到 v2', userVersion(migrated) === 2);
+  const mstore = new PresetStore(migrated);
+  check('文本预设已搬迁', mstore.list('prompt').items[0]!.values.prompt === '1girl');
+  check('$desc 已提升为 description 列', mstore.list('qualityPos').items[0]!.description === '照片风格');
+  check(
+    '尺寸预设已搬迁',
+    mstore.list('size').items[0]!.values.width === 832 &&
+      mstore.list('size').items[0]!.values.height === 1216,
+  );
+  const leftover = migrated
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='presets'")
+    .get();
+  check('旧表已删除', leftover === undefined);
+  closeDatabase(migrated);
+  fs.rmSync(migDir, { recursive: true, force: true });
 
   console.log(
     failures === 0

@@ -133,6 +133,16 @@ async function loadMeta(file: string): Promise<void> {
 
 // --- 文件管理器式的导航辅助 ---
 /** 上一级目录；根目录时为 null */
+/**
+ * 已加载到的触发词。未加载 / 加载中 / 无数据都返回空数组 ——
+ * 这样整行只在**确实有触发词**时出现，不会出现"加载中"被显示成"未知"的误导。
+ */
+function triggerWords(file: string | undefined): string[] {
+  const m = file ? metaCache.value[file] : undefined;
+  if (!m || m === 'loading' || m === 'error') return [];
+  return m.triggerWords;
+}
+
 const parentPath = computed(() => {
   const segs = currentPath.value ? currentPath.value.split('\\') : [];
   if (segs.length === 0) return null;
@@ -189,22 +199,9 @@ const foldersOnly = computed(
           </label>
         </div>
 
-        <div class="triggers">
+        <div v-if="triggerWords(l.lora).length" class="triggers">
           <span class="tr-label">触发词：</span>
-          <template
-            v-if="
-              metaCache[l.lora ?? ''] &&
-              metaCache[l.lora ?? ''] !== 'loading' &&
-              metaCache[l.lora ?? ''] !== 'error' &&
-              (metaCache[l.lora ?? ''] as LoraMeta).triggerWords.length
-            "
-          >
-            <span class="tr-text">
-              {{ (metaCache[l.lora ?? ''] as LoraMeta).triggerWords.slice(0, 3).join(', ') }}
-            </span>
-          </template>
-          <span v-else class="hint">未知（节点按元数据/文件名推断）</span>
-          <span class="hint">· 由节点自动注入，无需设置</span>
+          <span class="tr-text">{{ triggerWords(l.lora).slice(0, 3).join(', ') }}</span>
         </div>
       </div>
     </div>

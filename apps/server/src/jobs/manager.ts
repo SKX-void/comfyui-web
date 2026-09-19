@@ -169,7 +169,12 @@ export class JobManager {
     };
     this.jobs.set(jobId, job);
 
-    const result = await this.client.submit(graph, this.opts.clientId);
+    const result = await this.client.submit(graph, this.opts.clientId, {
+      // 把 API 图作为额外元数据交给保存节点。
+      // 键名刻意不叫 "workflow" —— 那是 ComfyUI UI 格式，前端打开会解析失败；
+      // 我们只用于自己恢复参数。
+      extra_pnginfo: { api_workflow: graph },
+    });
 
     if (Object.keys(result.nodeErrors).length > 0) {
       job.status = 'failed';

@@ -13,6 +13,8 @@ import type { ComfyClient } from './comfy/types.js';
 import { TemplateRegistry } from './templates/loader.js';
 import { JobManager } from './jobs/manager.js';
 import { WeilinClient } from './weilin/client.js';
+import { closeDatabase, openDatabase } from './store/db.js';
+import { PresetStore } from './store/presets.js';
 import { ThumbnailCache } from './weilin/thumb.js';
 import { registerRoutes } from './http/routes.js';
 
@@ -36,7 +38,12 @@ async function main(): Promise<void> {
     '模板已加载',
   );
 
-  // 2. ComfyUI 客户端
+  // 2. 持久化（SQLite，用 Node 内置 node:sqlite，无原生依赖）
+  const db = openDatabase(config.dbFile, (msg, meta) => bootLogger.info({ meta }, msg));
+  const presets = new PresetStore(db);
+  bootLogger.info({ file: config.dbFile }, 'SQLite 已就绪');
+
+  // 3. ComfyUI 客户端
   //    ⚠️ 所有任务共用同一个 client_id：ComfyUI 的进度只投递给提交者（v1-api.md §B.2）
   const clientId = randomUUID();
   const client: ComfyClient =
@@ -61,19 +68,19 @@ async function main(): Promise<void> {
     'ComfyUI 客户端已启动',
   );
 
-  // 3. 任务编排
+  // 4. 任务编排
   const jobs = new JobManager(client, templates, {
     clientId,
     log: (msg, meta) => bootLogger.info({ meta }, msg),
   });
   jobs.start();
 
-  // 3b. LoRA 预览缩略图缓存（WeiLin 原图 1~5MB，必须服务端缩）
+  // 4b. LoRA 预览缩略图缓存（WeiLin 原图 1~5MB，必须服务端缩）
   const thumbs = new ThumbnailCache(path.join(repoRoot, '.cache', 'loras-thumbs'), (msg, meta) =>
     bootLogger.debug({ meta }, `[thumb] ${msg}`),
   );
 
-  // 4. WeiLin 适配层（复用其注册在 ComfyUI 上的 REST 路由）
+  // 5. WeiLin 适配层（复用其注册在 ComfyUI 上的 REST 路由）
   const weilin = new WeilinClient({
     baseUrl: config.comfyBaseUrl,
     mode: config.comfyMode,
@@ -92,7 +99,7 @@ async function main(): Promise<void> {
     );
   }
 
-  // 4. HTTP
+  // 6. HTTP
   const app = Fastify({
     bodyLimit: 32 * 1024 * 1024,
     logger: {
@@ -135,9 +142,9 @@ async function main(): Promise<void> {
     });
   });
 
-  await registerRoutes(app, { config, templates, jobs, client, weilin, thumbs });
+  await registerRoutes(app, { config, templates, jobs, client, weilin, thumbs, presets });
 
-  // 5. 托管前端构建产物（若已 pnpm build）。开发期请用 pnpm dev:web（Vite 代理）。
+  // 7. 托管前端构建产物（若已 pnpm build）。开发期请用 pnpm dev:web（Vite 代理）。
   const webDist = path.join(repoRoot, 'apps', 'web', 'dist');  if (existsSync(path.join(webDist, 'index.html'))) {
     await app.register(fastifyStatic, { root: webDist, prefix: '/' });
     // SPA 回退：非 /api 的未知路径交给前端路由
@@ -166,6 +173,7 @@ async function main(): Promise<void> {
     jobs.stop();
     await app.close();
     await client.stop();
+    closeDatabase(db);
     process.exit(0);
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));

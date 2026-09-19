@@ -32,8 +32,12 @@ export function defaultValues(inputs: TemplateInput[] | undefined): FieldModel {
 }
 
 export function isVisible(input: TemplateInput, values: FieldModel): boolean {
-  if (!input.visibleIf) return true;
-  return values[input.visibleIf.key] === input.visibleIf.equals;
+  const cond = input.visibleIf;
+  if (!cond) return true;
+  const actual = values[cond.key];
+  if (cond.notEquals !== undefined) return actual !== cond.notEquals;
+  if (cond.equals !== undefined) return actual === cond.equals;
+  return true;
 }
 
 /**

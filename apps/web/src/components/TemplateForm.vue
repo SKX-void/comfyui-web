@@ -5,13 +5,17 @@
  * - 未声明 `ui.row` 的字段独占一行
  * - `ui.row` 相同的字段排在同一行（按首次出现顺序）
  * - 行内任意字段声明 `ui.swap: "<key>"` 时，该字段后出现 ⇄ 一键交换
+ * - 字段声明 `ui.preset` 时出现预设切换器（单字段在标签行右侧，
+ *   整行则在行上方；`targets` 决定预设覆盖哪些字段）
  *
  * 控件本身的渲染见 FieldControl.vue。
  */
 import { computed } from 'vue';
 import type { TemplateInput } from '@comfyui-server/shared';
 import { isVisible, type FieldModel } from '@/form';
+import { applyPreset } from '@/presets';
 import FieldControl from '@/components/FieldControl.vue';
+import PresetPicker from '@/components/PresetPicker.vue';
 
 const props = defineProps<{
   inputs: TemplateInput[];
@@ -49,6 +53,37 @@ const layout = computed<LayoutItem[]>(() => {
   return items;
 });
 
+const allKeys = computed(() => (props.inputs ?? []).map((i) => i.key));
+
+/** 归一化 ui.preset：字符串 = kind，目标为自身；对象可取显式 targets */
+function presetSpec(input: TemplateInput): { kind: string; targets: string[] } | null {
+  const p = input.ui?.preset;
+  if (!p) return null;
+  if (typeof p === 'string') return { kind: p, targets: [input.key] };
+  return { kind: p.kind, targets: p.targets ?? [input.key] };
+}
+
+/** 行内任一字段声明了 preset 就用它（一行只渲染一个切换器） */
+function rowPreset(item: LayoutItem): { kind: string; targets: string[] } | null {
+  for (const input of item.inputs) {
+    const spec = presetSpec(input);
+    if (spec) return spec;
+  }
+  return null;
+}
+
+/**
+ * 行内字段的说明文字。
+ *
+ * 行布局是 [标签][控件] 并排，没法把说明塞进单个字段下面（会把控件挤得高度不齐），
+ * 所以统一列在整行下方；行内有多条说明时带上字段名前缀，否则不知道是哪一项的。
+ */
+function rowDescs(item: LayoutItem): string[] {
+  const withDesc = item.inputs.filter((i) => i.description);
+  const needPrefix = withDesc.length > 1;
+  return withDesc.map((i) => (needPrefix ? `${i.label}：${i.description}` : i.description!));
+}
+
 function onUpdate(key: string, value: unknown): void {
   props.values[key] = value;
 }
@@ -58,9 +93,13 @@ function swap(from: TemplateInput): void {
   const other = from.ui?.swap;
   if (!other) return;
   const a = props.values[from.key];
-  const b = props.values[other];
-  props.values[from.key] = b;
+  props.values[from.key] = props.values[other];
   props.values[other] = a;
+}
+
+/** 套用预设：只写「对应得上模板 input」的键，保留键自动跳过 */
+function onApplyPreset(values: Record<string, unknown>): void {
+  applyPreset(props.values, allKeys.value, values);
 }
 </script>
 
@@ -69,10 +108,20 @@ function swap(from: TemplateInput): void {
     <template v-for="(item, idx) in layout" :key="idx">
       <!-- 独占一行 -->
       <div v-if="item.kind === 'single'" class="field">
-        <label class="field-label">
-          {{ item.inputs[0]!.label }}
-          <span v-if="item.inputs[0]!.required" class="req">*</span>
-        </label>
+        <div class="field-head">
+          <label class="field-label">
+            {{ item.inputs[0]!.label }}
+            <span v-if="item.inputs[0]!.required" class="req">*</span>
+          </label>
+          <PresetPicker
+            v-if="presetSpec(item.inputs[0]!)"
+            :kind="presetSpec(item.inputs[0]!)!.kind"
+            :targets="presetSpec(item.inputs[0]!)!.targets"
+            :values="props.values"
+            :disabled="props.disabled"
+            @apply="onApplyPreset"
+          />
+        </div>
         <FieldControl
           :input="item.inputs[0]!"
           :value="props.values[item.inputs[0]!.key]"
@@ -86,32 +135,44 @@ function swap(from: TemplateInput): void {
       </div>
 
       <!-- 同行分组 -->
-      <div v-else class="row">
-        <template v-for="input in item.inputs" :key="input.key">
-          <div class="row-field">
-            <label class="field-label">
-              {{ input.label }}
-              <span v-if="input.required" class="req">*</span>
-            </label>
-            <FieldControl
-              :input="input"
-              :value="props.values[input.key]"
-              :models="props.models"
-              :disabled="props.disabled"
-              @update="onUpdate"
-            />
-          </div>
-          <button
-            v-if="input.ui?.swap"
-            type="button"
-            class="swap"
+      <div v-else class="row-group">
+        <div v-if="rowPreset(item)" class="row-head">
+          <PresetPicker
+            :kind="rowPreset(item)!.kind"
+            :targets="rowPreset(item)!.targets"
+            :values="props.values"
             :disabled="props.disabled"
-            :title="`交换 ${input.label} 与 ${item.inputs.find((i) => i.key === input.ui!.swap)?.label ?? input.ui!.swap}`"
-            @click="swap(input)"
-          >
-            ⇄
-          </button>
-        </template>
+            @apply="onApplyPreset"
+          />
+        </div>
+        <div class="row">
+          <template v-for="input in item.inputs" :key="input.key">
+            <div class="row-field">
+              <label class="field-label">
+                {{ input.label }}
+                <span v-if="input.required" class="req">*</span>
+              </label>
+              <FieldControl
+                :input="input"
+                :value="props.values[input.key]"
+                :models="props.models"
+                :disabled="props.disabled"
+                @update="onUpdate"
+              />
+            </div>
+            <button
+              v-if="input.ui?.swap"
+              type="button"
+              class="swap"
+              :disabled="props.disabled"
+              :title="`交换 ${input.label} 与 ${item.inputs.find((i) => i.key === input.ui!.swap)?.label ?? input.ui!.swap}`"
+              @click="swap(input)"
+            >
+              ⇄
+            </button>
+          </template>
+        </div>
+        <p v-for="(d, i) in rowDescs(item)" :key="i" class="desc">{{ d }}</p>
       </div>
     </template>
   </form>
@@ -127,6 +188,12 @@ function swap(from: TemplateInput): void {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .field-label {
   font-size: 13px;
@@ -147,6 +214,15 @@ function swap(from: TemplateInput): void {
    flex-basis 取"刚好够放一个数字输入"的宽度：
    - 3 个字段在 280px 宽的手机上仍能排成一行（3×76 + 2×10 = 248）
    - 字段更多、或容器更窄时才换行，不会把 CFG 单独挤到下一行 */
+.row-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.row-head {
+  display: flex;
+  justify-content: flex-end;
+}
 .row {
   display: flex;
   align-items: flex-end;

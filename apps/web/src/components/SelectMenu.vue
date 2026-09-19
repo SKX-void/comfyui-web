@@ -1,15 +1,15 @@
 <script setup lang="ts">
 /**
- * 模型选择器。
+ * 通用下拉选择器（模型选择 / 静态枚举都走它）。
  *
  * 为什么不用原生 `<select>`：下拉面板由系统渲染，无法美化（移动端尤其粗糙），
- * 且长模型名会被截断、无法搜索。
+ * 且长选项名会被截断、无法搜索。
  *
- * 本组件提供：
- * - 可样式的下拉面板，支持**搜索过滤**
- * - **按目录分组**（模型名形如 `Anima\0.26.6.17.手办.xxx.safetensors`）
- * - 键盘操作：↑↓ 移动、Enter 选中、Esc 关闭
- * - 点外部关闭
+ * 选项是 `string[]`：
+ * - 模型名形如 `Anima\0.26.6.17.手办.xxx.safetensors` → 自动按目录分组、显示末级名
+ * - 扁平值（如 `WEBP` / `PNG`）→ 无目录，单个分组，组标题自动隐藏
+ *
+ * 键盘：↑↓ 移动、Enter 选中、Esc 关闭；点外部关闭。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 

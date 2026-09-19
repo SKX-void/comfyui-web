@@ -36,8 +36,7 @@
       ],
       "ui": {
         "multiple": true
-      },
-      "description": "写入节点 43 的 lora_str / positive（节点自己加载并注入触发词）"
+      }
     },
     {
       "key": "unet_name",
@@ -58,9 +57,9 @@
       "default": "1girl, solo, blue hair, looking at viewer",
       "ui": {
         "rows": 5,
-        "placeholder": "输入提示词"
-      },
-      "description": "写入节点 19（不加载 LoRA、不注入触发词）"
+        "placeholder": "输入提示词",
+        "preset": "prompt"
+      }
     },
     {
       "key": "qualityPos",
@@ -69,7 +68,8 @@
       "required": false,
       "default": "dramatic angle,ultra-detailed,illustration,high resolution,an extremely delicate and beautiful,Accurate describe shapes,thorough and precise,bokeh,",
       "ui": {
-        "rows": 3
+        "rows": 3,
+        "preset": "qualityPos"
       }
     },
     {
@@ -79,8 +79,51 @@
       "required": false,
       "default": "blurry, soft focus, lowres, jpeg artifacts, chromatic aberration, artist name, oil painting, painterly, thick brushstrokes, impasto, canvas texture, traditional media, sketch, ugly, deformed, bad anatomy, bad hands, deformed hands, extra fingers, fused fingers, mutated hands, poorly drawn face, bad eyes, asymmetrical eyes,",
       "ui": {
-        "rows": 3
+        "rows": 3,
+        "preset": "qualityNeg"
       }
+    },
+    {
+      "key": "fileFormat",
+      "label": "输出格式",
+      "type": "select",
+      "required": false,
+      "default": "WEBP",
+      "source": {
+        "kind": "static",
+        "options": [
+          {
+            "label": "PNG",
+            "value": "PNG"
+          },
+          {
+            "label": "WEBP",
+            "value": "WEBP"
+          },
+          {
+            "label": "JPEG",
+            "value": "JPEG"
+          }
+        ]
+      },
+      "description": "PNG 会把完整工作流写进图片元数据（约 1.5MB）；WEBP 小 15 倍但不含正提示词"
+    },
+    {
+      "key": "quality",
+      "label": "输出质量",
+      "type": "number",
+      "required": false,
+      "default": 80,
+      "ui": {
+        "min": 1,
+        "max": 100,
+        "step": 1
+      },
+      "visibleIf": {
+        "key": "fileFormat",
+        "notEquals": "PNG"
+      },
+      "description": "仅 WEBP / JPEG 生效"
     },
     {
       "key": "seed",
@@ -130,7 +173,14 @@
         "max": 4096,
         "step": 8,
         "row": "size",
-        "swap": "height"
+        "swap": "height",
+        "preset": {
+          "kind": "size",
+          "targets": [
+            "width",
+            "height"
+          ]
+        }
       }
     },
     {
@@ -194,6 +244,14 @@
     {
       "target": "32.inputs.height",
       "from": "height"
+    },
+    {
+      "target": "57.inputs.file_format",
+      "from": "fileFormat"
+    },
+    {
+      "target": "57.inputs.quality",
+      "from": "quality"
     }
   ],
   "promptBinding": {
