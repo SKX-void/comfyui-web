@@ -1,0 +1,11 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# esbuild 需要 postinstall 才能就位（tsx / vite 都依赖它）
+allowBuilds:
+  esbuild: true
+
+# store 放仓库内：本环境 HOME 是只读挂载，默认 store 路径不可写。
+# 若你的机器 HOME 可写，可删掉这一行以复用全局 store。
+storeDir: .pnpm-store

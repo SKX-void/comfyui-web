@@ -1,0 +1,271 @@
+{
+  "17": {
+    "inputs": {
+      "unet_name": "Anima\\0.26.9.12.NAI.RDBT  Anima.b1V23Base_fp16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "19": {
+    "inputs": {
+      "positive": "1girl, solo, tight black bunny leotard, bodysuit under clothes, black bodystocking, black bodysuit under the leotard, skindentation, black silk latex long gloves, rabbit-ear headband, blue hair with pink streaked highlights, blue eyes, large breasts, lying down, looking at viewer, smirk, half-lidded eyes, heavy breathing, flushed face, turned on, seductive expression, very sweaty, covered chest, covered shoulders, stocking covered breasts, heart-shaped cutout on lower abdomen, open crotch with fabric cut away, vulva and pussy completely exposed through the open crotch, fat plump mons pubis, thick puffy mons, full swollen mons pubis, detailed vulva, visible vaginal opening, prominent clitoris, pussy juice.",
+      "auto_random": false,
+      "temp_str": "[{\"id\":\"token_1_1789573777842\",\"text\":\"black bodystocking\",\"translate\":\"黑色 全身袜\",\"isPunctuation\":false,\"isEditing\":false,\"isHidden\":false,\"color\":\"rgba(230, 84, 128, .4)\",\"isLoraTag\":false}]",
+      "random_template": "",
+      "打开提示词编辑器": "",
+      "opt_text": [
+        "43",
+        0
+      ],
+      "opt_clip": [
+        "43",
+        2
+      ]
+    },
+    "class_type": "WeiLinPromptUIWithoutLora",
+    "_meta": {
+      "title": "WeiLin 提示词编辑器"
+    }
+  },
+  "22": {
+    "inputs": {
+      "rotation": "none",
+      "samples": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "LatentRotate",
+    "_meta": {
+      "title": "旋转Latent"
+    }
+  },
+  "24": {
+    "inputs": {
+      "clip_name": "Anima\\Qwen-3-0.6B baseanima.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "25": {
+    "inputs": {
+      "enable_replay": false,
+      "block_indices": "3,4,5",
+      "denoise_start_pct": 0.5,
+      "denoise_end_pct": 1,
+      "enable_spectrum": false,
+      "spectrum_w": 0.2,
+      "spectrum_m": 16,
+      "spectrum_lam": 0.5,
+      "spectrum_warmup_steps": 6,
+      "spectrum_window_size": 2,
+      "spectrum_flex_window": 0,
+      "model": [
+        "43",
+        3
+      ]
+    },
+    "class_type": "AnimaLayerReplayPatcher",
+    "_meta": {
+      "title": "Anima Layer Replay Patcher"
+    }
+  },
+  "26": {
+    "inputs": {
+      "eta": 0.5,
+      "sampler_name": "linear/euler",
+      "scheduler": "beta57",
+      "steps": [
+        "49",
+        0
+      ],
+      "steps_to_run": -1,
+      "denoise": 1,
+      "cfg": [
+        "46",
+        0
+      ],
+      "seed": [
+        "47",
+        0
+      ],
+      "sampler_mode": "standard",
+      "bongmath": true,
+      "model": [
+        "51",
+        0
+      ],
+      "positive": [
+        "19",
+        1
+      ],
+      "negative": [
+        "33",
+        0
+      ],
+      "latent_image": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "ClownsharKSampler_Beta",
+    "_meta": {
+      "title": "ClownsharKSampler"
+    }
+  },
+  "27": {
+    "inputs": {
+      "samples": [
+        "26",
+        0
+      ],
+      "vae": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "28": {
+    "inputs": {
+      "text": "dramatic angle,ultra-detailed,illustration,high resolution,an extremely delicate and beautiful,Accurate describe shapes,thorough and precise,bokeh,"
+    },
+    "class_type": "CR Text",
+    "_meta": {
+      "title": "+"
+    }
+  },
+  "30": {
+    "inputs": {
+      "vae_name": "Anima\\Qwen-Image VAE_qwenImageVAE.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "32": {
+    "inputs": {
+      "width": 832,
+      "height": 1216,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "空Latent图像"
+    }
+  },
+  "33": {
+    "inputs": {
+      "text": " blurry, soft focus, lowres, jpeg artifacts, chromatic aberration, artist name, oil painting, painterly, thick brushstrokes, impasto, canvas texture, traditional media, sketch, ugly, deformed, bad anatomy, bad hands, deformed hands, extra fingers, fused fingers, mutated hands, poorly drawn face, bad eyes, asymmetrical eyes, ",
+      "clip": [
+        "43",
+        2
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "-"
+    }
+  },
+  "43": {
+    "inputs": {
+      "positive": "<wlr:Anima\\Anima Turbo LoRA-v0.2:0.9:1:1>, <wlr:Anima\\画师\\taffy-style:0.9:1:1>",
+      "auto_random": false,
+      "lora_str": "[{\"name\":\"Anima\\\\Anima Turbo LoRA-v0.2\",\"weight\":0.9,\"text_encoder_weight\":1,\"display_name\":\"Anima Turbo LoRA - v0.2\",\"lora\":\"Anima\\\\Anima Turbo LoRA-v0.2.safetensors\",\"trigger_weight\":1,\"loraWorks\":\"\",\"hidden\":false},{\"name\":\"Anima\\\\画师\\\\taffy-style\",\"weight\":0.9,\"text_encoder_weight\":1,\"display_name\":\"taffy-style - v1.0\",\"lora\":\"Anima\\\\画师\\\\taffy-style.safetensors\",\"trigger_weight\":1,\"loraWorks\":\"@bantan\"}]",
+      "temp_str": "[{\"id\":\"token_1_1787936746245\",\"text\":\"<wlr:Anima\\\\Anima Turbo LoRA-v0.2:0.9:1:1>\",\"translate\":\"Anima\\\\Anima Turbo LoRA-v0.2\",\"isPunctuation\":false,\"isEditing\":false,\"isHidden\":false,\"color\":null,\"isLoraTag\":false},{\"id\":\"token_1_1789738595640\",\"text\":\"<wlr:Anima\\\\画师\\\\iceque style:0.8:1:1>\",\"translate\":\"Anima\\\\画师\\\\iceque style\",\"isPunctuation\":false,\"isEditing\":false,\"isHidden\":false,\"color\":null,\"isLoraTag\":false}]",
+      "temp_lora_str": "[{\"name\":\"Anima\\\\Anima Turbo LoRA-v0.2\",\"weight\":0.9,\"text_encoder_weight\":1,\"display_name\":\"Anima Turbo LoRA - v0.2\",\"lora\":\"Anima\\\\Anima Turbo LoRA-v0.2.safetensors\",\"trigger_weight\":1,\"loraWorks\":\"\",\"hidden\":false},{\"name\":\"Anima\\\\画师\\\\taffy-style\",\"weight\":0.9,\"text_encoder_weight\":1,\"display_name\":\"taffy-style - v1.0\",\"lora\":\"Anima\\\\画师\\\\taffy-style.safetensors\",\"trigger_weight\":1,\"loraWorks\":\"@bantan\"}]",
+      "random_template": "",
+      "打开提示词编辑器": "",
+      "打开Lora堆": "",
+      "opt_text": [
+        "28",
+        0
+      ],
+      "opt_clip": [
+        "24",
+        0
+      ],
+      "opt_model": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "WeiLinPromptUI",
+    "_meta": {
+      "title": "WeiLin 全能提示词编辑器"
+    }
+  },
+  "46": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "浮点数"
+    }
+  },
+  "47": {
+    "inputs": {
+      "seed": -1
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "Seed (rgthree)"
+    }
+  },
+  "49": {
+    "inputs": {
+      "value": 6
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "INT Constant"
+    }
+  },
+  "51": {
+    "inputs": {
+      "rel_l1_thresh": 0.15,
+      "start_percent": 0.4,
+      "end_percent": 1,
+      "cache_device": "cuda",
+      "model": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "AnimaTeaCache",
+    "_meta": {
+      "title": "Anima TeaCache"
+    }
+  },
+  "57": {
+    "inputs": {
+      "enable": true,
+      "filename_prefix": "server",
+      "file_format": "WEBP",
+      "quality": 80,
+      "embed_workflow": true,
+      "save_clean_copy": false,
+      "enable_preview": true,
+      "images": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "SaveImagePlus",
+    "_meta": {
+      "title": "保存图像增强版 (Save Image Plus)"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.pnpm-store/
+*.log
+.DS_Store
+.env
+.env.local
+*.tsbuildinfo
+
+# 本机私密配置（覆盖 config.json）
+config.local.json
+.cache/

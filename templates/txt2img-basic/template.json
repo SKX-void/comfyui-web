@@ -1,0 +1,211 @@
+{
+  "id": "txt2img-basic",
+  "name": "基础文生图（WeiLin + Anima）",
+  "description": "沿用拆分式节点设计：43 负责 LoRA 加载与触发词注入，19 负责主提示词，28/33 负责质量词。",
+  "version": "1.0.0",
+  "source": {
+    "file": "graph.json",
+    "capturedAt": "2026-09-18T16:46:00Z"
+  },
+  "requirements": {
+    "nodes": [
+      "UNETLoader",
+      "CLIPLoader",
+      "VAELoader",
+      "EmptyLatentImage",
+      "ClownsharKSampler_Beta",
+      "VAEDecode",
+      "WeiLinPromptUI",
+      "WeiLinPromptUIWithoutLora",
+      "SaveImagePlus"
+    ],
+    "weilin": true
+  },
+  "inputs": [
+    {
+      "key": "loras",
+      "label": "LoRA",
+      "type": "lora-select",
+      "required": false,
+      "default": [
+        {
+          "name": "Anima\\Anima Turbo LoRA-v0.2",
+          "lora": "Anima\\Anima Turbo LoRA-v0.2.safetensors",
+          "weight": 0.9
+        }
+      ],
+      "ui": {
+        "multiple": true
+      },
+      "description": "写入节点 43 的 lora_str / positive（节点自己加载并注入触发词）"
+    },
+    {
+      "key": "unet_name",
+      "label": "主模型",
+      "type": "model-select",
+      "required": true,
+      "default": "Anima\\0.26.9.12.NAI.RDBT  Anima.b1V23Base_fp16.safetensors",
+      "source": {
+        "kind": "comfy",
+        "folder": "diffusion_models"
+      }
+    },
+    {
+      "key": "prompt",
+      "label": "正向提示词",
+      "type": "tag-selector",
+      "required": true,
+      "default": "1girl, solo, blue hair, looking at viewer",
+      "ui": {
+        "rows": 5,
+        "placeholder": "输入提示词"
+      },
+      "description": "写入节点 19（不加载 LoRA、不注入触发词）"
+    },
+    {
+      "key": "qualityPos",
+      "label": "质量词（正）",
+      "type": "textarea",
+      "required": false,
+      "default": "dramatic angle,ultra-detailed,illustration,high resolution,an extremely delicate and beautiful,Accurate describe shapes,thorough and precise,bokeh,",
+      "ui": {
+        "rows": 3
+      }
+    },
+    {
+      "key": "qualityNeg",
+      "label": "质量词（负）",
+      "type": "textarea",
+      "required": false,
+      "default": "blurry, soft focus, lowres, jpeg artifacts, chromatic aberration, artist name, oil painting, painterly, thick brushstrokes, impasto, canvas texture, traditional media, sketch, ugly, deformed, bad anatomy, bad hands, deformed hands, extra fingers, fused fingers, mutated hands, poorly drawn face, bad eyes, asymmetrical eyes,",
+      "ui": {
+        "rows": 3
+      }
+    },
+    {
+      "key": "seed",
+      "label": "种子",
+      "type": "seed",
+      "required": false,
+      "default": -1,
+      "description": "-1 表示每次随机",
+      "ui": {
+        "row": "sampling"
+      }
+    },
+    {
+      "key": "steps",
+      "label": "步数",
+      "type": "number",
+      "required": false,
+      "default": 6,
+      "ui": {
+        "min": 1,
+        "max": 200,
+        "step": 1,
+        "row": "sampling"
+      }
+    },
+    {
+      "key": "cfg",
+      "label": "CFG",
+      "type": "number",
+      "required": false,
+      "default": 1,
+      "ui": {
+        "min": 0,
+        "max": 30,
+        "step": 0.1,
+        "row": "sampling"
+      }
+    },
+    {
+      "key": "width",
+      "label": "宽",
+      "type": "number",
+      "required": false,
+      "default": 832,
+      "ui": {
+        "min": 64,
+        "max": 4096,
+        "step": 8,
+        "row": "size",
+        "swap": "height"
+      }
+    },
+    {
+      "key": "height",
+      "label": "高",
+      "type": "number",
+      "required": false,
+      "default": 1216,
+      "ui": {
+        "min": 64,
+        "max": 4096,
+        "step": 8,
+        "row": "size"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "target": "43.inputs.lora_str",
+      "from": "loras",
+      "transform": "weilinLora"
+    },
+    {
+      "target": "43.inputs.positive",
+      "from": "loras",
+      "transform": "weilinLoraTags"
+    },
+    {
+      "target": "28.inputs.text",
+      "from": "qualityPos"
+    },
+    {
+      "target": "19.inputs.positive",
+      "from": "prompt"
+    },
+    {
+      "target": "33.inputs.text",
+      "from": "qualityNeg"
+    },
+    {
+      "target": "17.inputs.unet_name",
+      "from": "unet_name"
+    },
+    {
+      "target": "47.inputs.seed",
+      "from": "seed",
+      "transform": "seed"
+    },
+    {
+      "target": "49.inputs.value",
+      "from": "steps"
+    },
+    {
+      "target": "46.inputs.value",
+      "from": "cfg"
+    },
+    {
+      "target": "32.inputs.width",
+      "from": "width"
+    },
+    {
+      "target": "32.inputs.height",
+      "from": "height"
+    }
+  ],
+  "promptBinding": {
+    "node": "19",
+    "positiveField": "positive",
+    "tempStrField": "temp_str",
+    "loraStackNode": "43"
+  },
+  "outputs": {
+    "nodes": [
+      "57"
+    ],
+    "type": "image"
+  }
+}
