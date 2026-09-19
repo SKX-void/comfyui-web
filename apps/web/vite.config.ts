@@ -49,6 +49,21 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    /**
+     * 前端产物直接落到**仓库根的 `dist/web`**，与后端单文件 `dist/server.mjs` 并列：
+     *
+     *   dist/
+     *   ├── server.mjs     ← esbuild 产物
+     *   └── web/           ← vite 产物（index.html + assets/）
+     *
+     * 这样"前端目录"相对服务端就是一个**固定路径**（`<server.mjs 所在目录>/web`），
+     * 整个 dist/ 可以整体搬走部署，不需要任何额外的路径配置。
+     */
+    outDir: fileURLToPath(new URL('../../dist/web', import.meta.url)),
+    // 清空的是 dist/web 本身，不会碰到旁边的 server.mjs
+    emptyOutDir: true,
+  },
   server: {
     // 监听所有网卡，便于从其它机器访问（局域网调试）
     host: '0.0.0.0',

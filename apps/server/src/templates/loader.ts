@@ -4,9 +4,15 @@ import type { Graph, TemplateDef } from '@comfyui-server/shared';
 import { AppError } from '../errors.js';
 import type { LoadedTemplate } from './render.js';
 import { KNOWN_TRANSFORMS } from './transforms.js';
+import { describeCount, describeHit, effectiveBounds, scanGraph } from '../safety/limits.js';
 
-/** 校验模板定义 + graph 的一致性。任何问题都抛出，绝不静默降级。 */
-export function validateTemplate(def: TemplateDef, graph: Graph, origin: string): void {
+/**
+ * 校验模板定义 + graph 的一致性。任何问题都抛出，绝不静默降级。
+ *
+ * 返回值是**告警**（不阻断启动）：目前只有"模板自带的越界值会被护栏夹紧"这一类，
+ * 交给调用方打日志，让运维在启动期就能看见。
+ */
+export function validateTemplate(def: TemplateDef, graph: Graph, origin: string): string[] {
   const problems: string[] = [];
 
   if (!def.id) problems.push('缺少 id');
@@ -50,12 +56,46 @@ export function validateTemplate(def: TemplateDef, graph: Graph, origin: string)
     if (!graph[outNode]) problems.push(`outputs.nodes 指向不存在的节点: ${outNode}`);
   }
 
+  // ---- 安全护栏（v1-safety.md）------------------------------------------
+  // 1) 表单默认值不得越过安全上限：这种模板一提交必被拒，属于作者笔误，启动期就拦下
+  for (const input of def.inputs ?? []) {
+    const bounds = effectiveBounds(def, graph, input);
+    if (!bounds.fromPolicy) continue;
+    const v = input.default;
+    if (typeof v !== 'number' || !Number.isFinite(v)) continue;
+    const what = `${input.label}（inputs.${input.key}）`;
+    const limit = bounds.label ?? '安全';
+    if (bounds.max !== undefined && v > bounds.max) {
+      problems.push(`${what} 的 default=${v} 超过${limit}上限 ${bounds.max}`);
+    }
+    if (bounds.min !== undefined && v < bounds.min) {
+      problems.push(`${what} 的 default=${v} 低于${limit}下限 ${bounds.min}`);
+    }
+  }
+
+  // 2) 被管控字段的取值必须能判定：判定不了就等于"不知道会不会打爆显存"，一律拒绝
+  const scan = scanGraph(graph);
+  for (const u of scan.unresolved) {
+    problems.push(`安全上限无法校验：${u.detail}`);
+  }
+
+  // 3) 数量超限（例如图里写死了 9 个 LoRA）：不夹紧，直接拦，属于模板笔误
+  for (const c of scan.overCount) {
+    problems.push(describeCount(c));
+  }
+
+  // 4) 模板自带的越界数值不阻断启动（提交时会被夹紧），但要让人看见
+  const warnings = scan.hits.map(
+    (h) => `模板 ${origin} 的 ${describeHit(h)} —— 提交时会被夹紧到 ${h.fixed}`,
+  );
+
   if (problems.length > 0) {
     throw new Error(`模板 ${origin} 校验失败:\n  - ${problems.join('\n  - ')}`);
   }
+  return warnings;
 }
 
-async function loadOne(dir: string): Promise<LoadedTemplate> {
+async function loadOne(dir: string): Promise<{ tpl: LoadedTemplate; warnings: string[] }> {
   const tplPath = path.join(dir, 'template.json');
   const raw = await fs.readFile(tplPath, 'utf8');
   let def: TemplateDef;
@@ -74,14 +114,18 @@ async function loadOne(dir: string): Promise<LoadedTemplate> {
   const graphRaw = await fs.readFile(graphPath, 'utf8');
   const graph = JSON.parse(graphRaw) as Graph;
 
-  validateTemplate(def, graph, def.id);
-  return { def, graph, dir };
+  const warnings = validateTemplate(def, graph, def.id);
+  return { tpl: { def, graph, dir }, warnings };
 }
 
 export class TemplateRegistry {
   private readonly byId = new Map<string, LoadedTemplate>();
 
-  constructor(private readonly templatesDir: string) {}
+  constructor(
+    private readonly templatesDir: string,
+    /** 启动期告警出口（安全护栏的"模板自带越界"提示走这里） */
+    private readonly log?: (msg: string, meta?: unknown) => void,
+  ) {}
 
   /** 启动时加载全部模板；任一模板非法则**整体启动失败**（快速失败） */
   async load(): Promise<void> {
@@ -104,10 +148,11 @@ export class TemplateRegistry {
         continue; // 不是模板目录
       }
       try {
-        const tpl = await loadOne(dir);
+        const { tpl, warnings } = await loadOne(dir);
         if (this.byId.has(tpl.def.id)) {
           throw new Error(`模板 id 重复: ${tpl.def.id}`);
         }
+        for (const w of warnings) this.log?.(w);
         this.byId.set(tpl.def.id, tpl);
       } catch (err) {
         errors.push((err as Error).message);

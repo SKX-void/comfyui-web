@@ -10,4 +10,10 @@ dist/
 # 本机私密配置（覆盖 config.json）
 config.local.json
 .cache/
-.data/
+.data/**
+
+# docker-compose 的可写卷（./data:/data）
+/data/
+
+
+!.data/.gitkeep

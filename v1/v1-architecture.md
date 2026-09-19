@@ -229,6 +229,48 @@ apps/web/src/
 
 - server 托管 SPA 静态产物（生产模式单进程）
 - 开发模式：Vite dev server (5173) + server (8080)，Vite proxy 指向 server
+- 容器：`docker-compose.yml` 用官方 node 镜像 + **只读挂载产物**（不需要 Dockerfile /
+  `npm install`）；可写卷只有 `/data`（SQLite + `CACHE_DIR` 缩略图缓存）
+
+### 构建产物（已落地）
+
+`pnpm build` 产出仓库根下一个**自包含的 `dist/`**，运行期不需要 Vite、也不需要 node_modules：
+
+```
+dist/
+├── server.mjs      esbuild（bundle + ESM + target: node24），1.90 MB / 361 模块，无 .map
+└── web/            vite build（index.html + assets/）
+```
+
+一个进程同时当 API 服务器与静态文件服务器：
+
+```
+node dist/server.mjs   →   /api/* 走接口，其余交给前端（SPA 回退 index.html）
+```
+
+**前端目录的位置是固定的**：`<server.mjs 所在目录>/web`。
+打包态 `server.mjs` 就在 `dist/` 里，所以整包搬到任何地方都成立；
+源码态（`tsx src/index.ts`）解析成 `<仓库根>/dist/web`，是同一份布局。
+这条由 `config.ts` 用构建期注入的 `__BUNDLED__` 区分。
+
+**模板跟产物一起走**：`template.json` 的 bindings 指向写死的节点/字段、
+`requirements.nodes` 指向具体节点类、transform 名字要在 `transforms.ts` 里找得到 ——
+模板与 server 是强代码耦合的，所以 `pnpm build` 把 `../templates` 拷进 `dist/templates/`，
+与 `server.mjs` 版本锁定，部署时不单独挂载。
+
+**运行期数据不打进包**：`config.json` / `dataDir` / `cacheDir` 按"根"定位，
+解析顺序 = `REPO_ROOT` 环境变量 → 向上找 `pnpm-workspace.yaml` →
+都没有就**以产物所在目录为根**（把 `dist/` 内容解压出来直接跑）。
+所以改配置、重新构建前端都不用重新打后端（改模板要）。
+
+五条硬约束（详见 [README](../README.md)「构建与部署」）：
+
+1. 必须 **ESM** 输出 —— 源码用 `import.meta.url` 定位目录，CJS 输出会把它抹成 `{}`。
+2. `NODE_ENV` **固化进产物**（`define`）—— pino 的 `pino-pretty` transport
+   是运行时按模块名 spawn worker，打不进包。
+3. `bufferutil` / `utf-8-validate` 标 **external** —— `ws` 的可选原生加速件。
+4. `__BUNDLED__` 由 esbuild `define` 注入，源码态下只能用 `typeof` 判断（它不存在）。
+5. Node **≥ 24** —— `node:sqlite` 无 flag 可用（`engines` 与 esbuild `target` 都按此对齐）。
 
 ### v2 预留（多用户）
 

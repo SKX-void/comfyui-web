@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "tsc --noEmit",
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "bundle": "node scripts/build.mjs",
+    "start:bundle": "node dist/server.mjs",
     "typecheck": "tsc --noEmit",
     "smoke": "tsx scripts/smoke.ts"
   },
@@ -24,6 +26,7 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/ws": "^8.5.13",
+    "esbuild": "0.25.12",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

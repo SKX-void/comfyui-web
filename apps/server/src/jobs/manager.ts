@@ -10,6 +10,7 @@ import { AppError } from '../errors.js';
 import type { ComfyClient, ComfyEvent } from '../comfy/types.js';
 import type { TemplateRegistry } from '../templates/loader.js';
 import { renderTemplate } from '../templates/render.js';
+import { MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../safety/quota.js';
 
 /** 把「产出图片」编码成可逆的 assetId，避免额外持久化 */
 export function encodeAssetId(a: { type: string; subfolder: string; filename: string }): string {
@@ -35,6 +36,10 @@ interface ManagerOptions {
   sweepIntervalMs?: number;
   /** 判定"上游已丢失该任务"的静默时长（毫秒），默认 120s */
   staleJobMs?: number;
+  /** 在途任务上限，默认 MAX_QUEUE_DEPTH（可注入便于测试） */
+  maxQueueDepth?: number;
+  /** 任务表保留条数，默认 MAX_JOBS_RETAINED（可注入便于测试） */
+  maxJobsRetained?: number;
 }
 
 const TERMINAL: ReadonlySet<Job['status']> = new Set(['succeeded', 'failed', 'canceled']);
@@ -47,6 +52,8 @@ export class JobManager {
   private sweepTimer: NodeJS.Timeout | null = null;
   private readonly sweepIntervalMs: number;
   private readonly staleJobMs: number;
+  private readonly maxQueueDepth: number;
+  private readonly maxJobsRetained: number;
 
   constructor(
     private readonly client: ComfyClient,
@@ -56,6 +63,8 @@ export class JobManager {
     this.bus.setMaxListeners(0);
     this.sweepIntervalMs = opts.sweepIntervalMs ?? 10_000;
     this.staleJobMs = opts.staleJobMs ?? 120_000;
+    this.maxQueueDepth = opts.maxQueueDepth ?? MAX_QUEUE_DEPTH;
+    this.maxJobsRetained = opts.maxJobsRetained ?? MAX_JOBS_RETAINED;
   }
 
   start(): void {
@@ -135,20 +144,23 @@ export class JobManager {
 
   async submit(req: CreateJobRequest): Promise<Job> {
     const tpl = this.templates.get(req.templateId);
-    const { graph, values } = renderTemplate(tpl, req.values ?? {});
+    const { graph, values, safety } = renderTemplate(tpl, req.values ?? {});
 
-    // 模板里声明的必需节点是否都已加载（v1-roadmap M2 验收）
-    if (tpl.def.requirements?.nodes?.length) {
-      const info = await this.client.getObjectInfo();
-      const missing = tpl.def.requirements.nodes.filter((n) => !(n in info));
-      if (missing.length > 0) {
-        throw AppError.graphValidation(
-          `模板 ${tpl.def.id} 依赖的节点未加载: ${missing.join(', ')}`,
-          { missing },
-        );
-      }
+    // 安全护栏夹紧了模板自带的越界值（用户填的值越界会在这里之前就抛错）
+    if (safety.clamped.length > 0) {
+      this.opts.log('安全护栏夹紧了模板自带的越界值', {
+        templateId: tpl.def.id,
+        clamped: safety.clamped.map((h) => ({
+          at: `${h.at.nodeId}.inputs.${h.at.field}`,
+          from: h.value,
+          to: h.fixed,
+          rule: h.ruleId,
+        })),
+      });
     }
 
+    // 先登记再校验：这段没有 await，Node 单线程下并发提交不会都数到同一个旧值
+    //（否则 5 个人能同时挤进同一个空位）。登记之后本任务即计入在途数。
     const now = new Date().toISOString();
     const jobId = `j_${randomUUID()}`;
 
@@ -169,33 +181,98 @@ export class JobManager {
     };
     this.jobs.set(jobId, job);
 
-    const result = await this.client.submit(graph, this.opts.clientId, {
-      // 把 API 图作为额外元数据交给保存节点。
-      // 键名刻意不叫 "workflow" —— 那是 ComfyUI UI 格式，前端打开会解析失败；
-      // 我们只用于自己恢复参数。
-      extra_pnginfo: { api_workflow: graph },
-    });
-
-    if (Object.keys(result.nodeErrors).length > 0) {
-      job.status = 'failed';
-      job.error = {
-        code: 'GRAPH_VALIDATION_FAILED',
-        message: 'ComfyUI 报告节点校验错误',
-        detail: result.nodeErrors,
-      };
-      job.finishedAt = new Date().toISOString();
-      this.emit(job, 'error', { code: job.error.code, message: job.error.message });
-      throw AppError.graphValidation('ComfyUI 报告节点校验错误', result.nodeErrors);
+    const inFlight = this.countInFlight();
+    if (inFlight > this.maxQueueDepth) {
+      this.jobs.delete(jobId);
+      this.opts.log('队列已满，拒绝提交', { inFlight: inFlight - 1, max: this.maxQueueDepth });
+      throw AppError.queueFull(this.maxQueueDepth);
     }
 
-    job.promptId = result.promptId;
-    job.status = 'queued';
-    this.promptToJob.set(result.promptId, jobId);
+    // 顺带按条数淘汰最旧的已终态任务（在途任务永不淘汰）
+    this.evictOldJobs();
 
-    this.opts.log('任务已提交', { jobId, promptId: result.promptId, templateId: tpl.def.id });
-    this.emit(job, 'queued', { promptId: result.promptId, status: job.status });
+    // handedOff = 这个任务已经"交出去"（提交成功或留下了失败记录），值得留在列表里。
+    // 否则说明它在任何一步失败了，必须释放占位，免得占着名额又没人清。
+    let handedOff = false;
+    try {
+      // 模板里声明的必需节点是否都已加载（v1-roadmap M2 验收）
+      if (tpl.def.requirements?.nodes?.length) {
+        const info = await this.client.getObjectInfo();
+        const missing = tpl.def.requirements.nodes.filter((n) => !(n in info));
+        if (missing.length > 0) {
+          throw AppError.graphValidation(
+            `模板 ${tpl.def.id} 依赖的节点未加载: ${missing.join(', ')}`,
+            { missing },
+          );
+        }
+      }
 
-    return job;
+      const result = await this.client.submit(graph, this.opts.clientId, {
+        // 把 API 图作为额外元数据交给保存节点。
+        // 键名刻意不叫 "workflow" —— 那是 ComfyUI UI 格式，前端打开会解析失败；
+        // 我们只用于自己恢复参数。
+        extra_pnginfo: { api_workflow: graph },
+      });
+
+      if (Object.keys(result.nodeErrors).length > 0) {
+        job.status = 'failed';
+        job.error = {
+          code: 'GRAPH_VALIDATION_FAILED',
+          message: 'ComfyUI 报告节点校验错误',
+          detail: result.nodeErrors,
+        };
+        job.finishedAt = new Date().toISOString();
+        handedOff = true;
+        this.emit(job, 'error', { code: job.error.code, message: job.error.message });
+        throw AppError.graphValidation('ComfyUI 报告节点校验错误', result.nodeErrors);
+      }
+
+      job.promptId = result.promptId;
+      job.status = 'queued';
+      this.promptToJob.set(result.promptId, jobId);
+      handedOff = true;
+
+      this.opts.log('任务已提交', { jobId, promptId: result.promptId, templateId: tpl.def.id });
+      this.emit(job, 'queued', { promptId: result.promptId, status: job.status });
+
+      return job;
+    } catch (err) {
+      if (!handedOff) this.jobs.delete(jobId);
+      throw err;
+    }
+  }
+
+  /** 在途任务数（created / queued / running） */
+  private countInFlight(): number {
+    let n = 0;
+    for (const j of this.jobs.values()) {
+      if (!TERMINAL.has(j.status)) n += 1;
+    }
+    return n;
+  }
+
+  /**
+   * 任务表按条数淘汰：超过上限时**从最旧的开始丢**（Map 保持插入顺序，
+   * 也就是"从前舍弃"）。只丢已终态的任务 —— 在途任务被丢掉就意味着
+   * 它永远收不到终态事件，还会一直占着队列名额。
+   */
+  private evictOldJobs(): void {
+    if (this.jobs.size <= this.maxJobsRetained) return;
+    let dropped = 0;
+    for (const [id, j] of this.jobs) {
+      if (this.jobs.size <= this.maxJobsRetained) break;
+      if (!TERMINAL.has(j.status)) continue;
+      this.jobs.delete(id);
+      if (j.promptId) this.promptToJob.delete(j.promptId);
+      dropped += 1;
+    }
+    if (dropped > 0) {
+      this.opts.log('任务表超出上限，已从最旧的开始淘汰', {
+        dropped,
+        retained: this.jobs.size,
+        max: this.maxJobsRetained,
+      });
+    }
   }
 
   get(jobId: string): Job {

@@ -22,6 +22,7 @@ import {
   type ThumbnailCache,
 } from '../weilin/thumb.js';
 import type { ServerConfig } from '../config.js';
+import { narrowTemplateBounds } from '../safety/limits.js';
 
 export interface RouteDeps {
   config: ServerConfig;
@@ -54,8 +55,12 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
   app.get('/api/templates/:id', async (req) => {
     const { id } = req.params as { id: string };
     const tpl = templates.get(id);
+    // 用安全策略收窄下发的 ui.min/max（v1-safety.md）：
+    // 前端滑块/数字框因此不会给出"填了也一定会被拒"的区间，
+    // 而且改上限只需改策略一处，不用回头改 template.json 里的提示值。
+    const def = narrowTemplateBounds(tpl.def, tpl.graph);
     const detail: TemplateDetail = {
-      ...tpl.def,
+      ...def,
       graphNodeCount: Object.keys(tpl.graph).length,
     };
     return detail;

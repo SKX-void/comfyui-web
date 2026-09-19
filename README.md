@@ -16,8 +16,8 @@ ComfyUI 的**轻前端服务器**：用一个网页表单调用 ComfyUI 出图�
 pnpm install
 
 # 方式 A：mock 模式（无需 ComfyUI，内置模拟器，可立即验证全链路）
-pnpm build            # 先构建前端产物，server 会直接托管
-COMFY_MODE=mock pnpm --filter @comfyui-server/server start
+pnpm build            # → dist/server.mjs + dist/web/
+node dist/server.mjs
 # 打开 http://127.0.0.1:8080
 
 # 方式 B：连接真实 ComfyUI
@@ -64,12 +64,175 @@ pnpm smoke
 
 ---
 
+## 构建与部署
+
+一条命令，产出**根目录下自包含的 `dist/`**：
+
+```bash
+pnpm build
+```
+
+```
+dist/
+├── server.mjs      后端单文件（esbuild，约 1.9 MB，**不需要 node_modules**；无 .map）
+├── web/            前端静态产物（vite build：index.html + assets/ + brush.svg）
+└── templates/      工作流模板（与 server.mjs 版本锁定，见下）
+```
+
+然后**一个进程同时当 API 服务器和静态文件服务器**：
+
+```bash
+node dist/server.mjs                    # 或 pnpm --filter @comfyui-server/server start:bundle
+```
+
+打开 `http://<host>:<config.json 的 port>` 就是完整应用：`/api/*` 走接口，
+其余路径交给前端（`@fastify/static` + 未知路径回退到 `index.html`）。
+**生产环境不需要 Vite** —— 它只是构建期工具，不是运行期组件。
+
+### 前端目录的位置是**固定的**：`<server.mjs 所在目录>/web`
+
+这条规则由 `config.ts` 保证（前端 outDir 由 `apps/web/vite.config.ts` 指向 `../../dist/web`）：
+
+```
+打包态：server.mjs 就在 dist/ 里 → webDir = <所在目录>/web   ← 与仓库在哪无关
+源码态：tsx 跑 src/index.ts     → webDir = <仓库根>/dist/web ← 同一份布局
+```
+
+所以 `dist/` 是一个**部署单元，可以整体搬到任何地方**：
+
+```
+/opt/whatever/          ← 把 dist/ 的内容解压到这里就行
+├── server.mjs
+├── web/
+├── config.json         # 可选；不给就用内置默认值 + 环境变量
+├── templates/          # 模板（必须）
+└── data/               # 自动创建（SQLite）
+```
+
+```bash
+cd /opt/whatever && node server.mjs     # 直接跑，不需要任何路径环境变量
+```
+
+`templatesDir` / `dataDir` / `config.json` 的解析基准（"仓库根"）按这个顺序确定：
+`REPO_ROOT` 环境变量 → 往上找 `pnpm-workspace.yaml`（本地开发/本地跑产物都命中仓库根）
+→ 都找不到（说明产物被搬走了）就**以产物所在目录为根**。
+
+（实测：把 `dist/` 整个拷到 `/tmp/relocate`，塞进 `config.json` 与 `templates/`，
+**周围没有任何 node_modules**，不设任何路径变量直接 `node server.mjs` →
+静态页 200、SPA 回退 200、未知 `/api` 404、护栏生效、mock 全链路出图成功。）
+
+### 单文件产物里有什么、没有什么
+
+| | 内容 |
+|---|---|
+| **打进去** | 服务端全部源码 + `fastify` / `ws` / `pino` / `@fastify/*`（361 个模块，343 个来自 node_modules） |
+| **外置** | `pino-pretty`、`bufferutil`、`utf-8-validate`（都只在特定分支才需要） |
+| **拷进 dist/** | `templates/`（与 server.mjs 版本锁定，一起进产物） |
+| **不打包**（运行时按目录读） | `config.json`（或环境变量）、`dataDir`、`cacheDir` |
+
+**模板跟着产物走**：`template.json` 的 bindings 直接指向 graph 的节点/字段、
+`requirements.nodes` 指向具体节点类、transform 名字要在 `transforms.ts` 里找得到 ——
+模板与 server 是**强代码耦合**的，必须同版本，所以 `pnpm build` 会把它拷进 `dist/templates/`，
+部署时不需要单独挂载（要热改模板就用 `TEMPLATES_DIR` 指到外面，或开发模式跑源码）。
+
+所以：改配置、重新构建前端，**不用重新打后端**；但动模板要重新 `pnpm build`。
+
+### 改构建脚本前必须知道的坑
+
+1. **必须是 ESM 输出**。源码用 `import.meta.url` 定位目录，CJS 输出下 esbuild
+   会把 `import.meta` 抹成 `{}`，所有路径立刻全乱。
+2. **`NODE_ENV` 固化进产物**。pino 的 transport 是运行时按**模块名** spawn worker
+   加载 `pino-pretty` 的，打不进包；固化成 `production` 后这条分支不会走。
+   （产物里日志是 JSON；开发用 `tsx` 跑源码时仍然是彩色可读的。）
+3. **`bufferutil` / `utf-8-validate` 必须标 external**：`ws` 的可选原生加速件，
+   没装就走纯 JS；不标 external，esbuild 会因为解析不到直接构建失败。
+4. **产物带 `createRequire` 兜底**（banner），让打包进来的 CJS 包在动态 `require` 时也能工作。
+5. **`__BUNDLED__` 由 esbuild `define` 注入**，`config.ts` 靠它区分"打包态 / 源码态"
+   来算目录（两者到仓库根的距离不同）。源码态下这个标识符不存在，
+   所以只能用 `typeof __BUNDLED__ !== 'undefined'` 判断。
+6. **vite 的 `outDir` 是 `../../dist/web` + `emptyOutDir: true`**：清空的只是 `dist/web`
+   自己，不会碰到旁边的 `server.mjs`。所以 `pnpm build` 的顺序无所谓。
+7. **`node:sqlite` 要求 Node ≥ 24**（无 flag 可用），所以根 `package.json` 的
+   `engines` 写着 `>=24`，esbuild 的 `target` 也是 `node24`。
+
+### Docker（compose，不需要 Dockerfile）
+
+`docker-compose.yml` 直接跑**官方 node 镜像**，把 `dist/` **只读**挂进去 ——
+不需要 Dockerfile、不需要 `npm install`、镜像里没有任何项目依赖：
+
+```bash
+pnpm install && pnpm build        # 宿主机产出 dist/（自包含：server.mjs + web/ + templates/）
+mkdir -p data                     # 必须：否则 docker 会用 root 建目录，容器里 ${UID} 写不进去
+docker compose up -d
+curl localhost:8086/api/system/health
+```
+
+**配置走文件模式**：挂载 `docker/config.json` → `/app/config.json`，
+所以 compose 里**没有一长串环境变量**（只剩 `NODE_ENV` 和 `TZ`，
+环境变量仍然有效、优先级更高，偶尔临时改一次很方便，例如
+`COMFY_BASE_URL=other:8188 docker compose up -d`）。
+
+容器里的布局：
+
+| 宿主机 | 容器 | 权限 | 用途 |
+|---|---|---|---|
+| `./dist` | `/app` | **ro** | `server.mjs` + `web/` + `templates/`（一个挂载点就够） |
+| `./docker/config.json` | `/app/config.json` | **ro** | 容器配置（`host: 0.0.0.0`、`dataDir: /data`、`cacheDir: /data/cache`…） |
+| `./data` | `/data` | rw | SQLite + 缩略图缓存 |
+
+为什么不再单独挂 `templates/`：模板是**强代码耦合**的配置（binding 目标写死了节点/字段、
+`requirements` 写死了节点类名），跟 `server.mjs` 必须同版本 —— 它属于**产物**，不属于用户数据。
+`pnpm build` 已经把它拷进 `dist/templates/`，而容器里 `REPO_ROOT` 自动解析成 `/app`
+（产物目录），默认的 `templatesDir: "templates"` 正好指到 `/app/templates`。
+要热改模板（不重新构建）：`TEMPLATES_DIR=/somewhere docker compose up -d`。
+
+同理，`REPO_ROOT` / `DATA_DIR` / `CACHE_DIR` 这些都能写进 `docker/config.json`，
+所以环境变量那套在容器里可以完全不用 —— 只留两个真正属于"系统级"的：
+
+| 变量 | 值 | 说明 |
+|---|---|---|
+| `NODE_ENV` | `production` | 产物里其实已经固化，写出来只是让 compose 自解释 |
+| `TZ` | `Asia/Shanghai` | 日志时间用的时区 |
+
+需要注意的两处：
+
+- **`mkdir -p data` 必须先做**：docker 会以 root 创建缺失的宿主目录，容器里用 `${UID}` 跑就写不进去。
+  忘了做也不会只报一句 ENOENT/EACCES —— 启动时会提示"数据目录不可用"并给出这条命令。
+- **重新构建后要重启**：`pnpm build && docker compose restart comfyui-server`（挂载是 ro，但进程要重新加载产物）。
+- 本机 8086 已被开发服务器占用时：`HOST_PORT=9086 docker compose up -d`。
+- 网络用 external `server-net`（和你 SillyTavern 那份一致）；ComfyUI 若也在同一网络里，
+  改 `docker/config.json` 的 `baseUrl` 为容器名:端口即可。
+- `healthcheck` 用镜像自带的 busybox `wget`；`logging` 限 10 MB × 3，别让请求日志吃满磁盘。
+
+> 实测（本环境没有 docker，用等价的目录结构验证同一套约定）：
+> `/app`（= dist 内容 + `docker/config.json`）**只读**、`/data` 可写，
+> 环境变量**只给 `NODE_ENV` 和 `TZ`**，直接 `node /app/server.mjs`：
+> 启动日志显示 `templates=/app/templates`、`db=/data/comfyui-server.db`、`webDist=/app/web`、
+> 监听 `0.0.0.0`；`/` `/brush.svg` `/assets/*` `/spa/x` 全 200、未知 `/api` 404、
+> 护栏 422、mock 全链路出图成功；**只读目录里没有产生任何新文件**（SQLite 的 `-wal`/`-shm` 都在 `/data`）。
+
+### 两种流程的分工
+
+| | 命令 | 出口 | 用途 |
+|---|---|---|---|
+| 开发 | `pnpm dev:server` + `pnpm dev:web` | Vite `0.0.0.0:5173`（代理 `/api`） | 改代码，HMR，手机经反代访问 |
+| 部署 | `node dist/server.mjs` | 后端自己的端口（`config.json` 的 `port`） | 一个进程一个端口，无 Node 依赖树 |
+| 容器 | `docker compose up -d` | 宿主 `${HOST_PORT:-8086}` | 给别人用；重启策略/健康检查/日志轮转交给 compose |
+
+> 局域网直连时记得把 `config.json` 的 `host` 改成 `0.0.0.0`；
+> 开发流程能走 5173 是因为 Vite 监听所有网卡、再由它转发到 `127.0.0.1` 的后端。
+
+---
+
 ## 目录结构
 
 ```
 comfyui-server/
 ├── api.example.json          # 原始导出工作流（参考）
 ├── v1/                       # 规划文档
+├── docker-compose.yml        # 容器部署（只读挂载 dist/，不需要 Dockerfile）
+├── docker/config.json        # 容器内使用的配置（host 0.0.0.0 / dataDir /data）
+├── dist/                     # 构建产物（gitignore）：server.mjs + web/ + templates/
 ├── templates/                # 工作流模板
 │   └── txt2img-basic/
 │       ├── template.json     # inputs + bindings（不含 graph）
@@ -77,11 +240,13 @@ comfyui-server/
 ├── packages/shared/          # 前后端共享 TS 类型
 └── apps/
     ├── server/               # Node-TS BFF
+    │   ├── scripts/build.mjs # esbuild 打包 → <仓库根>/dist/server.mjs
     │   ├── src/comfy/        # ComfyUI 客户端（real = HTTP+WS，mock = 内置模拟器）
     │   ├── src/templates/    # 模板加载 / 渲染 / 变换器
+    │   ├── src/safety/       # 硬件安全护栏 + 资源配额
     │   ├── src/jobs/         # 任务编排 + 事件总线
     │   └── src/http/         # 路由层
-    └── web/                  # Vue 3 SPA
+    └── web/                  # Vue 3 SPA（构建产物输出到 <仓库根>/dist/web）
 ```
 
 ---
@@ -92,17 +257,22 @@ comfyui-server/
 
 ```jsonc
 {
-  "host": "127.0.0.1",
+  "host": "127.0.0.1",              // 局域网直连改成 "0.0.0.0"
   "port": 8080,
   "comfyui": {
     "baseUrl": "10.2.3.22:8188",   // 可省协议，自动补 http://
     "mode": "real"                  // real | mock
   },
-  "templatesDir": "templates",
+  "templatesDir": "templates",      // 相对"根"（解析规则见〈构建与部署〉）
+  "dataDir": ".data",               // SQLite 等持久化数据
+  "cacheDir": ".cache",             // 可重建缓存（缩略图）；容器里指到可写卷
   "logLevel": "info",
   "mockStepDelayMs": 120
 }
 ```
+
+> `webDir`（前端静态产物目录）**默认就是 `server.mjs` 旁边的 `web/`**，所以配置里
+> 通常不需要写；只有要托管别处的产物时才加 `"webDir": "dist/web"` / 绝对路径。
 
 ### 优先级
 
@@ -122,6 +292,10 @@ comfyui-server/
 | `COMFY_BASE_URL` | ComfyUI 基址（如 `10.2.3.22:8188`） |
 | `PORT` / `HOST` | 本服务监听 |
 | `TEMPLATES_DIR` | 模板目录 |
+| `DATA_DIR` | 持久化数据目录（SQLite 等） |
+| `CACHE_DIR` | 可重建的缓存目录（缩略图）；容器里指向可写卷 |
+| `WEB_DIR` | 前端静态产物目录（默认 `<dist>/web`） |
+| `REPO_ROOT` | `templatesDir` / `dataDir` / `config.json` 的解析基准 |
 | `MOCK_STEP_DELAY_MS` | mock 模式每步耗时 |
 | `LOG_LEVEL` | 日志级别 |
 | `CONFIG_FILE` | 指定配置文件路径 |
@@ -419,6 +593,56 @@ POST /prompt
 
 ---
 
+## 硬件安全护栏
+
+给**别人**用之前必须知道的一节：前端的 `min`/`max` 只是 HTML 提示，
+改个请求体就绕过去了，所以上限由服务端自己兜。规则表在
+`apps/server/src/safety/limits.ts`，详细设计见 [`v1/v1-safety.md`](./v1/v1-safety.md)。
+
+| 规则 | 字段（按名字匹配，与模板解耦） | 范围 |
+|------|------------------------------|------|
+| `steps` | `steps` | 1 – 24 |
+| `steps_to_run` | `steps_to_run` | 1 – 24（豁免 `-1`，那是"跑满 steps"的哨兵） |
+| `size` | `width` / `height` / `target_width` / `target_height` | 64 – 1216 |
+| `batch` | `batch_size` | 1 – 1 |
+| `loras`（数量） | `lora_str` / `temp_lora_str`（JSON 数组） | ≤ 8 个，超量直接拒、不截断 |
+
+三道闸门，越靠后越"绝对"：
+
+1. **表单值**（`coerceValues`）：按「模板 `ui.min/max` ∩ 安全策略」校验，
+   越界直接 422，错误信息带字段名与上限。
+2. **渲染结果**（`renderTemplate` → `guardGraph`）：值全部落图后再扫一遍最终图。
+   能追溯到用户填的字段 → 拒绝（不悄悄改用户参数）；
+   只来自模板（`const`/导出原值）→ 夹紧到安全值 + WARN；
+   **取值判定不了 → 拒绝**（fail closed，不猜就不会漏）。
+3. **出口**（`ComfyClient.submit` → `assertGraphSafe`）：发往 ComfyUI 前纯断言，
+   有一处越界就拒绝提交；走到这里还越界说明上游有 bug。
+
+配套行为：
+
+- **单一真相源**：`GET /api/templates/:id` 会用策略收窄下发的 `ui.min/max`
+  （实测 `steps` 从 200 → 24），所以 `template.json` 里那份旧值不影响安全，
+  也不用同步维护。
+- **顺连线解析**：`steps` 常写成 `["49", 0]` 而不是字面量，
+  校验会一路追到 `26.inputs.steps → 49.inputs.value`；
+  上游有多个数值输入时不猜，直接判定失败。
+- **启动期校验**：模板 `default` 越界、或受管控字段判定不了 → 整体启动失败；
+  模板自带的越界值只告警（提交时夹紧）。
+
+### 资源配额（`safety/quota.ts`）
+
+`limits.ts` 管"图里的值"，`quota.ts` 管"服务自身的资源"：
+
+| 常量 | 值 | 行为 |
+|------|----|------|
+| `MAX_QUEUE_DEPTH` | 5 | 在途任务超 5 → **429 QUEUE_FULL**（先登记再校验，并发也数得准） |
+| `MAX_JOBS_RETAINED` | 200 | 任务表超条数时**从最旧的开始丢**，在途任务永不丢 |
+| `MAX_BODY_BYTES` | 256 KB | Fastify `bodyLimit`，超出 → **413**（不做图生图，用不着 32 MB） |
+
+仍未纳入：缩略图磁盘缓存无上限；鉴权（本期明确不做，需要时上反向代理）。
+
+---
+
 ## 关键实现约束（踩过的坑）
 
 1. **产出图格式决定传输体积。**
@@ -473,6 +697,9 @@ POST /prompt
 - ✅ 真实任务：`POST /api/jobs` → WS 收到 `progress 2/6 → 6/6`（采样器节点 26）
   → `completed` → 取回 512×768 真实出图
 - ✅ LoRA 生效（`Anima Turbo LoRA-v0.2` 权重 0.9）
+- ✅ 安全护栏：`steps=200`/`width=4096`/`height=1217`/`steps=6.5`/`width=8`/9 个 LoRA
+  一律 422，300 KB 请求体 413；合法请求（默认 6 步、832×1216）照常出图；
+  `GET /api/templates/:id` 下发 `steps.max=24`、`width.max=1216`
 - ⚠️ `get_lora_list` 返回 **41 MB**，前端不可直接用，需走分页/搜索端点（M3 处理）
 
 ---

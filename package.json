@@ -5,13 +5,15 @@
   "description": "ComfyUI 轻前端服务器：表单 → 模板渲染 → ComfyUI API → 进度 → 出图",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "pnpm -r --parallel --filter \"./apps/*\" dev",
     "dev:server": "pnpm --filter @comfyui-server/server dev",
     "dev:web": "pnpm --filter @comfyui-server/web dev",
-    "build": "pnpm -r build",
+    "build": "pnpm --filter @comfyui-server/web build && pnpm --filter @comfyui-server/server build",
+    "build:web": "pnpm --filter @comfyui-server/web build",
+    "build:server": "pnpm --filter @comfyui-server/server build",
     "typecheck": "pnpm -r typecheck",
     "smoke": "pnpm --filter @comfyui-server/server smoke"
   },

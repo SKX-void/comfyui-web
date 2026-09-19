@@ -10,6 +10,7 @@ import type {
   ViewParams,
 } from './types.js';
 import type { Graph } from '@comfyui-server/shared';
+import { assertGraphSafe } from '../safety/limits.js';
 
 interface RealClientOptions {
   baseUrl: string;
@@ -219,6 +220,10 @@ export class RealComfyClient implements ComfyClient {
     clientId: string,
     extraData?: Record<string, unknown>,
   ): Promise<SubmitResult> {
+    // 出口断言（v1-safety.md 第 3 层）：宁可提交失败，也不许把越界值打到 GPU。
+    // 正常情况下渲染阶段的护栏已经夹紧过，走到这里还越界说明上游有 bug。
+    assertGraphSafe(graph);
+
     const payload: Record<string, unknown> = { prompt: graph, client_id: clientId };
     if (extraData) payload.extra_data = extraData;
     const body = JSON.stringify(payload);

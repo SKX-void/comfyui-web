@@ -11,6 +11,7 @@ import type {
   ViewParams,
 } from './types.js';
 import type { Graph } from '@comfyui-server/shared';
+import { assertGraphSafe } from '../safety/limits.js';
 
 // ---------------------------------------------------------------------------
 // 极简 PNG 编码器（无第三方依赖）——让 mock 产出真实可显示的图片
@@ -151,6 +152,10 @@ export class MockComfyClient implements ComfyClient {
   }
 
   async submit(graph: Graph, _clientId: string, _extraData?: Record<string, unknown>): Promise<SubmitResult> {
+    // 与真实客户端保持同一道出口断言（v1-safety.md 第 3 层），
+    // 这样开发/测试期就能发现护栏漏网，而不是等打到 GPU 才知道。
+    assertGraphSafe(graph);
+
     const promptId = randomUUID();
     const saveNodes = Object.entries(graph).filter(
       ([, node]) => SAVE_NODE_TYPES.has(node.class_type),

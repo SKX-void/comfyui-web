@@ -258,6 +258,8 @@ export type ApiErrorCode =
   | 'COMFYUI_ERROR'
   | 'EXECUTION_FAILED'
   | 'WEILIN_UNAVAILABLE'
+  | 'PAYLOAD_TOO_LARGE'
+  | 'QUEUE_FULL'
   | 'INTERNAL';
 
 export interface ApiErrorBody {

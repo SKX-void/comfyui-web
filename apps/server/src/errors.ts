@@ -41,4 +41,18 @@ export class AppError extends Error {
   static comfyError(message: string, details?: unknown): AppError {
     return new AppError('COMFYUI_ERROR', message, 502, details);
   }
+
+  /** 在途任务已达上限：直接劝退，比让任务静静躺在队列里诚实（v1-safety.md §8） */
+  static queueFull(max: number): AppError {
+    return new AppError(
+      'QUEUE_FULL',
+      `服务器繁忙：排队任务已达上限 ${max}，请等前面的任务跑完再提交`,
+      429,
+      { max },
+    );
+  }
+
+  static payloadTooLarge(message: string): AppError {
+    return new AppError('PAYLOAD_TOO_LARGE', message, 413);
+  }
 }

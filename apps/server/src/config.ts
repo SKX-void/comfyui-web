@@ -4,8 +4,65 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-/** 仓库根目录（apps/server/src -> ../../..） */
-export const repoRoot = path.resolve(here, '..', '..', '..');
+/** 是否运行在打包产物里（esbuild 注入，见 src/globals.d.ts） */
+const BUNDLED = typeof __BUNDLED__ !== 'undefined' && __BUNDLED__;
+
+/**
+ * 仓库标记：从当前文件往上找它，找到的目录就是"根"。
+ * 源码态是 `apps/server/src`，打包态是 `dist/`，两者到根的距离不同，
+ * 硬编码 `../../..` 在打包后必然算错（会指到仓库的上一级）。
+ */
+const ROOT_MARKER = 'pnpm-workspace.yaml';
+
+/**
+ * 仓库根目录 —— `templatesDir` / `dataDir` / `config.json` 的解析基准。
+ *
+ * 解析顺序：
+ *   1. `REPO_ROOT` 环境变量（显式指定，最高优先）
+ *   2. 从当前文件往上找 `pnpm-workspace.yaml`：
+ *      - 源码态 `<root>/apps/server/src` → `<root>`
+ *      - 打包态 `<root>/dist` → `<root>`（所以本地跑产物和跑源码看到的是同一份配置）
+ *   3. 找不到（说明 dist/ 被搬去别处单独部署了）→ **把产物所在目录当根**，
+ *      即 `<某个目录>/server.mjs` + `<某个目录>/config.json` + `<某个目录>/templates/`
+ */
+export const repoRoot = (() => {
+  const explicit = process.env.REPO_ROOT;
+  if (explicit) return path.resolve(explicit);
+
+  for (let dir = here; ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, ROOT_MARKER))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // 到文件系统根了
+  }
+  return BUNDLED ? here : path.resolve(here, '..', '..', '..');
+})();
+
+/**
+ * 构建产物目录（`server.mjs` 与前端 `web/` 的所在处）。
+ *
+ * - 打包态：就是当前文件所在目录 → 前端固定为 `<server.mjs 所在目录>/web`
+ * - 源码态：`<仓库根>/dist`（同一份布局，只是产物还没生成）
+ */
+export const distDir = BUNDLED ? here : path.join(repoRoot, 'dist');
+
+/**
+ * 模板目录的默认值。
+ *
+ * 打包产物里模板是**跟着产物走**的（`dist/templates`，见 scripts/build.mjs）：
+ * `template.json` 的 bindings 指向写死的节点/字段、`requirements.nodes` 指向具体节点类，
+ * 模板与 server 必须同版本。所以打包态优先用产物自带的那份 —— 与 `web/` 同一套规则，
+ * 整包搬走也成立，不依赖 REPO_ROOT。
+ *
+ * 源码态（tsx 跑 src/index.ts）永远用仓库根的 `templates/`，这样改完模板
+ * `POST /api/templates/reload` 立刻生效。
+ */
+const defaultTemplatesDir = (() => {
+  if (BUNDLED) {
+    const baked = path.join(distDir, 'templates');
+    if (fs.existsSync(baked)) return baked;
+  }
+  return path.join(repoRoot, 'templates');
+})();
 
 /** 内置默认值（config.json 缺失时使用） */
 const BUILTIN_DEFAULTS = {
@@ -17,6 +74,7 @@ const BUILTIN_DEFAULTS = {
   },
   templatesDir: 'templates',
   dataDir: '.data',
+  cacheDir: '.cache',
   logLevel: 'info',
   mockStepDelayMs: 120,
 };
@@ -28,10 +86,23 @@ export interface ServerConfig {
   comfyBaseUrl: string;
   comfyMode: 'real' | 'mock';
   templatesDir: string;
-  /** 持久化数据目录（SQLite 等），相对仓库根或绝对路径 */
+  /** 持久化数据目录（SQLite 等），相对"根"或绝对路径 */
   dataDir: string;
   /** SQLite 文件绝对路径 */
   dbFile: string;
+  /**
+   * 可重建的缓存目录（目前是 LoRA 预览图缩略图）。
+   *
+   * 单独拎出来是因为容器部署时应用目录通常是只读挂载（`./dist:/app:ro`），
+   * 缓存必须落到可写卷里（`CACHE_DIR=/data/cache`），否则启动即失败。
+   */
+  cacheDir: string;
+  /**
+   * 前端静态产物目录（托管用）。
+   * 默认 `<distDir>/web` —— 也就是固定为"server.mjs 旁边的 web 文件夹"，
+   * 整个 dist/ 可以整体搬走；要指到别处时用 config.json 的 webDir 或 WEB_DIR。
+   */
+  webDir: string;
   logLevel: string;
   mockStepDelayMs: number;
   /** 本次实际加载的配置文件（按优先级从低到高），用于日志与健康检查 */
@@ -210,6 +281,8 @@ export function loadConfig(): ServerConfig {
   if (Object.keys(comfyEnv).length > 0) envOverrides.comfyui = comfyEnv;
   if (env('TEMPLATES_DIR')) envOverrides.templatesDir = env('TEMPLATES_DIR');
   if (env('DATA_DIR')) envOverrides.dataDir = env('DATA_DIR');
+  if (env('CACHE_DIR')) envOverrides.cacheDir = env('CACHE_DIR');
+  if (env('WEB_DIR')) envOverrides.webDir = env('WEB_DIR');
   if (env('LOG_LEVEL')) envOverrides.logLevel = env('LOG_LEVEL');
   if (env('MOCK_STEP_DELAY_MS')) {
     envOverrides.mockStepDelayMs = Number(env('MOCK_STEP_DELAY_MS'));
@@ -230,13 +303,25 @@ export function loadConfig(): ServerConfig {
     throw new Error(`port 必须是 1-65535 的整数，收到: ${String(merged.port)}`);
   }
 
-  const templatesDirRaw = String(merged.templatesDir ?? 'templates');
-  const templatesDir = path.isAbsolute(templatesDirRaw)
-    ? templatesDirRaw
-    : path.join(repoRoot, templatesDirRaw);
+  const templatesDirRaw = merged.templatesDir === undefined ? undefined : String(merged.templatesDir);
+  const templatesDir = templatesDirRaw
+    ? path.isAbsolute(templatesDirRaw)
+      ? templatesDirRaw
+      : path.join(repoRoot, templatesDirRaw)
+    : defaultTemplatesDir;
 
   const dataDirRaw = String(merged.dataDir ?? '.data');
   const dataDir = path.isAbsolute(dataDirRaw) ? dataDirRaw : path.join(repoRoot, dataDirRaw);
+
+  const cacheDirRaw = String(merged.cacheDir ?? '.cache');
+  const cacheDir = path.isAbsolute(cacheDirRaw) ? cacheDirRaw : path.join(repoRoot, cacheDirRaw);
+
+  const webDirRaw = merged.webDir === undefined ? undefined : String(merged.webDir);
+  const webDir = webDirRaw
+    ? path.isAbsolute(webDirRaw)
+      ? webDirRaw
+      : path.join(repoRoot, webDirRaw)
+    : path.join(distDir, 'web');
 
   const mockStepDelayMs = Number(merged.mockStepDelayMs ?? 120);
   if (!Number.isFinite(mockStepDelayMs) || mockStepDelayMs < 0) {
@@ -251,6 +336,8 @@ export function loadConfig(): ServerConfig {
     templatesDir,
     dataDir,
     dbFile: path.join(dataDir, 'comfyui-server.db'),
+    cacheDir,
+    webDir,
     logLevel: String(merged.logLevel ?? 'info'),
     mockStepDelayMs,
     configFiles: loadedFiles,

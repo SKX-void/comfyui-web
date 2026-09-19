@@ -8,8 +8,24 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { loadConfig, normalizeBaseUrl, parseJsonc } from '../src/config.js';
-import { TemplateRegistry } from '../src/templates/loader.js';
+import { TemplateRegistry, validateTemplate } from '../src/templates/loader.js';
 import { renderTemplate, coerceValues } from '../src/templates/render.js';
+import {
+  MAX_BATCH,
+  MAX_LORAS,
+  MAX_SIDE,
+  MAX_STEPS,
+  assertGraphSafe,
+  effectiveBounds,
+  guardGraph,
+  narrowTemplateBounds,
+  scanGraph,
+} from '../src/safety/limits.js';
+import {
+  MAX_BODY_BYTES,
+  MAX_JOBS_RETAINED,
+  MAX_QUEUE_DEPTH,
+} from '../src/safety/quota.js';
 import { MockComfyClient } from '../src/comfy/mock.js';
 import { JobManager, decodeAssetId } from '../src/jobs/manager.js';
 import { browseLoras } from '../src/weilin/browse.js';
@@ -30,6 +46,29 @@ function check(name: string, ok: boolean, extra = ''): void {
 
 function section(title: string): void {
   console.log(`\n── ${title} ${'─'.repeat(Math.max(0, 56 - title.length))}`);
+}
+
+/** 跑一段可能抛错的逻辑，返回错误信息；没抛错返回 null */
+function errMessage(fn: () => unknown): string | null {
+  try {
+    fn();
+    return null;
+  } catch (err) {
+    return (err as Error).message;
+  }
+}
+
+/** 等任务到终态（任务表淘汰只对终态任务生效，测试需要它先跑完） */
+async function waitTerminal(jobs: JobManager, jobId: string, timeoutMs = 5000): Promise<void> {
+  const t0 = Date.now();
+  for (;;) {
+    const j = jobs.get(jobId);
+    if (j.status === 'succeeded' || j.status === 'failed' || j.status === 'canceled') return;
+    if (Date.now() - t0 > timeoutMs) {
+      throw new Error(`任务 ${jobId} 未在 ${timeoutMs}ms 内到达终态（当前 ${j.status}）`);
+    }
+    await new Promise((r) => setTimeout(r, 20));
+  }
 }
 
 async function main(): Promise<void> {
@@ -281,11 +320,267 @@ async function main(): Promise<void> {
   );
 
   // ---------------------------------------------------------------------
+  section('3b. 硬件安全护栏（v1-safety.md）');
+
+  check('步数上限常量 = 24', MAX_STEPS === 24, String(MAX_STEPS));
+  check('单边像素上限常量 = 1216', MAX_SIDE === 1216, String(MAX_SIDE));
+
+  // 启动期：模板自身的图必须扫得干净，否则 registry.load 早就抛错了
+  const tplScan = scanGraph(tpl.graph);
+  check('模板自带 graph 无越界值', tplScan.hits.length === 0, JSON.stringify(tplScan.hits));
+  check(
+    '模板自带 graph 取值全部可判定',
+    tplScan.unresolved.length === 0,
+    JSON.stringify(tplScan.unresolved),
+  );
+
+  // 表单边界 = 模板 ui 提示 ∩ 安全策略（steps 的绑定写在上游常量节点，
+  // 必须顺着连线往下游追踪才能找到被管控的 `26.inputs.steps`）
+  const stepsInput = tpl.def.inputs.find((i) => i.key === 'steps')!;
+  const stepsMaxBefore = stepsInput.ui?.max;
+  const stepsBounds = effectiveBounds(tpl.def, tpl.graph, stepsInput);
+  check(
+    'steps 的有效上限来自策略（24），不是模板里的 ui.max',
+    stepsBounds.max === 24 && stepsBounds.fromPolicy,
+    `模板 ui.max=${stepsMaxBefore} / 有效=${stepsBounds.max}`,
+  );
+  const widthBounds = effectiveBounds(
+    tpl.def,
+    tpl.graph,
+    tpl.def.inputs.find((i) => i.key === 'width')!,
+  );
+  check('width 的有效上限被收窄到 1216', widthBounds.max === MAX_SIDE, String(widthBounds.max));
+
+  // 下发模板时同步收窄（前端滑块不会再给出"填了必被拒"的区间），且不改动原对象
+  const narrowed = narrowTemplateBounds(tpl.def, tpl.graph);
+  const narrowedSteps = narrowed.inputs.find((i) => i.key === 'steps')!;
+  check('下发的 steps.ui.max 已收窄到 24', narrowedSteps.ui?.max === 24, String(narrowedSteps.ui?.max));
+  check(
+    '收窄是浅拷贝，不改动原模板对象',
+    tpl.def.inputs.find((i) => i.key === 'steps')!.ui?.max === stepsMaxBefore,
+    String(tpl.def.inputs.find((i) => i.key === 'steps')!.ui?.max),
+  );
+
+  // —— 表单值越界：直接拒（错误信息要指出上限）——
+  const overSteps = errMessage(() => renderTemplate(tpl, { prompt: 'x', unet_name: 'm', steps: 200 }));
+  check('steps=200 被拒绝且提示 24', overSteps !== null && overSteps.includes('24'), overSteps ?? '(未抛错)');
+  const zeroSteps = errMessage(() => renderTemplate(tpl, { prompt: 'x', unet_name: 'm', steps: 0 }));
+  check('steps=0 被拒绝', zeroSteps !== null, zeroSteps ?? '(未抛错)');
+  const fracSteps = errMessage(() => renderTemplate(tpl, { prompt: 'x', unet_name: 'm', steps: 6.5 }));
+  check('steps=6.5 被拒绝（要求整数）', fracSteps !== null && fracSteps.includes('整数'), fracSteps ?? '(未抛错)');
+  const bigW = errMessage(() => renderTemplate(tpl, { prompt: 'x', unet_name: 'm', width: 4096 }));
+  check('width=4096 被拒绝且提示 1216', bigW !== null && bigW.includes('1216'), bigW ?? '(未抛错)');
+  const bigH = errMessage(() => renderTemplate(tpl, { prompt: 'x', unet_name: 'm', height: 1217 }));
+  check('height=1217 被拒绝', bigH !== null && bigH.includes('1216'), bigH ?? '(未抛错)');
+  const tinyW = errMessage(() => renderTemplate(tpl, { prompt: 'x', unet_name: 'm', width: 8 }));
+  check('width=8 被拒绝（下限 64）', tinyW !== null, tinyW ?? '(未抛错)');
+
+  // —— 边界值：等于上限必须放行 ——
+  const edge = errMessage(() =>
+    renderTemplate(tpl, { prompt: 'x', unet_name: 'm', steps: 24, width: 1216, height: 1216 }),
+  );
+  check('边界值（24 / 1216×1216）放行', edge === null, edge ?? '');
+  const edgeGraph = renderTemplate(tpl, { prompt: 'x', unet_name: 'm', steps: 24 });
+  check('边界值原样落图（未被夹紧）', edgeGraph.graph['49']!.inputs.value === 24);
+  check('边界值没有产生夹紧记录', edgeGraph.safety.clamped.length === 0);
+
+  // 护栏只管"会不会打爆硬件"，不管 8 的倍数这类图像质量问题
+  const odd = errMessage(() => renderTemplate(tpl, { prompt: 'x', unet_name: 'm', width: 1000 }));
+  check('非 8 倍数不拦（不在硬件安全范围内）', odd === null, odd ?? '');
+
+  // —— 模板自带越界值：夹紧而不是拒服务 ——
+  const tplWide = {
+    ...tpl,
+    graph: structuredClone(tpl.graph),
+    // 断掉宽高绑定 → 这两个值只可能来自模板本身
+    def: { ...tpl.def, bindings: tpl.def.bindings.filter((b) => !b.target.startsWith('32.')) },
+  };
+  tplWide.graph['32']!.inputs.width = 4096;
+  tplWide.graph['32']!.inputs.height = 2160;
+  tplWide.graph['26']!.inputs.steps_to_run = 512;
+  const clamped = renderTemplate(tplWide, { prompt: 'x', unet_name: 'm' });
+  check('模板自带 width=4096 被夹到 1216', clamped.graph['32']!.inputs.width === 1216);
+  check('模板自带 height=2160 被夹到 1216', clamped.graph['32']!.inputs.height === 1216);
+  check('模板自带 steps_to_run=512 被夹到 24', clamped.graph['26']!.inputs.steps_to_run === 24);
+  check('夹紧记录逐条进入 safety.clamped', clamped.safety.clamped.length === 3, `${clamped.safety.clamped.length} 条`);
+
+  // —— 哨兵值豁免：steps_to_run=-1 不能被夹成 1（那会只跑一步）——
+  const runAll = renderTemplate(tpl, { prompt: 'x', unet_name: 'm' });
+  check('steps_to_run=-1 被豁免', runAll.graph['26']!.inputs.steps_to_run === -1, String(runAll.graph['26']!.inputs.steps_to_run));
+  check('正常渲染无夹紧记录', runAll.safety.clamped.length === 0);
+
+  // —— 取值无法判定：fail closed ——
+  const tplAmbiguous = { ...tpl, graph: structuredClone(tpl.graph) };
+  tplAmbiguous.graph['49'] = { class_type: 'INTConstant', inputs: { value: 6, other: 8 } };
+  const ambiguous = errMessage(() => renderTemplate(tplAmbiguous, { prompt: 'x', unet_name: 'm' }));
+  check(
+    'steps 取值无法判定时拒绝提交',
+    ambiguous !== null && ambiguous.includes('无法校验'),
+    ambiguous ?? '(未抛错)',
+  );
+
+  // —— 直接测夹紧函数与出口断言 ——
+  const directGraph = structuredClone(tpl.graph);
+  directGraph['32']!.inputs.width = 3000;
+  const directScan = guardGraph(directGraph);
+  check('guardGraph 就地夹紧', directGraph['32']!.inputs.width === 1216 && directScan.hits.length === 1);
+
+  const unsafeGraph = structuredClone(tpl.graph);
+  unsafeGraph['32']!.inputs.width = 5000;
+  check('assertGraphSafe 拦住越界图', errMessage(() => assertGraphSafe(unsafeGraph)) !== null);
+  check(
+    'assertGraphSafe 放行安全图',
+    errMessage(() => assertGraphSafe(structuredClone(tpl.graph))) === null,
+  );
+
+  // —— LoRA 数量上限（MAX_LORAS = 8）——
+  const mkLora = (n: number): Array<{ name: string; weight: number }> =>
+    Array.from({ length: n }, (_, i) => ({ name: `Anima\\x\\lora-${i}`, weight: 0.8 }));
+  const eight = errMessage(() =>
+    renderTemplate(tpl, { prompt: 'x', unet_name: 'm', loras: mkLora(8) }),
+  );
+  check('8 个 LoRA 放行（边界含等号）', eight === null, eight ?? '');
+  const nine = errMessage(() => renderTemplate(tpl, { prompt: 'x', unet_name: 'm', loras: mkLora(9) }));
+  check('9 个 LoRA 被拒绝（上限 8）', nine !== null && nine.includes('最多 8'), nine ?? '(未抛错)');
+  const eightGraph = renderTemplate(tpl, { prompt: 'x', unet_name: 'm', loras: mkLora(8) });
+  check(
+    '8 个 LoRA 全部落进 lora_str',
+    JSON.parse(String(eightGraph.graph['43']!.inputs.lora_str)).length === 8,
+  );
+
+  // 图层的数量校验（绕过表单也没用）
+  const loraScan = scanGraph(eightGraph.graph);
+  check('8 个 LoRA 的图扫描无超量', loraScan.overCount.length === 0);
+  const loraOver = structuredClone(eightGraph.graph);
+  loraOver['43']!.inputs.lora_str = JSON.stringify(mkLora(9));
+  check(
+    '图层 9 个 LoRA 被出口断言拦住',
+    errMessage(() => assertGraphSafe(loraOver)) !== null,
+  );
+  const loraBad = structuredClone(tpl.graph);
+  loraBad['43']!.inputs.lora_str = '不是 JSON';
+  check('lora_str 不是 JSON 数组 → 判定失败（fail closed）', errMessage(() => assertGraphSafe(loraBad)) !== null);
+  const loraEmpty = structuredClone(tpl.graph);
+  loraEmpty['43']!.inputs.lora_str = '';
+  check('lora_str 空串按 0 个算（不误拦）', errMessage(() => assertGraphSafe(loraEmpty)) === null);
+
+  // —— batch_size 上限 1 ——
+  const batchGraph = structuredClone(tpl.graph);
+  batchGraph['32']!.inputs.batch_size = 4;
+  const batchScan = guardGraph(batchGraph);
+  check(
+    'batch_size=4 被夹到 1',
+    batchGraph['32']!.inputs.batch_size === 1 && batchScan.hits.some((h) => h.ruleId === 'batch'),
+  );
+  check('模板自带 batch_size=1 合规', scanGraph(tpl.graph).hits.length === 0);
+
+  // —— 启动期模板校验 ——
+  const badDefault = {
+    ...tpl.def,
+    inputs: tpl.def.inputs.map((i) => (i.key === 'steps' ? { ...i, default: 100 } : i)),
+  };
+  check(
+    '模板 default 越界 → 启动期校验失败',
+    errMessage(() => validateTemplate(badDefault, tpl.graph, 'smoke')) !== null,
+  );
+  const manyLoras = structuredClone(tpl.graph);
+  manyLoras['43']!.inputs.lora_str = JSON.stringify(mkLora(9));
+  check(
+    '模板写死 9 个 LoRA → 启动期校验失败',
+    errMessage(() => validateTemplate(tpl.def, manyLoras, 'smoke')) !== null,
+  );
+  const warnGraph = structuredClone(tpl.graph);
+  warnGraph['32']!.inputs.width = 2048;
+  const loadWarnings = validateTemplate(tpl.def, warnGraph, 'smoke');
+  check(
+    '模板自带越界只告警不阻断启动',
+    loadWarnings.length === 1 && loadWarnings[0]!.includes('1216'),
+    loadWarnings.join(' | ') || '(无告警)',
+  );
+
+  // ---------------------------------------------------------------------
+  section('3c. 资源配额：队列 / 任务表 / 请求体');
+
+  check('LoRA 数量上限常量 = 8', MAX_LORAS === 8, String(MAX_LORAS));
+  check('批量张数上限常量 = 1', MAX_BATCH === 1, String(MAX_BATCH));
+  check('队列深度上限常量 = 5', MAX_QUEUE_DEPTH === 5, String(MAX_QUEUE_DEPTH));
+  check('任务表保留条数 = 200', MAX_JOBS_RETAINED === 200, String(MAX_JOBS_RETAINED));
+  check('请求体上限 = 256 KB', MAX_BODY_BYTES === 256 * 1024, String(MAX_BODY_BYTES));
+
+  // —— 队列深度：慢客户端上并发提交，超出的直接拒 ——
+  const qClient = new MockComfyClient({ stepDelayMs: 10_000, log: () => {} });
+  await qClient.start();
+  const qJobs = new JobManager(qClient, registry, {
+    clientId: 'queue-test',
+    log: () => {},
+    maxQueueDepth: 3,
+  });
+  qJobs.start();
+  const settled = await Promise.allSettled(
+    [0, 1, 2, 3, 4].map(() =>
+      qJobs.submit({ templateId: 'txt2img-basic', values: { prompt: 'q', unet_name: 'm' } }),
+    ),
+  );
+  const okCount = settled.filter((s) => s.status === 'fulfilled').length;
+  const qRejected = settled.filter((s): s is PromiseRejectedResult => s.status === 'rejected');
+  check(
+    '队列到顶后拒绝多余提交（先登记再校验，并发也数得准）',
+    okCount === 3 && qRejected.length === 2,
+    `通过 ${okCount} / 拒绝 ${qRejected.length}`,
+  );
+  const qErr = qRejected[0]?.reason as { code?: string; status?: number } | undefined;
+  check(
+    '拒绝原因是 QUEUE_FULL / 429',
+    qErr?.code === 'QUEUE_FULL' && qErr?.status === 429,
+    `${qErr?.code} / ${qErr?.status}`,
+  );
+  check('被拒的占位已释放', qJobs.list().length === 3, `${qJobs.list().length} 条`);
+  qJobs.stop();
+  await qClient.stop();
+
+  // —— 任务表淘汰：超出条数时从最旧的开始丢 ——
+  const capClient = new MockComfyClient({ stepDelayMs: 1, log: () => {} });
+  await capClient.start();
+  const capJobs = new JobManager(capClient, registry, {
+    clientId: 'cap-test',
+    log: () => {},
+    maxJobsRetained: 3,
+  });
+  capJobs.start();
+  const capIds: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const j = await capJobs.submit({
+      templateId: 'txt2img-basic',
+      values: { prompt: `cap ${i}`, unet_name: 'm' },
+    });
+    capIds.push(j.jobId);
+    await waitTerminal(capJobs, j.jobId);
+  }
+  check('任务表按条数截断', capJobs.list().length === 3, `${capJobs.list().length} 条`);
+  check(
+    '淘汰从最旧的开始（前两条已丢）',
+    errMessage(() => capJobs.get(capIds[0]!)) !== null &&
+      errMessage(() => capJobs.get(capIds[1]!)) !== null,
+  );
+  check('最新的任务仍在表里', errMessage(() => capJobs.get(capIds[4]!)) === null);
+  capJobs.stop();
+  await capClient.stop();
+
+  // ---------------------------------------------------------------------
   section('4. 全链路：提交 → 进度 → 出图');
   const client = new MockComfyClient({ stepDelayMs: 20, log: () => {} });
   await client.start();
   const jobs = new JobManager(client, registry, { clientId: 'smoke-client', log: () => {} });
   jobs.start();
+
+  // 出口断言（第 3 层）：绕过渲染层直接提交越界图也必须被拦
+  let egressBlocked = false;
+  try {
+    await client.submit(unsafeGraph, 'smoke-client');
+  } catch {
+    egressBlocked = true;
+  }
+  check('出口断言拦住越界图（mock 客户端）', egressBlocked);
 
   const events: JobEvent[] = [];
   const job = await jobs.submit({

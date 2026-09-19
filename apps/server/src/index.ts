@@ -5,7 +5,7 @@ import Fastify, { type FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import { pino } from 'pino';
-import { loadConfig, repoRoot } from './config.js';
+import { loadConfig } from './config.js';
 import { AppError } from './errors.js';
 import { RealComfyClient } from './comfy/real.js';
 import { MockComfyClient } from './comfy/mock.js';
@@ -17,6 +17,7 @@ import { closeDatabase, openDatabase } from './store/db.js';
 import { PresetStore } from './store/presets.js';
 import { ThumbnailCache } from './weilin/thumb.js';
 import { registerRoutes } from './http/routes.js';
+import { MAX_BODY_BYTES } from './safety/quota.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -31,7 +32,9 @@ async function main(): Promise<void> {
   });
 
   // 1. 模板：静态校验失败则整体启动失败（快速失败）
-  const templates = new TemplateRegistry(config.templatesDir);
+  const templates = new TemplateRegistry(config.templatesDir, (msg, meta) =>
+    bootLogger.warn({ meta }, msg),
+  );
   await templates.load();
   bootLogger.info(
     { count: templates.list().length, dir: config.templatesDir },
@@ -39,7 +42,18 @@ async function main(): Promise<void> {
   );
 
   // 2. 持久化（SQLite，用 Node 内置 node:sqlite，无原生依赖）
-  const db = openDatabase(config.dbFile, (msg, meta) => bootLogger.info({ meta }, msg));
+  const db = (() => {
+    try {
+      return openDatabase(config.dbFile, (msg, meta) => bootLogger.info({ meta }, msg));
+    } catch (err) {
+      // 容器部署最常见的坑：./data 是 docker 以 root 建的目录，容器里用 ${UID} 写不进去；
+      // 或者 dataDir 指向了一个不存在的路径。原始报错是 ENOENT/EACCES + mkdir，太隐晦。
+      throw new Error(
+        `数据目录不可用: ${config.dataDir}\n  ${(err as Error).message}\n` +
+          '  容器部署请先在宿主机执行 mkdir -p data（否则 docker 会以 root 建目录，容器里的 ${UID} 写不进去）',
+      );
+    }
+  })();
   const presets = new PresetStore(db);
   bootLogger.info({ file: config.dbFile }, 'SQLite 已就绪');
 
@@ -76,7 +90,8 @@ async function main(): Promise<void> {
   jobs.start();
 
   // 4b. LoRA 预览缩略图缓存（WeiLin 原图 1~5MB，必须服务端缩）
-  const thumbs = new ThumbnailCache(path.join(repoRoot, '.cache', 'loras-thumbs'), (msg, meta) =>
+  //     走 config.cacheDir 而不是写死 <repoRoot>/.cache：容器部署时应用目录是只读挂载的
+  const thumbs = new ThumbnailCache(path.join(config.cacheDir, 'loras-thumbs'), (msg, meta) =>
     bootLogger.debug({ meta }, `[thumb] ${msg}`),
   );
 
@@ -101,7 +116,8 @@ async function main(): Promise<void> {
 
   // 6. HTTP
   const app = Fastify({
-    bodyLimit: 32 * 1024 * 1024,
+    // 请求体上限：不做图生图，最大的正常请求就是提示词 + LoRA 列表（v1-safety.md §8）
+    bodyLimit: MAX_BODY_BYTES,
     logger: {
       level: config.logLevel,
       ...(process.env.NODE_ENV === 'production'
@@ -135,6 +151,17 @@ async function main(): Promise<void> {
         error: { code: 'BAD_REQUEST', message: err.message, requestId },
       });
     }
+    // Fastify 自己抛的 4xx（请求体过大、JSON 语法错误等）别一律当 500 报
+    if (err.statusCode === 413) {
+      reply.code(413);
+      return reply.send({
+        error: {
+          code: 'PAYLOAD_TOO_LARGE',
+          message: `请求体过大（上限 ${Math.round(MAX_BODY_BYTES / 1024)} KB）`,
+          requestId,
+        },
+      });
+    }
     req.log.error({ err, requestId }, '未处理的服务端错误');
     reply.code(500);
     return reply.send({
@@ -145,7 +172,8 @@ async function main(): Promise<void> {
   await registerRoutes(app, { config, templates, jobs, client, weilin, thumbs, presets });
 
   // 7. 托管前端构建产物（若已 pnpm build）。开发期请用 pnpm dev:web（Vite 代理）。
-  const webDist = path.join(repoRoot, 'apps', 'web', 'dist');  if (existsSync(path.join(webDist, 'index.html'))) {
+  const webDist = config.webDir;
+  if (existsSync(path.join(webDist, 'index.html'))) {
     await app.register(fastifyStatic, { root: webDist, prefix: '/' });
     // SPA 回退：非 /api 的未知路径交给前端路由
     app.setNotFoundHandler((req, reply) => {
