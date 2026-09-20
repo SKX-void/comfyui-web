@@ -9,11 +9,11 @@ dist/
 
 # 本机私密配置（覆盖 config.json）
 config.local.json
+
+# 旧的缩略图缓存目录（现在默认放 <dataDir>/cache，这里只是别让历史文件冒出来）
 .cache/
-.data/**
 
-# docker-compose 的可写卷（./data:/data）
-/data/
-
-
-!.data/.gitkeep
+# 运行期数据：SQLite + 缩略图缓存；也是 docker-compose 的可写卷。
+# 目录本身要留着（.gitkeep），内容不提交
+/data/*
+!/data/.gitkeep

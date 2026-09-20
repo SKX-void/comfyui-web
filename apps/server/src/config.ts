@@ -73,8 +73,7 @@ const BUILTIN_DEFAULTS = {
     mode: 'real' as 'real' | 'mock',
   },
   templatesDir: 'templates',
-  dataDir: '.data',
-  cacheDir: '.cache',
+  dataDir: 'data',
   logLevel: 'info',
   mockStepDelayMs: 120,
 };
@@ -93,8 +92,8 @@ export interface ServerConfig {
   /**
    * 可重建的缓存目录（目前是 LoRA 预览图缩略图）。
    *
-   * 单独拎出来是因为容器部署时应用目录通常是只读挂载（`./dist:/app:ro`），
-   * 缓存必须落到可写卷里（`CACHE_DIR=/data/cache`），否则启动即失败。
+   * 默认 `<dataDir>/cache` —— 缓存必须落在可写的地方：容器里应用目录是只读挂载
+   * （`./dist:/app:ro`），缓存写到应用目录里会直接 EROFS。跟着 dataDir 走就不会漏配。
    */
   cacheDir: string;
   /**
@@ -310,11 +309,22 @@ export function loadConfig(): ServerConfig {
       : path.join(repoRoot, templatesDirRaw)
     : defaultTemplatesDir;
 
-  const dataDirRaw = String(merged.dataDir ?? '.data');
+  const dataDirRaw = String(merged.dataDir ?? 'data');
   const dataDir = path.isAbsolute(dataDirRaw) ? dataDirRaw : path.join(repoRoot, dataDirRaw);
 
-  const cacheDirRaw = String(merged.cacheDir ?? '.cache');
-  const cacheDir = path.isAbsolute(cacheDirRaw) ? cacheDirRaw : path.join(repoRoot, cacheDirRaw);
+  /**
+   * 缓存目录默认落在数据目录下面（`<dataDir>/cache`），而不是另起一个 `.cache`。
+   *
+   * 这样只需要配一个 `dataDir`：容器里把它指到可写卷，缓存自然跟着走，
+   * 不会出现"数据能写、缓存写到只读的应用目录里"这种半截子状态。
+   */
+  const cacheDirRaw =
+    merged.cacheDir === undefined ? undefined : String(merged.cacheDir);
+  const cacheDir = cacheDirRaw
+    ? path.isAbsolute(cacheDirRaw)
+      ? cacheDirRaw
+      : path.join(repoRoot, cacheDirRaw)
+    : path.join(dataDir, 'cache');
 
   const webDirRaw = merged.webDir === undefined ? undefined : String(merged.webDir);
   const webDir = webDirRaw

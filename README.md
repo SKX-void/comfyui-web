@@ -128,7 +128,7 @@ cd /opt/whatever && node server.mjs     # 直接跑，不需要任何路径环�
 | **打进去** | 服务端全部源码 + `fastify` / `ws` / `pino` / `@fastify/*`（361 个模块，343 个来自 node_modules） |
 | **外置** | `pino-pretty`、`bufferutil`、`utf-8-validate`（都只在特定分支才需要） |
 | **拷进 dist/** | `templates/`（与 server.mjs 版本锁定，一起进产物） |
-| **不打包**（运行时按目录读） | `config.json`（或环境变量）、`dataDir`、`cacheDir` |
+| **不打包**（运行时按目录读） | `config.json`（或环境变量）、`dataDir`（缓存默认 `<dataDir>/cache`） |
 
 **模板跟着产物走**：`template.json` 的 bindings 直接指向 graph 的节点/字段、
 `requirements.nodes` 指向具体节点类、transform 名字要在 `transforms.ts` 里找得到 ——
@@ -157,59 +157,90 @@ cd /opt/whatever && node server.mjs     # 直接跑，不需要任何路径环�
 
 ### Docker（compose，不需要 Dockerfile）
 
-`docker-compose.yml` 直接跑**官方 node 镜像**，把 `dist/` **只读**挂进去 ——
-不需要 Dockerfile、不需要 `npm install`、镜像里没有任何项目依赖：
+**部署单元就是四样东西，放在同一个目录里，整个复制走就能跑**：
+
+```
+deploy/                      # ← 可以整个目录复制到任何机器
+├── docker-compose.yml
+├── config.json              # 开发模式和容器**共用**这一份
+├── dist/                    # pnpm build 的产物：server.mjs + web/ + templates/
+└── data/                    # SQLite + 缩略图缓存（仓库自带 .gitkeep，目录一定存在）
+```
 
 ```bash
-pnpm install && pnpm build        # 宿主机产出 dist/（自包含：server.mjs + web/ + templates/）
-mkdir -p data                     # 必须：否则 docker 会用 root 建目录，容器里 ${UID} 写不进去
+pnpm install && pnpm build   # 产出 dist/
 docker compose up -d
 curl localhost:8086/api/system/health
 ```
 
-**配置走文件模式**：挂载 `docker/config.json` → `/app/config.json`，
-所以 compose 里**没有一长串环境变量**（只剩 `NODE_ENV` 和 `TZ`，
-环境变量仍然有效、优先级更高，偶尔临时改一次很方便，例如
-`COMFY_BASE_URL=other:8188 docker compose up -d`）。
+镜像用官方 `node:26-alpine`，**不需要 Dockerfile、不需要 `npm install`**，镜像里没有任何项目依赖。
 
-容器里的布局：
+**配置走文件模式**：挂 `./config.json` → `/app/config.json`，所以 compose 里只有两个环境变量
+（`NODE_ENV` 和 `TZ`）。环境变量优先级仍然最高，临时改一次很方便：
+`COMFY_BASE_URL=other:8188 docker compose up -d`。
+
+挂载与路径的对应关系：
 
 | 宿主机 | 容器 | 权限 | 用途 |
 |---|---|---|---|
 | `./dist` | `/app` | **ro** | `server.mjs` + `web/` + `templates/`（一个挂载点就够） |
-| `./docker/config.json` | `/app/config.json` | **ro** | 容器配置（`host: 0.0.0.0`、`dataDir: /data`、`cacheDir: /data/cache`…） |
-| `./data` | `/data` | rw | SQLite + 缩略图缓存 |
+| `./config.json` | `/app/config.json` | **ro** | 共用配置 |
+| `./data` | `/app/data` | rw | SQLite + 缩略图缓存 |
 
-为什么不再单独挂 `templates/`：模板是**强代码耦合**的配置（binding 目标写死了节点/字段、
-`requirements` 写死了节点类名），跟 `server.mjs` 必须同版本 —— 它属于**产物**，不属于用户数据。
-`pnpm build` 已经把它拷进 `dist/templates/`，而容器里 `REPO_ROOT` 自动解析成 `/app`
-（产物目录），默认的 `templatesDir: "templates"` 正好指到 `/app/templates`。
-要热改模板（不重新构建）：`TEMPLATES_DIR=/somewhere docker compose up -d`。
+**为什么 `data` 挂在 `/app/data` 而不是 `/data`**：`config.json` 里写的是**相对路径**
+`"dataDir": "data"`，它相对"根"解析 —— 开发时是仓库根，容器里是 `/app`：
 
-同理，`REPO_ROOT` / `DATA_DIR` / `CACHE_DIR` 这些都能写进 `docker/config.json`，
-所以环境变量那套在容器里可以完全不用 —— 只留两个真正属于"系统级"的：
+```
+开发  ：<仓库根>/data              ← pnpm dev:server
+容器  ：/app/data                  ← compose 把 ./data 挂到这里
+```
 
-| 变量 | 值 | 说明 |
-|---|---|---|
-| `NODE_ENV` | `production` | 产物里其实已经固化，写出来只是让 compose 自解释 |
-| `TZ` | `Asia/Shanghai` | 日志时间用的时区 |
+这样**一份 config.json 两种跑法都成立**，不用维护两份、也不用为容器加一排环境变量。
+（代价是 data 挂载嵌在只读的 `/app` 里面；每个挂载点各管各的权限，可写不受影响。
+ 想改成顶层 `/data` 就得把 `dataDir` 写成绝对路径，那样开发模式会跑去写宿主机的 `/data`，
+ 一份配置就伺候不了两边了。）
 
-需要注意的两处：
+其他几点：
 
-- **`mkdir -p data` 必须先做**：docker 会以 root 创建缺失的宿主目录，容器里用 `${UID}` 跑就写不进去。
-  忘了做也不会只报一句 ENOENT/EACCES —— 启动时会提示"数据目录不可用"并给出这条命令。
-- **重新构建后要重启**：`pnpm build && docker compose restart comfyui-server`（挂载是 ro，但进程要重新加载产物）。
-- 本机 8086 已被开发服务器占用时：`HOST_PORT=9086 docker compose up -d`。
+- **改了代码要重启**：`pnpm build && docker compose restart comfyui-server`（挂载是 ro，但进程要重新加载产物）。
+- **本机 8086 被开发服务器占用**时：`HOST_PORT=9086 docker compose up -d`。
 - 网络用 external `server-net`（和你 SillyTavern 那份一致）；ComfyUI 若也在同一网络里，
-  改 `docker/config.json` 的 `baseUrl` 为容器名:端口即可。
+  改 `config.json` 的 `comfyui.baseUrl` 为容器名:端口即可。
 - `healthcheck` 用镜像自带的 busybox `wget`；`logging` 限 10 MB × 3，别让请求日志吃满磁盘。
+- `data/` 目录在仓库里已经有 `.gitkeep`，所以不会被漏掉；如果是手动拷到别的机器，
+  记得把 `data/` 一起拷（或先 `mkdir -p data`，让 docker 建的话会是 root 所有，
+  容器里用 `${UID}` 就写不进去了 —— 真发生的话启动会直接提示"数据目录不可用"）。
 
-> 实测（本环境没有 docker，用等价的目录结构验证同一套约定）：
-> `/app`（= dist 内容 + `docker/config.json`）**只读**、`/data` 可写，
-> 环境变量**只给 `NODE_ENV` 和 `TZ`**，直接 `node /app/server.mjs`：
-> 启动日志显示 `templates=/app/templates`、`db=/data/comfyui-server.db`、`webDist=/app/web`、
-> 监听 `0.0.0.0`；`/` `/brush.svg` `/assets/*` `/spa/x` 全 200、未知 `/api` 404、
-> 护栏 422、mock 全链路出图成功；**只读目录里没有产生任何新文件**（SQLite 的 `-wal`/`-shm` 都在 `/data`）。
+> 实测（本环境没有 docker，用等价目录结构验证同一套约定）：
+> `/app` = dist 内容 + `config.json`（只读），`/app/data` 可写，环境变量**只给 `NODE_ENV` 和 `TZ`**，
+> 直接 `node /app/server.mjs` → 启动日志显示 `templates=/app/templates`、
+> `db=/app/data/comfyui-server.db`、`webDist=/app/web`、监听 `0.0.0.0`；
+> `/` `/brush.svg` `/assets/*` `/spa/x` 全 200、未知 `/api` 404、护栏 422、mock 全链路出图成功。
+
+### nginx 反向代理
+
+`nginx/comfyui-server.conf` 是一个**只含 server 块**的片段，丢进 `conf.d/` 就能用：
+
+```bash
+cp nginx/comfyui-server.conf /etc/nginx/conf.d/comfyui-server.conf
+nginx -t && nginx -s reload
+```
+
+它处理三件事（都注释在文件里）：
+
+1. **SSE 不缓冲**：`/api/jobs/<id>/events` 单独一个 location，`proxy_buffering off` +
+   长 `proxy_read_timeout` + 清空 `Connection`。应用自己会发 `X-Accel-Buffering: no`，
+   nginx 默认认这个头；但只要中间多一层代理、或有人 `proxy_ignore_headers`、或头被吞掉，
+   进度就会卡死 —— 所以显式关缓冲是**兜底**。
+   （实测：忽略那个头时，普通 location 2 秒内收到 **0 字节**，带这段的 2 秒内正常收到 133 字节。）
+2. **请求体上限** `client_max_body_size 512k`：比应用自己的 256 KB 略大，
+   这样用户看到的还是应用返回的中文 413，而不是 nginx 那张 HTML 错误页。
+3. **`/assets/` 长缓存**：vite 产物文件名带内容哈希，所以给 30 天并 `proxy_hide_header
+   Cache-Control`（不盖掉就会同时冒出两个 Cache-Control 头）；`index.html` 不带哈希，
+   保持应用发来的 `max-age=0`。
+
+> nginx 与 comfyui-server 都在 `server-net` 里时，把三处 `proxy_pass` 改成
+> `http://comfyui-server:8086;`（容器里的 nginx 用 `127.0.0.1` 够不到宿主机的端口映射）。
 
 ### 两种流程的分工
 
@@ -231,7 +262,6 @@ comfyui-server/
 ├── api.example.json          # 原始导出工作流（参考）
 ├── v1/                       # 规划文档
 ├── docker-compose.yml        # 容器部署（只读挂载 dist/，不需要 Dockerfile）
-├── docker/config.json        # 容器内使用的配置（host 0.0.0.0 / dataDir /data）
 ├── dist/                     # 构建产物（gitignore）：server.mjs + web/ + templates/
 ├── templates/                # 工作流模板
 │   └── txt2img-basic/
@@ -264,8 +294,8 @@ comfyui-server/
     "mode": "real"                  // real | mock
   },
   "templatesDir": "templates",      // 相对"根"（解析规则见〈构建与部署〉）
-  "dataDir": ".data",               // SQLite 等持久化数据
-  "cacheDir": ".cache",             // 可重建缓存（缩略图）；容器里指到可写卷
+  "dataDir": "data",                // SQLite + 缩略图缓存（相对"根"）
+  // cacheDir 不用配：默认 <dataDir>/cache
   "logLevel": "info",
   "mockStepDelayMs": 120
 }
@@ -293,7 +323,7 @@ comfyui-server/
 | `PORT` / `HOST` | 本服务监听 |
 | `TEMPLATES_DIR` | 模板目录 |
 | `DATA_DIR` | 持久化数据目录（SQLite 等） |
-| `CACHE_DIR` | 可重建的缓存目录（缩略图）；容器里指向可写卷 |
+| `CACHE_DIR` | 可重建的缓存目录（缩略图）；默认 `<dataDir>/cache` |
 | `WEB_DIR` | 前端静态产物目录（默认 `<dist>/web`） |
 | `REPO_ROOT` | `templatesDir` / `dataDir` / `config.json` 的解析基准 |
 | `MOCK_STEP_DELAY_MS` | mock 模式每步耗时 |
@@ -475,7 +505,7 @@ pnpm --filter @comfyui-server/server add sharp
 
 用 Node **内置的 `node:sqlite`**（不是 `better-sqlite3` —— 那是原生模块，
 与「纯 JS 源码构建」目标冲突，和 sharp 同一类问题）。
-库文件在 `dataDir/comfyui-server.db`（默认 `.data/`，已 gitignore）。
+库文件在 `dataDir/comfyui-server.db`（默认 `data/`，已 gitignore）。
 
 四种预设是**独立实体**，各自一张表：
 

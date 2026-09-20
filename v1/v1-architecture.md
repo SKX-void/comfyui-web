@@ -230,7 +230,10 @@ apps/web/src/
 - server 托管 SPA 静态产物（生产模式单进程）
 - 开发模式：Vite dev server (5173) + server (8080)，Vite proxy 指向 server
 - 容器：`docker-compose.yml` 用官方 node 镜像 + **只读挂载产物**（不需要 Dockerfile /
-  `npm install`）；可写卷只有 `/data`（SQLite + `CACHE_DIR` 缩略图缓存）
+  `npm install`）。部署单元 = `docker-compose.yml` + `config.json` + `dist/` + `data/`，
+  四个东西放一个目录整个复制走即可：`./dist`→`/app:ro`、`./config.json`→`/app/config.json:ro`、
+  `./data`→`/app/data:rw`。data 挂在 `/app/data`（而不是 `/data`）是为了让 config 里的
+  **相对路径** `dataDir: "data"` 在开发模式（`<仓库根>/data`）和容器里（`/app/data`）都成立
 
 ### 构建产物（已落地）
 

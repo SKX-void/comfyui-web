@@ -1,14 +1,15 @@
 # =============================================================================
 # comfyui-server —— 单文件产物 + 官方 node 镜像，不需要 Dockerfile、不需要 npm install
 #
-# 前置（在宿主机执行一次）：
-#   pnpm install && pnpm build        # → dist/{server.mjs, web/, templates/}
-#   mkdir -p data                     # 必须！否则 docker 会以 root 建目录，
-#                                     # 容器里用 ${UID} 跑就写不进去（SQLite 直接报错）
+# 部署单元就是这四样东西，放在同一个目录里（可以整个复制走）：
+#
+#   docker-compose.yml
+#   config.json          # 开发模式和容器**共用**这一份
+#   dist/                # pnpm build 的产物：server.mjs + web/ + templates/
+#   data/                # SQLite + 缩略图缓存（仓库里带了 .gitkeep，目录一定存在）
+#
 #   docker compose up -d
 #
-# 配置走**文件模式**：docker/config.json 挂到 /app/config.json，
-# 所以这里不需要一长串环境变量（环境变量仍可用作临时覆盖，优先级更高）。
 #
 # 改了代码：pnpm build && docker compose restart comfyui-server
 # =============================================================================
@@ -21,7 +22,6 @@ services:
     container_name: comfyui-server
     restart: on-failure:3
     working_dir: /app
-    # 以宿主机用户身份运行，./data 里生成的文件才不会变成 root 所有
     user: "${UID:-1000}:${GID:-1000}"
     # 让 node 之外的合法 init 当 PID 1：正确转发 SIGTERM（本服务有优雅关闭）
     init: true
@@ -33,20 +33,10 @@ services:
       NODE_ENV: production
       TZ: Asia/Shanghai # 日志时间用的时区（系统级，不属于应用配置）
 
-    ports:
-      # 宿主机端口可用 HOST_PORT 覆盖（本机 8086 被开发服务器占用时）
-      - "${HOST_PORT:-8086}:8086"
-
     volumes:
-      # 构建产物（只读）：server.mjs + web/ + templates/。
-      # 前端目录固定为 <server.mjs 所在目录>/web，模板同理（版本锁定的代码资产），
-      # 所以 /app 一个挂载点就够，不需要单独挂 templates。
-      - ./dist:/app:ro
-      # 容器配置（只读）。用仓库里的文件而不是让 docker 现场创建，
-      # 避免"源文件不存在时 docker 建出同名目录 → 启动报 EISDIR"这种坑。
-      - ./docker/config.json:/app/config.json:ro
-      # 运行期数据（可写）：SQLite + 缩略图缓存（见 config.json 的 dataDir / cacheDir）
-      - ./data:/data
+      - ./dist:/app
+      - ./config.json:/app/config.json:ro
+      - ./data:/app/data
 
     command: >
       sh -c 'if [ ! -f /app/server.mjs ]; then
@@ -54,13 +44,13 @@ services:
         exit 1;
       fi;
       if [ ! -f /app/config.json ]; then
-        echo "[comfyui-server] 找不到 /app/config.json —— 检查 ./docker/config.json 是否存在";
+        echo "[comfyui-server] 找不到 /app/config.json —— 检查 ./config.json 是否存在";
         exit 1;
       fi;
       exec node /app/server.mjs'
 
     healthcheck:
-      # 8086 是**容器内**端口（= docker/config.json 的 port），改端口时三处一起改：
+      # 8086 是**容器内**端口（= config.json 的 port），改端口时三处一起改：
       # config.json / ports / 这里。busybox wget 在 alpine 镜像里自带，不用额外装东西。
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8086/api/system/health >/dev/null || exit 1"]
       interval: 30s
