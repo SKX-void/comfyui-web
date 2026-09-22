@@ -326,6 +326,8 @@ function toggleSub(topId: number, subId: number): void {
   gap: 3px;
   overflow-y: auto;
   max-height: 260px;
+  /* 列内长标签不参与"最小宽度"计算，否则会把窄屏撑出横向滚动条 */
+  min-width: 0;
 }
 .browse-col.wide {
   border-left: 1px solid #1f2937;
@@ -387,5 +389,27 @@ function toggleSub(topId: number, subId: number): void {
 }
 .tag-btn:hover {
   background: #1e293b;
+}
+
+/**
+ * 窄屏（手机）：浏览面板原本是 130px + 130px + 1fr 三列并排，
+ * 光两列固定宽度就 260px，加上间距/内边距已经超过手机内容宽度。
+ * 这里改成"分组 | 子组"两列，标签列表另起一行占满整行。
+ */
+@media (max-width: 640px) {
+  .browse {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .browse-col {
+    max-height: 160px;
+  }
+  .browse-col.wide {
+    grid-column: 1 / -1;
+    border-left: none;
+    border-top: 1px solid #1f2937;
+    padding-left: 0;
+    padding-top: 8px;
+    max-height: 220px;
+  }
 }
 </style>

@@ -68,6 +68,12 @@ export const api = {
 
   listJobs: () => request<{ items: Job[] }>('/api/jobs'),
 
+  /** 清空历史记录：只清已结束的任务，在途任务保留 */
+  clearJobs: () =>
+    request<{ ok: boolean; cleared: number; kept: number; items: Job[] }>('/api/jobs', {
+      method: 'DELETE',
+    }),
+
   cancelJob: (id: string) =>
     request<Job>(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
 

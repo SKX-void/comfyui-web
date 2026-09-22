@@ -2,6 +2,13 @@
  * 冒烟测试：不依赖外部服务，验证「模板 → 渲染 → 提交 → 进度 → 出图」链路。
  *
  * 运行：pnpm --filter @comfyui-server/server smoke
+ *
+ * 输出策略：默认精简 —— 只在终端打失败项和一行汇总（全绿时 1 行），
+ * 因为 150+ 条断言的明细对人和 agent 都是纯噪音。需要明细时：
+ *   pnpm ... smoke --verbose          # 逐条打印（原行为）
+ *   SMOKE_VERBOSE=1 pnpm ... smoke    # 同上，走环境变量（便于被上层脚本调用）
+ *   pnpm ... smoke --log=/tmp/smoke.log   # 明细落盘，终端仍只留摘要
+ *   SMOKE_LOG=/tmp/smoke.log pnpm ... smoke
  */
 import path from 'node:path';
 import fs from 'node:fs';
@@ -34,18 +41,45 @@ import { PresetStore, LOCAL_UID, PRESET_KINDS } from '../src/store/presets.js';
 import type { WeilinLoraEntry } from '../src/weilin/client.js';
 import type { JobEvent } from '@comfyui-server/shared';
 
+const startedAt = Date.now();
 let failures = 0;
+let total = 0;
+let currentSection = '';
+/** 失败项摘要（带所属 section），默认模式下最后统一回显 */
+const failedChecks: string[] = [];
+/** 全量明细缓冲区，有 --log 时落盘 */
+const detail: string[] = [];
+
+const argv = process.argv.slice(2);
+const VERBOSE =
+  argv.includes('--verbose') || argv.includes('-v') || process.env.SMOKE_VERBOSE === '1';
+const LOG_PATH =
+  argv.find((a) => a.startsWith('--log='))?.slice('--log='.length) ??
+  process.env.SMOKE_LOG ??
+  '';
+
+/** 明细行：总是进缓冲区，只有 verbose 才打到终端 */
+function emit(line: string): void {
+  detail.push(line);
+  if (VERBOSE) console.log(line);
+}
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 function check(name: string, ok: boolean, extra = ''): void {
-  const mark = ok ? '✔' : '✘';
-  console.log(`${mark} ${name}${extra ? ` — ${extra}` : ''}`);
-  if (!ok) failures += 1;
+  total += 1;
+  const text = `${name}${extra ? ` — ${extra}` : ''}`;
+  emit(`${ok ? '✔' : '✘'} ${text}`);
+  if (ok) return;
+  failures += 1;
+  failedChecks.push(currentSection ? `[${currentSection}] ${text}` : text);
+  // 精简模式下失败必须立刻可见，不能等到最后
+  if (!VERBOSE) console.log(`✘ ${text}`);
 }
 
 function section(title: string): void {
-  console.log(`\n── ${title} ${'─'.repeat(Math.max(0, 56 - title.length))}`);
+  currentSection = title;
+  emit(`\n── ${title} ${'─'.repeat(Math.max(0, 56 - title.length))}`);
 }
 
 /** 跑一段可能抛错的逻辑，返回错误信息；没抛错返回 null */
@@ -563,6 +597,25 @@ async function main(): Promise<void> {
       errMessage(() => capJobs.get(capIds[1]!)) !== null,
   );
   check('最新的任务仍在表里', errMessage(() => capJobs.get(capIds[4]!)) === null);
+
+  // —— 清空历史（前端「清空」按钮）：只清已终态的，在途的留着 ——
+  const clearedOnce = capJobs.clearFinished();
+  check(
+    '清空历史：清掉已终态的任务',
+    clearedOnce.cleared === 3 && capJobs.list().length === 0,
+    `cleared=${clearedOnce.cleared} 剩余=${capJobs.list().length}`,
+  );
+  const clearedAgain = capJobs.clearFinished();
+  check('清空历史：空表再点一次也没事', clearedAgain.cleared === 0 && clearedAgain.kept === 0);
+  // 之前那批还在跑的任务（qJobs，客户端已停但记录仍在）不该被清掉
+  const clearedRunning = qJobs.clearFinished();
+  check(
+    '清空历史：在途任务保留',
+    clearedRunning.cleared === 0 && clearedRunning.kept === 3,
+    `cleared=${clearedRunning.cleared} kept=${clearedRunning.kept}`,
+  );
+  check('在途任务清空后仍在表里', qJobs.list().length === 3, `${qJobs.list().length} 条`);
+
   capJobs.stop();
   await capClient.stop();
 
@@ -819,11 +872,20 @@ async function main(): Promise<void> {
   closeDatabase(migrated);
   fs.rmSync(migDir, { recursive: true, force: true });
 
-  console.log(
-    failures === 0
-      ? '\n✅ 全部通过\n'
-      : `\n❌ ${failures} 项失败\n`,
-  );
+  if (LOG_PATH) {
+    fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
+    fs.writeFileSync(LOG_PATH, `${detail.join('\n')}\n`);
+  }
+
+  const secs = ((Date.now() - startedAt) / 1000).toFixed(1);
+  const logHint = LOG_PATH ? ` · 明细 ${LOG_PATH}` : '';
+  if (failures === 0) {
+    console.log(`✅ smoke 通过 ${total}/${total}（${secs}s）${logHint}`);
+  } else {
+    console.log(`❌ smoke 失败 ${failures}/${total}（${secs}s）`);
+    for (const item of failedChecks) console.log(`   ✘ ${item}`);
+    if (LOG_PATH) console.log(`   明细 ${LOG_PATH}`);
+  }
   process.exit(failures === 0 ? 0 : 1);
 }
 

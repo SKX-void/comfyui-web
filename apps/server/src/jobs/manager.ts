@@ -285,6 +285,26 @@ export class JobManager {
     return [...this.jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
+  /**
+   * 清空历史记录（前端「清空」按钮）。
+   *
+   * 历史本来就在内存里（不持久化），这里只是手动丢掉。
+   * **只清已终态的**：在途任务的记录一删，它后面的事件就没地方落了，
+   * 用户还会以为"什么都没在跑"，而 GPU 其实正忙着 —— 所以留着，并把数量回报给前端。
+   */
+  clearFinished(): { cleared: number; kept: number } {
+    let cleared = 0;
+    for (const [id, job] of this.jobs) {
+      if (!TERMINAL.has(job.status)) continue;
+      this.jobs.delete(id);
+      if (job.promptId) this.promptToJob.delete(job.promptId);
+      cleared += 1;
+    }
+    const kept = this.countInFlight();
+    this.opts.log('已清空历史记录', { cleared, kept });
+    return { cleared, kept };
+  }
+
   /** 订阅某任务的领域事件，返回取消订阅函数 */
   subscribe(jobId: string, handler: (evt: JobEvent) => void): () => void {
     const channel = `job:${jobId}`;

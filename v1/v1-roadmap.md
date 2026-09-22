@@ -311,6 +311,12 @@ config.json                     # 配置文件（默认指向 10.2.3.22:8188）
 > **建议**：WeiLin 契约测试用**录制回放**（把真实响应存成 fixture），
 > 这样 CI 不依赖 ComfyUI 在线，又能捕获上游变更。
 
+**当前入口是 `pnpm verify`**（`scripts/verify.mjs`）：按 `typecheck → smoke → build`
+顺序跑，每步只输出一行结论；完整输出落 `.cache/verify/<step>.log`，失败时才摘出
+失败行回显。冒烟脚本本身默认也只打结论（`--verbose` 出全量明细，`--log=` 落盘），
+避免 150+ 行断言明细淹没终端 / agent 上下文。等 vitest 落地后，把 unit / contract
+作为新步骤接进 `verify.mjs` 的 `STEPS` 即可。
+
 ---
 
 ## 工作量估算（粗）

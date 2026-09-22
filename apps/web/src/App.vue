@@ -20,6 +20,7 @@ const errorMessage = ref<string | null>(null);
 /** 初始化阶段的致命错误（页面会显示横幅，而不是静默残缺） */
 const fatalError = ref<string | null>(null);
 const history = ref<Job[]>([]);
+const clearing = ref(false);
 const log = ref<string[]>([]);
 
 let unsubscribe: (() => void) | null = null;
@@ -96,6 +97,24 @@ async function refreshHistory(): Promise<void> {
     history.value = (await api.listJobs()).items.slice(0, 8);
   } catch {
     /* 忽略 */
+  }
+}
+
+/** 清空历史记录：服务端只清已结束的任务，在途的会保留 */
+async function clearHistory(): Promise<void> {
+  clearing.value = true;
+  try {
+    const res = await api.clearJobs();
+    history.value = res.items.slice(0, 8);
+    const parts = [`已清空 ${res.cleared} 条历史`];
+    if (res.kept > 0) parts.push(`${res.kept} 个任务还在跑，已保留`);
+    status.value = parts.join('，');
+    pushLog(parts.join('，'));
+  } catch (e) {
+    status.value = '清空失败';
+    pushLog(`清空历史失败: ${(e as Error).message}`);
+  } finally {
+    clearing.value = false;
   }
 }
 
@@ -312,8 +331,23 @@ onMounted(() => {
       <section class="card wide">
         <div class="card-head">
           <h2>本次会话</h2>
-          <span class="dim small">不持久化 · 后端重启即清空</span>
+          <div class="head-right">
+            <span class="dim small">不持久化 · 后端重启即清空</span>
+            <button
+              class="btn ghost small"
+              :disabled="clearing || history.length === 0"
+              :title="
+                history.length === 0
+                  ? '没有可清空的记录'
+                  : '清空已结束的记录（正在跑的任务会保留）'
+              "
+              @click="clearHistory"
+            >
+              {{ clearing ? '清空中…' : '清空' }}
+            </button>
+          </div>
         </div>
+        <!-- 同一个表格：宽屏是表格，窄屏靠 td[data-label] 变成卡片（见样式里的 640px 断点） -->
         <table v-if="history.length" class="table">
           <thead>
             <tr>
@@ -322,10 +356,10 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-for="job in history" :key="job.jobId">
-              <td class="mono">{{ job.jobId.slice(0, 12) }}…</td>
-              <td><span class="pill" :class="job.status">{{ job.status }}</span></td>
-              <td>{{ job.templateId }}</td>
-              <td>
+              <td class="mono" data-label="任务">{{ job.jobId.slice(0, 12) }}…</td>
+              <td data-label="状态"><span class="pill" :class="job.status">{{ job.status }}</span></td>
+              <td data-label="模板">{{ job.templateId }}</td>
+              <td class="cell-assets" data-label="产出">
                 <a
                   v-for="a in job.assets"
                   :key="a.assetId"
@@ -338,7 +372,9 @@ onMounted(() => {
                 </a>
                 <span v-if="!job.assets.length" class="dim">—</span>
               </td>
-              <td><button class="btn ghost" @click="reuse(job)">复用参数</button></td>
+              <td class="cell-action">
+                <button class="btn ghost" @click="reuse(job)">复用参数</button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -429,7 +465,9 @@ h2 {
 }
 .layout {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(360px, 1fr);
+  /* 0 下限而不是 320/360px：固定下限会在窄屏上把网格轨道撑得比视口还宽，
+     整页随即出现横向滚动条。列宽交给 1fr 平分，装不下时由内容自己换行。 */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
 }
 .card {
@@ -440,6 +478,8 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* 网格项默认 min-width:auto = 内容最小宽度，会被里面的宽表格反向撑爆轨道 */
+  min-width: 0;
 }
 .card.wide {
   grid-column: 1 / -1;
@@ -449,6 +489,19 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+/* 右半边：说明文字 + 操作按钮（窄屏时允许换行，别把标题挤走） */
+.head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.btn.small {
+  padding: 4px 10px;
+  font-size: 12px;
 }
 .desc {
   font-size: 12px;
@@ -582,7 +635,77 @@ h2 {
 }
 @media (max-width: 900px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/**
+ * 窄屏（手机）：整页不再依赖横向滚动，需要横向排的东西一律改成竖向堆叠。
+ *
+ * 「本次会话」那张 5 列表格是主要元凶：任务号/状态/模板/缩略图/按钮的最小内容宽度
+ * 在 360px 屏上必然超过视口，表格不会自己换行，于是把整页撑宽。
+ * 这里不复制一份 DOM（缩略图会请求两次），而是同一个表格换皮：
+ * 隐藏表头，td 变块，字段名由 td[data-label] 用 ::before 生成 —— 每行就是一张卡片。
+ */
+@media (max-width: 640px) {
+  .page {
+    padding: 12px;
+  }
+
+  /* --- 历史记录：表格 → 卡片 --- */
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+  .table thead {
+    display: none;
+  }
+  .table tr {
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+  .table tr:last-child {
+    margin-bottom: 0;
+  }
+  .table td {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 3px 0;
+    border-bottom: none;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .table td::before {
+    content: attr(data-label);
+    flex: none;
+    width: 3em;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .table .mono {
+    word-break: break-all;
+  }
+  /* 缩略图行：按中线对齐，去掉 flex gap 之外的多余右间距 */
+  .table td.cell-assets {
+    align-items: center;
+  }
+  .table td.cell-assets .thumb-link {
+    margin-right: 0;
+  }
+  /* 操作行没有字段名，按钮靠右 */
+  .table td.cell-action {
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
+  .table td.cell-action::before {
+    content: none;
   }
 }
 </style>

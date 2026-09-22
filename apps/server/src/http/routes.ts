@@ -106,6 +106,17 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
 
   app.get('/api/jobs', async () => ({ items: jobs.list() }));
 
+  /**
+   * 清空历史记录（前端「清空」按钮）。
+   *
+   * 只清已终态的任务；在途任务保留（见 JobManager.clearFinished）。
+   * 顺带把清空后的列表回给前端，省一次往返。
+   */
+  app.delete('/api/jobs', async () => {
+    const { cleared, kept } = jobs.clearFinished();
+    return { ok: true, cleared, kept, items: jobs.list() };
+  });
+
   app.get('/api/jobs/:id', async (req) => {
     const { id } = req.params as { id: string };
     return jobs.get(id);

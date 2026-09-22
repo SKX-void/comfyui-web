@@ -15,7 +15,8 @@
     "build:web": "pnpm --filter @comfyui-server/web build",
     "build:server": "pnpm --filter @comfyui-server/server build",
     "typecheck": "pnpm -r typecheck",
-    "smoke": "pnpm --filter @comfyui-server/server smoke"
+    "smoke": "pnpm --filter @comfyui-server/server smoke",
+    "verify": "node scripts/verify.mjs"
   },
   "packageManager": "pnpm@11.25.0"
 }

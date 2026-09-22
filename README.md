@@ -59,7 +59,32 @@ VITE_ALLOWED_HOSTS='*' pnpm dev:web          # 全部放行（仅限可信内网
 冒烟测试（无需任何外部服务）：
 
 ```bash
-pnpm smoke
+pnpm smoke                          # 默认只输出结论：✅ smoke 通过 164/164（0.9s）
+pnpm smoke -- --verbose             # 逐条打印 150+ 项断言（排查用）
+pnpm smoke -- --log=/tmp/smoke.log  # 明细落盘，终端仍只留摘要
+```
+
+**一套命令跑完全部验证**（typecheck → 冒烟 → 构建），终端每步只留一行结论：
+
+```bash
+pnpm verify
+```
+
+```
+▶ verify（typecheck → smoke → build）
+✔ typecheck    11.6s
+✔ smoke         4.0s
+✔ build        13.8s
+✅ verify 通过（3 步，29.4s）· 日志 .cache/verify/
+```
+
+各步完整输出在 `.cache/verify/<step>.log`；**失败时自动摘出失败行回显并给出日志路径**，
+不必把几千行日志灌进终端。也可以只跑其中几步：
+
+```bash
+pnpm verify typecheck smoke     # 只跑指定步骤
+pnpm verify --no-build          # 跳过构建
+pnpm verify --verbose           # 额外回显各步完整输出
 ```
 
 ---
@@ -261,6 +286,7 @@ nginx -t && nginx -s reload
 comfyui-server/
 ├── api.example.json          # 原始导出工作流（参考）
 ├── v1/                       # 规划文档
+├── scripts/verify.mjs        # 统一验证入口（pnpm verify：typecheck + 冒烟 + 构建）
 ├── docker-compose.yml        # 容器部署（只读挂载 dist/，不需要 Dockerfile）
 ├── dist/                     # 构建产物（gitignore）：server.mjs + web/ + templates/
 ├── templates/                # 工作流模板
@@ -352,6 +378,7 @@ comfyui-server/
 | `GET /api/jobs` · `GET /api/jobs/:id` | 任务列表 / 详情 |
 | `GET /api/jobs/:id/events` | **SSE 进度流** |
 | `POST /api/jobs/:id/cancel` | 取消 |
+| `DELETE /api/jobs` | 清空历史记录（只清已结束的，在途任务保留） |
 | `GET /api/assets/:id/raw` | 取产出图（原图） |
 | `GET /api/assets/:id/thumb?w=&h=` | 产出图缩略图（列表用，约 3 KB） |
 | `GET /api/models?folder=` | 模型枚举 |
@@ -589,6 +616,12 @@ CREATE TABLE preset_size (
 
 出图结果是**用过即弃**的，服务端不建 `jobs` 表。「本次会话」卡片只是内存态，
 后端重启即清空（UI 上已注明）。
+
+卡片右上角有个「清空」按钮（就是 `DELETE /api/jobs`）：只清**已结束**的记录，
+**正在跑的任务会保留** —— 把在途任务的记录删掉，它后面的事件就没地方落了，
+用户还会以为"什么都没在跑"，而 GPU 其实正忙着。清空只影响内存里那份列表 ——
+**产出图本身不受影响**：本服务不存图，只把 ComfyUI 给的 `type/subfolder/filename`
+编成 `assetId` 记在任务上，图始终在 ComfyUI 那台机器的 output 目录里。
 
 需要留档时，把「输出格式」切到 **PNG** —— 这相当于一个「存 / 不存」开关：
 
