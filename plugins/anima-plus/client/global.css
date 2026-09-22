@@ -1,0 +1,51 @@
+/**
+ * 从旧单页 `style.css` 搬来的**作用域化**版本。
+ *
+ * 原版直接写 `html, body, #app` —— 搬进宿主后会把宿主的深色外壳一起改掉，
+ * 所以这里统一收敛到插件根元素 `.cw-anima-plus` 之下。
+ * 组件自己的样式都是 `<style scoped>`，本来就不会外泄，不需要动。
+ */
+.cw-anima-plus {
+  color-scheme: dark;
+  min-height: 60vh;
+  /* 不要再留边距：宿主外壳的 <main class="content"> 已经给了 20px，
+     这里再留就是双份（再加 .page 的 20px 就是三层，合计左右 58px） */
+  padding: 0;
+  border-radius: 10px;
+  background: #0b1220;
+  color: #e2e8f0;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cw-anima-plus * {
+  box-sizing: border-box;
+}
+
+.cw-anima-plus a {
+  color: #93c5fd;
+}
+
+/**
+ * 表单控件的「固有最小宽度」兜底。
+ *
+ * `input` / `select` / `textarea` 的 min-content 宽度约 20 个字符（`<input type="number">`
+ * 就是「种子」这类框最明显），而 flex / grid 轨道在没写 `minmax(0, …)` 或 `min-width: 0`
+ * 时会**按内容**撑开 —— 窄屏上表现为输入框顶破视口、整页横向滚动。
+ *
+ * 这里统一放开收缩下限：实际宽度仍由各处的 width / flex / 轨道定义决定，
+ * 只是不允许「内容」反过来决定容器的最小尺寸。
+ */
+.cw-anima-plus input,
+.cw-anima-plus select,
+.cw-anima-plus textarea {
+  min-width: 0;
+  max-width: 100%;
+}

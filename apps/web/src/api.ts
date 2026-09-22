@@ -1,172 +1,22 @@
-import type {
-  CreateJobRequest,
-  CreateJobResponse,
-  HealthResponse,
-  Job,
-  JobEvent,
-  LoraBrowseResponse,
-  LoraMeta,
-  PresetKindPayload,
-  TagGroupItem,
-  TagItem,
-  TemplateDetail,
-} from '@comfyui-server/shared';
-
-interface ApiErrorBody {
-  error: { code: string; message: string; details?: unknown };
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  // ⚠️ 只在有 body 时才带 Content-Type。
-  // DELETE 这类无 body 的请求若声明 application/json，Fastify 会直接拒绝：
-  // "Body cannot be empty when content-type is set to 'application/json'"
-  const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
-  if (init?.body !== undefined && init.body !== null && headers['Content-Type'] === undefined) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  const res = await fetch(path, { ...init, headers });
-  if (!res.ok) {
-    let message = `HTTP ${res.status}`;
-    let details: unknown;
-    try {
-      const body = (await res.json()) as ApiErrorBody;
-      message = body.error?.message ?? message;
-      details = body.error?.details;
-    } catch {
-      /* 保持默认信息 */
-    }
-    const err = new Error(message) as Error & { details?: unknown; status?: number };
-    err.details = details;
-    err.status = res.status;
-    throw err;
-  }
+/**
+ * 宿主自己的 HTTP 封装。
+ *
+ * 注意：**这不是给插件用的 SDK** —— 按项目决策（v2-architecture §1.2 N3），
+ * 插件自己写 fetch/EventSource，宿主不提供前端 SDK。
+ */
+export async function getJSON<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
   return (await res.json()) as T;
 }
 
-export const api = {
-  health: () => request<HealthResponse>('/api/system/health'),
-
-  listTemplates: () =>
-    request<{ items: Array<{ id: string; name: string; description: string; version: string }> }>(
-      '/api/templates',
-    ),
-
-  getTemplate: (id: string) =>
-    request<TemplateDetail>(`/api/templates/${encodeURIComponent(id)}`),
-
-  listModels: (folder: string) =>
-    request<{ items: string[] }>(`/api/models?folder=${encodeURIComponent(folder)}`),
-
-  createJob: (body: CreateJobRequest) =>
-    request<CreateJobResponse>('/api/jobs', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-
-  getJob: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}`),
-
-  listJobs: () => request<{ items: Job[] }>('/api/jobs'),
-
-  /** 清空历史记录：只清已结束的任务，在途任务保留 */
-  clearJobs: () =>
-    request<{ ok: boolean; cleared: number; kept: number; items: Job[] }>('/api/jobs', {
-      method: 'DELETE',
-    }),
-
-  cancelJob: (id: string) =>
-    request<Job>(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
-
-  // --- WeiLin 数据源 ---
-
-  /**
-   * LoRA 目录浏览：一次只取一层（子目录 + 当前目录直属的 LoRA）。
-   * 不递归 —— 避免把 290 个 LoRA 一次性丢给浏览器。
-   */
-  browseLoras: (path = '') =>
-    request<LoraBrowseResponse>(`/api/loras/browse?path=${encodeURIComponent(path)}`),
-
-  getLoraMeta: (file: string) =>
-    request<LoraMeta>(`/api/loras/meta?file=${encodeURIComponent(file)}`),
-
-  listTagGroups: () => request<{ items: TagGroupItem[] }>('/api/tags/groups'),
-
-  listTags: (params: { q?: string; groupId?: number; page?: number; pageSize?: number }) => {
-    const qs = new URLSearchParams();
-    if (params.q) qs.set('q', params.q);
-    if (params.groupId) qs.set('groupId', String(params.groupId));
-    qs.set('page', String(params.page ?? 1));
-    qs.set('pageSize', String(params.pageSize ?? 60));
-    return request<{ items: TagItem[]; total: number; page: number; pageSize: number }>(
-      `/api/tags?${qs.toString()}`,
-    );
-  },
-
-  autocompleteTags: (q: string) =>
-    request<{ items: TagItem[] }>(`/api/tags/autocomplete?q=${encodeURIComponent(q)}`),
-
-  // --- 预设 ---
-
-  listPresets: () => request<{ kinds: PresetKindPayload[] }>('/api/presets'),
-
-  savePreset: (
-    kind: string,
-    name: string,
-    body: { description: string; values: Record<string, unknown> },
-  ) =>
-    request<{ ok: boolean }>(
-      `/api/presets/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`,
-      { method: 'PUT', body: JSON.stringify(body) },
-    ),
-
-  deletePreset: (kind: string, name: string) =>
-    request<{ ok: boolean }>(
-      `/api/presets/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`,
-      { method: 'DELETE' },
-    ),
-
-  translate: (texts: string[]) =>
-    request<{ items: Array<{ original: string; translated: string; color: string }> }>(
-      '/api/tags/translate',
-      { method: 'POST', body: JSON.stringify({ texts }) },
-    ),
-};
-
-/**
- * 订阅任务事件（SSE）。返回取消订阅函数。
- * 服务端连接即发 snapshot，因此断线重连不需要回放。
- */
-export function subscribeJob(
-  jobId: string,
-  onEvent: (evt: JobEvent) => void,
-  onError?: (err: Event) => void,
-): () => void {
-  const es = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/events`);
-  const types: JobEvent['type'][] = [
-    'snapshot',
-    'queued',
-    'started',
-    'progress',
-    'node',
-    'completed',
-    'error',
-    'canceled',
-  ];
-  for (const type of types) {
-    es.addEventListener(type, (raw) => {
-      const evt = raw as MessageEvent<string>;
-      let data: Record<string, unknown> = {};
-      try {
-        data = JSON.parse(evt.data) as Record<string, unknown>;
-      } catch {
-        /* 忽略坏帧 */
-      }
-      onEvent({ type, data });
-    });
-  }
-  es.onerror = (err) => {
-    onError?.(err);
-    es.close();
-  };
-  return () => es.close();
+export async function putJSON<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const payload = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(payload.error ?? `${url} → HTTP ${res.status}`);
+  return payload as T;
 }

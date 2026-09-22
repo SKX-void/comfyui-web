@@ -1,0 +1,223 @@
+import type {
+  CreateJobRequest,
+  CreateJobResponse,
+  DepsReport,
+  HealthResponse,
+  HelpDoc,
+  Job,
+  JobEvent,
+  LoraBrowseResponse,
+  LoraMeta,
+  PresetKindPayload,
+  TagGroupItem,
+  TagItem,
+  TemplateDetail,
+} from '@comfyui-web/shared';
+
+interface ApiErrorBody {
+  error: { code: string; message: string; details?: unknown };
+}
+
+/**
+ * 业务路由还没搬进本插件，所有接口经**宿主内的插件反代**转发到上游旧服务
+ * （见 plugins/anima-plus/server.js）。搬完之后这里改成空串或插件自己的前缀即可，
+ * 调用方一行不用动。
+ */
+export const API_BASE = '/api/p/anima-plus';
+
+/** 把上游的 `/api/...` 路径拼成本插件的同源地址（`<img src>` 这类也要用它） */
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
+/**
+ * 上游在响应里回传的图片地址是**绝对路径**（`/api/assets/...`）。
+ * 搬进插件后必须改写到反代前缀下，否则会打到宿主源上（404）。
+ *
+ * 统一在 api 层做：调用方拿到的就是能直接用的 URL。否则每个用到 `asset.url`
+ * 的地方都要记得改写一次，迟早漏。
+ */
+export function assetUrl(url: string): string {
+  return url.startsWith('/api/') ? apiUrl(url) : url;
+}
+
+interface AssetLike {
+  assetId: string;
+  url: string;
+  filename?: string;
+}
+
+/** 任务里带的产出图 URL 全部改写；其它字段不动 */
+function withAssetUrls<T extends { assets?: AssetLike[] }>(job: T): T {
+  if (!Array.isArray(job.assets)) return job;
+  return { ...job, assets: job.assets.map((a) => ({ ...a, url: assetUrl(a.url) })) };
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // ⚠️ 只在有 body 时才带 Content-Type。
+  // DELETE 这类无 body 的请求若声明 application/json，Fastify 会直接拒绝：
+  // "Body cannot be empty when content-type is set to 'application/json'"
+  const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
+  if (init?.body !== undefined && init.body !== null && headers['Content-Type'] === undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const res = await fetch(apiUrl(path), { ...init, headers });
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    let details: unknown;
+    try {
+      const body = (await res.json()) as ApiErrorBody;
+      message = body.error?.message ?? message;
+      details = body.error?.details;
+    } catch {
+      /* 保持默认信息 */
+    }
+    const err = new Error(message) as Error & { details?: unknown; status?: number };
+    err.details = details;
+    err.status = res.status;
+    throw err;
+  }
+  return (await res.json()) as T;
+}
+
+export const api = {
+  health: () => request<HealthResponse>('/api/system/health'),
+
+  /**
+   * 依赖检查：模板需要的节点类，这台 ComfyUI 有没有。
+   * `refresh` 绕过服务端 5 分钟缓存（object_info 约 9MB / 2s）。
+   */
+  deps: (refresh = false) => request<DepsReport>(`/api/deps${refresh ? '?refresh=1' : ''}`),
+
+  /** 帮助文档：包内 readme.md 的原文（运行前需要装哪些节点包） */
+  help: () => request<HelpDoc>('/api/help'),
+
+  listTemplates: () =>
+    request<{ items: Array<{ id: string; name: string; description: string; version: string }> }>(
+      '/api/templates',
+    ),
+
+  getTemplate: (id: string) =>
+    request<TemplateDetail>(`/api/templates/${encodeURIComponent(id)}`),
+
+  listModels: (folder: string) =>
+    request<{ items: string[] }>(`/api/models?folder=${encodeURIComponent(folder)}`),
+
+  createJob: (body: CreateJobRequest) =>
+    request<CreateJobResponse>('/api/jobs', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  getJob: (id: string) =>
+    request<Job>(`/api/jobs/${encodeURIComponent(id)}`).then(withAssetUrls),
+
+  listJobs: () =>
+    request<{ items: Job[] }>('/api/jobs').then((r) => ({
+      ...r,
+      items: r.items.map(withAssetUrls),
+    })),
+
+  /** 清空历史记录：只清已结束的任务，在途任务保留 */
+  clearJobs: () =>
+    request<{ ok: boolean; cleared: number; kept: number; items: Job[] }>('/api/jobs', {
+      method: 'DELETE',
+    }).then((r) => ({ ...r, items: r.items.map(withAssetUrls) })),
+
+  cancelJob: (id: string) =>
+    request<Job>(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+
+  // --- WeiLin 数据源 ---
+
+  /**
+   * LoRA 目录浏览：一次只取一层（子目录 + 当前目录直属的 LoRA）。
+   * 不递归 —— 避免把 290 个 LoRA 一次性丢给浏览器。
+   */
+  browseLoras: (path = '') =>
+    request<LoraBrowseResponse>(`/api/loras/browse?path=${encodeURIComponent(path)}`),
+
+  getLoraMeta: (file: string) =>
+    request<LoraMeta>(`/api/loras/meta?file=${encodeURIComponent(file)}`),
+
+  listTagGroups: () => request<{ items: TagGroupItem[] }>('/api/tags/groups'),
+
+  listTags: (params: { q?: string; groupId?: number; page?: number; pageSize?: number }) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.groupId) qs.set('groupId', String(params.groupId));
+    qs.set('page', String(params.page ?? 1));
+    qs.set('pageSize', String(params.pageSize ?? 60));
+    return request<{ items: TagItem[]; total: number; page: number; pageSize: number }>(
+      `/api/tags?${qs.toString()}`,
+    );
+  },
+
+  autocompleteTags: (q: string) =>
+    request<{ items: TagItem[] }>(`/api/tags/autocomplete?q=${encodeURIComponent(q)}`),
+
+  // --- 预设 ---
+
+  listPresets: () => request<{ kinds: PresetKindPayload[] }>('/api/presets'),
+
+  savePreset: (
+    kind: string,
+    name: string,
+    body: { description: string; values: Record<string, unknown> },
+  ) =>
+    request<{ ok: boolean }>(
+      `/api/presets/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+
+  deletePreset: (kind: string, name: string) =>
+    request<{ ok: boolean }>(
+      `/api/presets/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`,
+      { method: 'DELETE' },
+    ),
+
+  translate: (texts: string[]) =>
+    request<{ items: Array<{ original: string; translated: string; color: string }> }>(
+      '/api/tags/translate',
+      { method: 'POST', body: JSON.stringify({ texts }) },
+    ),
+};
+
+/**
+ * 订阅任务事件（SSE）。返回取消订阅函数。
+ * 服务端连接即发 snapshot，因此断线重连不需要回放。
+ */
+export function subscribeJob(
+  jobId: string,
+  onEvent: (evt: JobEvent) => void,
+  onError?: (err: Event) => void,
+): () => void {
+  const es = new EventSource(apiUrl(`/api/jobs/${encodeURIComponent(jobId)}/events`));
+  const types: JobEvent['type'][] = [
+    'snapshot',
+    'queued',
+    'started',
+    'progress',
+    'node',
+    'completed',
+    'error',
+    'canceled',
+  ];
+  for (const type of types) {
+    es.addEventListener(type, (raw) => {
+      const evt = raw as MessageEvent<string>;
+      let data: Record<string, unknown> = {};
+      try {
+        data = JSON.parse(evt.data) as Record<string, unknown>;
+      } catch {
+        /* 忽略坏帧 */
+      }
+      onEvent({ type, data });
+    });
+  }
+  es.onerror = (err) => {
+    onError?.(err);
+    es.close();
+  };
+  return () => es.close();
+}

@@ -122,13 +122,45 @@ export interface PromptBinding {
   loraStackNode?: string;
 }
 
+/**
+ * 需要用户自己装的节点包。
+ *
+ * `url` **由作者手写、不走 ComfyUI-Manager 的推测**：Manager 的"类 → 包"映射并不
+ * 可靠（同名包、改过名的目录、不在 Manager 上的包都会猜错），而作者本来就知道自己
+ * 用的是哪个仓库。写上地址的另一个好处是 WeiLin 这种**不在 Manager 上**的包，
+ * 用户也能一眼找到去装的地方。
+ */
+export interface PackRequirement {
+  name: string;
+  /** 仓库地址（GitHub 等） */
+  url: string;
+  /** 这个包提供的节点类（`class_type`）—— 用来回答"缺的这个节点该装谁" */
+  provides: string[];
+  /** 可选包：缺了不拦提交（只在依赖面板里提示） */
+  optional?: boolean;
+  note?: string;
+}
+
+export interface TemplateRequirements {
+  /**
+   * 模板需要的节点类。**由 graph.json 推导、运行期由 loader 填**，作者不要手写：
+   * 手写过一次就漂了（模板列 9 种、图里实际 17 种，缺的那 8 种一路跑到 ComfyUI 才报错）。
+   */
+  nodes?: string[];
+  /** ComfyUI 自带（`nodes` / `comfy_extras`）；缺了说明 ComfyUI 版本太老 */
+  builtin?: string[];
+  /** 需要另外安装的节点包 */
+  packs?: PackRequirement[];
+  weilin?: boolean;
+}
+
 export interface TemplateDef {
   id: string;
   name: string;
   description?: string;
   version: string;
   source?: { file: string; capturedAt?: string };
-  requirements?: { nodes?: string[]; weilin?: boolean };
+  requirements?: TemplateRequirements;
   inputs: TemplateInput[];
   bindings: Binding[];
   promptBinding?: PromptBinding;
@@ -274,6 +306,52 @@ export interface ApiErrorBody {
 // ---------------------------------------------------------------------------
 // 系统
 // ---------------------------------------------------------------------------
+
+/** 依赖检查的单个包：声明 + 这个包当前缺了什么 */
+export interface DepsPackView extends PackRequirement {
+  /** 这个包里当前缺失的节点类（空数组 = 齐） */
+  missing: string[];
+}
+
+/** 依赖检查的单个模板 */
+export interface DepsTemplateView {
+  id: string;
+  name: string;
+  ready: boolean;
+  missing: string[];
+}
+
+/** `GET /api/deps` 的响应 */
+export interface DepsReport {
+  /**
+   * true = 齐了；false = 确实缺；**null = 没查成**（ComfyUI 不可达 / 超时）。
+   *
+   * 三态是刻意的：把"连不上"说成"缺依赖"会把用户引去装一堆本来就在的包。
+   */
+  ok: boolean | null;
+  checkedAt: string | null;
+  /** ok === null 时的原因 */
+  error?: string;
+  /** 结果是否来自缓存（object_info 约 9MB / 2s，必须缓存） */
+  cached?: boolean;
+  /** ComfyUI 已注册的节点类数量 */
+  nodeCount?: number;
+  /** 内置节点却缺失（ComfyUI 版本太老，装不了插件包解决） */
+  missingBuiltin: string[];
+  /** 缺失的节点 → 出处；声明里没写地址时为 null（界面显示"出处未声明"） */
+  missing: Array<{ classType: string; pack: { name: string; url: string } | null }>;
+  packs: DepsPackView[];
+  templates: DepsTemplateView[];
+}
+
+/** `GET /api/help` 的响应：包内 md 的原文（text 为 null = 读不到，`error` 给原因） */
+export interface HelpDoc {
+  file: string;
+  text: string | null;
+  bytes: number;
+  updatedAt: string | null;
+  error?: string;
+}
 
 export interface HealthResponse {
   server: 'ok';

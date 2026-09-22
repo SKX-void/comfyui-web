@@ -1,0 +1,94 @@
+{
+  "name": "@comfyui-web/anima-plus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Anima Plus 文生图工作流插件：前后端都在本包内（模板/渲染/显存护栏/任务编排/LoRA/标签/预设），不依赖任何外部服务",
+  "type": "module",
+  "main": "./lib/server.js",
+  "exports": {
+    ".": "./lib/server.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "node scripts/build-server.mjs && vite build",
+    "build:server": "node scripts/build-server.mjs",
+    "dev": "node scripts/build-server.mjs --watch & vite build --watch",
+    "deps:sync": "node scripts/gen-deps.mjs",
+    "deps:check": "node scripts/gen-deps.mjs --check",
+    "typecheck": "vue-tsc --noEmit",
+    "smoke": "tsx scripts/smoke.ts",
+    "test:contract": "node scripts/contract-test.mjs"
+  },
+  "files": [
+    "lib",
+    "assets",
+    "package.json",
+    "readme.md"
+  ],
+  "plugin": {
+    "contract": 1,
+    "title": "Anima Plus",
+    "icon": "brush",
+    "order": 1,
+    "client": "lib/client.js",
+    "settings": [
+      {
+        "key": "comfyuiBaseUrl",
+        "type": "string",
+        "label": "ComfyUI 地址",
+        "default": "http://localhost:8188",
+        "description": "出图、模型枚举、LoRA/标签都在这个地址上（WeiLin 的 /weilin/* 路由也注册在同一个 ComfyUI）。留空 = 跟随设置页里的「统一 ComfyUI 地址」（那边也没填就用内置默认）；填了 = 只有这个插件用它。只写 host:port 会自动补 http://；宿主跑在容器里时 localhost 是容器自己，要填局域网地址。",
+        "fallback": "comfyuiBaseUrl"
+      },
+      {
+        "key": "maxQueueDepth",
+        "type": "number",
+        "label": "并发任务上限",
+        "default": 5,
+        "min": 1,
+        "max": 16,
+        "description": "同一台 ComfyUI 上最多同时排多少条任务（护栏，防止把显存挤爆）。8G 卡建议 2~3，24G 卡可以放到 5 以上。越界会被收敛到范围内。"
+      },
+      {
+        "key": "maxJobsRetained",
+        "type": "number",
+        "label": "历史保留条数",
+        "default": 200,
+        "min": 10,
+        "max": 5000,
+        "description": "任务列表在内存里保留多少条（旧的重启即丢，产图仍在 ComfyUI 的 output 目录）。内存小的机器可以调小。"
+      },
+      {
+        "key": "depsWarmupOnStart",
+        "type": "boolean",
+        "label": "启动时预热依赖检查",
+        "default": true,
+        "description": "开启后插件激活时就查一次 /object_info（约 9MB），首屏那次检查直接走缓存。ComfyUI 经常比宿主晚起来的话可以关掉，少一条失败日志。"
+      },
+      {
+        "key": "depsCacheTtlMinutes",
+        "type": "number",
+        "label": "依赖检查缓存时长（分钟）",
+        "default": 5,
+        "min": 0,
+        "max": 1440,
+        "description": "依赖检查结果的缓存时长。0 = 不缓存：每次检查都去拉一遍上游（约 9MB / 2s），只在刚装完节点包、想立刻看到结果时用；界面上的「重新检查」按钮随时能绕过缓存。"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@comfyui-web/shared": "workspace:*",
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "esbuild": "0.25.12",
+    "fastify": "^5.2.0",
+    "purejsimage": "0.17.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.9",
+    "vue": "^3.5.13",
+    "vue-tsc": "^2.2.0",
+    "ws": "^8.18.0"
+  }
+}

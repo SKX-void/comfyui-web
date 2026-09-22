@@ -1,0 +1,8 @@
+- id: p1
+  name: ./probe-plugin.mjs
+  config:
+    url: ''
+- id: p2
+  name: ./probe-plugin.mjs
+  config:
+    url: ''

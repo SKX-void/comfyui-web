@@ -1,58 +1,60 @@
 # =============================================================================
-# comfyui-server —— 单文件产物 + 官方 node 镜像，不需要 Dockerfile、不需要 npm install
+# comfyui-web —— 单文件产物 + 官方 node 镜像，不需要 Dockerfile、不需要在容器里 npm install
 #
-# 部署单元就是这四样东西，放在同一个目录里（可以整个复制走）：
+# 部署单元（放在同一个目录里，可以整个复制走）：
 #
 #   docker-compose.yml
-#   config.json          # 开发模式和容器**共用**这一份
-#   dist/                # pnpm build 的产物：server.mjs + web/ + templates/
-#   data/                # SQLite + 缩略图缓存（仓库里带了 .gitkeep，目录一定存在）
+#   host.config.json     # 宿主配置（端口/profile/dataDir）
+#   dist/                # pnpm build 的产物：host/host.mjs + host/web/（前端外壳）
+#   profiles/            # 插件清单（plugins.yml）+ 该 profile 的 node_modules（插件就是从这里解析的）
+#   plugins/             # 插件包本体（lib/server.js + lib/client.js + assets/）
+#   data/                # 运行期数据：插件空间 data/plugins/<包名>/
 #
 #   docker compose up -d
 #
+#   ⚠️ profiles/ 必须可写：宿主启动时会重写 profiles/<name>/.cordis/resolve.mjs。
+#   ⚠️ profiles 与 plugins 是**相对软链接**关系（profiles/default/node_modules/@comfyui-web/x
+#      → ../../plugins/x），所以两者必须保持和仓库里一样的相对深度，不能只挂其中一个。
 #
-# 改了代码：pnpm build && docker compose restart comfyui-server
+# 改了代码：pnpm build && docker compose restart comfyui-web
+# 加插件：在宿主机 pnpm plugin add <包>，重启容器（宿主产物与插件无关，不用重新构建 dist）
 # =============================================================================
-name: comfyui-server
+name: comfyui-web
 
 services:
-  comfyui-server:
+  comfyui-web:
     # 任何 Node >= 24 的镜像都行（node:sqlite 无 flag 可用是硬要求）
     image: node:26.7.0-alpine3.24
-    container_name: comfyui-server
+    container_name: comfyui-web
     restart: on-failure:3
     working_dir: /app
     user: "${UID:-1000}:${GID:-1000}"
-    # 让 node 之外的合法 init 当 PID 1：正确转发 SIGTERM（本服务有优雅关闭）
+    # 让 node 之外的合法 init 当 PID 1：正确转发 SIGTERM（宿主有优雅关闭）
     init: true
     networks:
       - server-net
 
     environment:
-      # 产物里已经固化了 NODE_ENV=production，这里写出来只是让 compose 自解释
-      NODE_ENV: production
       TZ: Asia/Shanghai # 日志时间用的时区（系统级，不属于应用配置）
 
     volumes:
-      - ./dist:/app
-      - ./config.json:/app/config.json:ro
+      - ./dist:/app/dist:ro
+      - ./host.config.json:/app/host.config.json:ro
+      - ./profiles:/app/profiles
+      - ./plugins:/app/plugins:ro
       - ./data:/app/data
 
     command: >
-      sh -c 'if [ ! -f /app/server.mjs ]; then
-        echo "[comfyui-server] 找不到 /app/server.mjs —— 请在宿主机先执行 pnpm build（产物在 ./dist）";
+      sh -c 'if [ ! -f /app/dist/host/host.mjs ]; then
+        echo "[comfyui-web] 找不到 /app/dist/host/host.mjs —— 请在宿主机先执行 pnpm build（产物在 ./dist）";
         exit 1;
       fi;
-      if [ ! -f /app/config.json ]; then
-        echo "[comfyui-server] 找不到 /app/config.json —— 检查 ./config.json 是否存在";
-        exit 1;
-      fi;
-      exec node /app/server.mjs'
+      exec node /app/dist/host/host.mjs'
 
     healthcheck:
-      # 8086 是**容器内**端口（= config.json 的 port），改端口时三处一起改：
-      # config.json / ports / 这里。busybox wget 在 alpine 镜像里自带，不用额外装东西。
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8086/api/system/health >/dev/null || exit 1"]
+      # 8087 是**容器内**端口（= host.config.json 的 port），改端口时三处一起改：
+      # host.config.json / ports / 这里。busybox wget 在 alpine 镜像里自带。
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8087/api/host >/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

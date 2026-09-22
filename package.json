@@ -1,5 +1,5 @@
 {
-  "name": "comfyui-server",
+  "name": "comfyui-web",
   "version": "0.1.0",
   "private": true,
   "description": "ComfyUI 轻前端服务器：表单 → 模板渲染 → ComfyUI API → 进度 → 出图",
@@ -9,13 +9,17 @@
   },
   "scripts": {
     "dev": "pnpm -r --parallel --filter \"./apps/*\" dev",
-    "dev:server": "pnpm --filter @comfyui-server/server dev",
-    "dev:web": "pnpm --filter @comfyui-server/web dev",
-    "build": "pnpm --filter @comfyui-server/web build && pnpm --filter @comfyui-server/server build",
-    "build:web": "pnpm --filter @comfyui-server/web build",
-    "build:server": "pnpm --filter @comfyui-server/server build",
+    "dev:web": "pnpm --filter @comfyui-web/web dev",
+    "dev:host": "pnpm --filter @comfyui-web/server dev",
+    "build": "pnpm run build:plugins && pnpm run build:host",
+    "build:host": "pnpm --filter @comfyui-web/web build && pnpm --filter @comfyui-web/server build",
+    "build:plugins": "pnpm -r --filter \"./plugins/*\" build",
+    "build:web": "pnpm --filter @comfyui-web/web build",
+    "bundle:host": "pnpm --filter @comfyui-web/server bundle",
+    "plugin": "node apps/server/scripts/plugin.mjs",
     "typecheck": "pnpm -r typecheck",
-    "smoke": "pnpm --filter @comfyui-server/server smoke",
+    "smoke": "pnpm --filter @comfyui-web/anima-plus smoke",
+    "contract": "pnpm -r --filter \"./plugins/*\" test:contract",
     "verify": "node scripts/verify.mjs"
   },
   "packageManager": "pnpm@11.25.0"

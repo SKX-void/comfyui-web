@@ -1,32 +1,33 @@
 {
-  "name": "@comfyui-server/server",
+  "name": "@comfyui-web/server",
   "version": "0.1.0",
   "private": true,
+  "description": "v2 宿主后端：cordis 微内核 + 挂载点句柄，零业务插件",
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node --watch-path=src --watch-path=../../packages/shared/src --import tsx src/index.ts",
     "start": "tsx src/index.ts",
     "build": "tsc --noEmit && node scripts/build.mjs",
     "bundle": "node scripts/build.mjs",
-    "start:bundle": "node dist/server.mjs",
-    "typecheck": "tsc --noEmit",
-    "smoke": "tsx scripts/smoke.ts"
+    "start:bundle": "node dist/host.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@comfyui-server/shared": "workspace:*",
-    "@fastify/cors": "^10.0.1",
+    "@cordisjs/plugin-include": "1.1.0",
+    "@cordisjs/plugin-loader": "1.0.0-rc.7",
     "@fastify/static": "^10.1.4",
+    "cordis": "4.0.0-rc.10",
     "fastify": "^5.2.0",
+    "js-yaml": "^4.1.0",
     "pino": "^9.5.0",
-    "pino-pretty": "^13.0.0",
-    "ws": "^8.18.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.2",
-    "@types/ws": "^8.5.13",
     "esbuild": "0.25.12",
+    "pino-pretty": "^13.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

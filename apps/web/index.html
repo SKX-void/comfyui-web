@@ -1,10 +1,28 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>comfyui-web</title>
     <link rel="icon" type="image/svg+xml" href="/brush.svg" />
-    <title>ComfyUI 轻前端</title>
+
+    <!--
+      共享运行时（import map）。
+
+      宿主**自己**也通过这份映射加载 Vue，插件 bundle 里 external 掉的 `vue`
+      同样落到这里 —— 因此两边是同一个实例。这是"加插件不重编宿主"的关键：
+      宿主构建产物里不含 Vue，插件产物里也不含 Vue。
+
+      必须出现在任何 module script **之前**。
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "vue": "/vendor/__VUE__",
+          "vue-router": "/vendor/__VUE_ROUTER__"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>

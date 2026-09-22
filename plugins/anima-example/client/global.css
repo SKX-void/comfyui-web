@@ -1,0 +1,75 @@
+/**
+ * 插件的全局样式：**必须收敛到根元素作用域下**。
+ *
+ * 宿主的 tab 是把插件组件挂进它自己的组件树，任何写 `html, body, #app` 的规则
+ * 都会把宿主外壳一起改掉。组件内部样式都用 `<style scoped>`，本来就不会外泄。
+ */
+.cw-anima-example {
+  color-scheme: dark;
+  padding: 16px 18px 28px;
+  border-radius: 10px;
+  background: #0b1220;
+  color: #e2e8f0;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cw-anima-example a {
+  color: #7dd3fc;
+}
+
+/* 表单控件统一底色：不依赖宿主外壳的控件样式 */
+.cw-anima-example input,
+.cw-anima-example select,
+.cw-anima-example textarea,
+.cw-anima-example button {
+  font: inherit;
+  color: inherit;
+}
+
+.cw-anima-example input,
+.cw-anima-example select,
+.cw-anima-example textarea {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 100%;
+  /* ⚠️ 必须允许收缩：<select> 的**固有最小宽度 = 最长选项的宽度**，
+     模型名动辄 50+ 字符（Anima\0.26.9.12.NAI.RDBT ...safetensors），
+     不给 min-width:0 的话栅格/弹性轨道会被它顶开，整个表单横向溢出。
+     <input> 同理：默认固有宽度约 20 字符。 */
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cw-anima-example input:focus,
+.cw-anima-example select:focus,
+.cw-anima-example textarea:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
+
+.cw-anima-example button {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.cw-anima-example button:hover:not(:disabled) {
+  background: #273449;
+}
+
+.cw-anima-example button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

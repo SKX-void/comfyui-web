@@ -6,6 +6,7 @@ dist/
 .env
 .env.local
 *.tsbuildinfo
+lib/
 
 # 本机私密配置（覆盖 config.json）
 config.local.json
@@ -17,3 +18,9 @@ config.local.json
 # 目录本身要留着（.gitkeep），内容不提交
 /data/*
 !/data/.gitkeep
+
+# profile：plugins.yml 与 profile 的 package.json 提交，装进来的东西不提交
+/profiles/*/node_modules/
+/profiles/*/pnpm-lock.yaml
+# 前端 import map 的 vendor 产物（由 scripts/vendor.mjs 从 node_modules 复制）
+/apps/web/public/vendor/

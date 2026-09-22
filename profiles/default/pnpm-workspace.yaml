@@ -1,0 +1,8 @@
+# profile 是**独立**的 pnpm workspace（不要让 pnpm 冒泡到仓库根的 workspace，
+# 否则会污染根 lockfile）。
+#
+# 本环境 HOME 是只读挂载，默认 store 路径不可写，所以 store 指向仓库内的 store。
+# 若你的机器 HOME 可写，可删掉 storeDir 复用全局 store。
+packages: []
+
+storeDir: ../../.pnpm-store

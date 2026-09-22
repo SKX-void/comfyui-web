@@ -1,0 +1,401 @@
+#!/usr/bin/env node
+/**
+ * anima-plus 自检：**不需要 ComfyUI、不需要网络、不起 HTTP**。
+ *
+ * 旧服务那份 896 行的 `apps/server/scripts/smoke.ts` 是随进程一起跑的（mock 客户端 +
+ * 真 HTTP + 真 SQLite），删掉 8086 之后它没法原样搬过来。这里只保留**纯函数级**、
+ * 且最值钱的那几段：模板静态校验 → 渲染与值变换 → **显存护栏** → 配额 → 预设 CRUD。
+ *
+ * 为什么护栏这段最重要：`safety/limits.ts` 是"能出图"和"打爆显存"之间唯一的收口，
+ * 而且它刚从旧服务逐字搬过来 —— 这段测试就是"搬家没搬丢规则"的证据。
+ *
+ *   pnpm --filter @comfyui-web/anima-plus smoke          # 精简（失败项立刻回显）
+ *   pnpm --filter @comfyui-web/anima-plus smoke -v       # 全量明细
+ */
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { crc32, deflateSync } from 'node:zlib';
+
+import { createImageLibrary } from 'purejsimage';
+import { jpegCodec } from 'purejsimage/codecs/jpeg';
+
+import { TemplateRegistry } from '../server/templates/loader.js';
+import { buildConfig, normalizeBaseUrl } from '../server/config.js';
+import { renderTemplate } from '../server/templates/render.js';
+import {
+  MAX_LORAS,
+  MAX_SIDE,
+  MAX_STEPS,
+  MIN_SIDE,
+  assertGraphSafe,
+  guardGraph,
+  narrowTemplateBounds,
+  scanGraph,
+} from '../server/safety/limits.js';
+import { MAX_BODY_BYTES, MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../server/safety/quota.js';
+import { PRESET_KINDS, PresetStore } from '../server/store/presets.js';
+import { closeDatabase, openDatabase, userVersion } from '../server/store/db.js';
+import {
+  RESIZER_TAG,
+  THUMB_QUALITY,
+  makeThumbnail,
+  resizerAvailable,
+  resizerTag,
+  shouldPassThrough,
+  thumbStatus,
+} from '../server/weilin/thumb.js';
+
+const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
+const VERBOSE = process.argv.includes('-v') || process.argv.includes('--verbose');
+
+let total = 0;
+let failures = 0;
+let currentSection = '';
+const failedChecks: string[] = [];
+
+function check(name: string, ok: boolean, extra = ''): void {
+  total += 1;
+  const text = `${name}${extra ? ` — ${extra}` : ''}`;
+  if (VERBOSE) console.log(`  ${ok ? '✔' : '✘'} ${text}`);
+  if (ok) return;
+  failures += 1;
+  failedChecks.push(currentSection ? `[${currentSection}] ${text}` : text);
+  if (!VERBOSE) console.log(`✘ ${text}`); // 精简模式：失败必须立刻可见
+}
+
+function section(title: string): void {
+  currentSection = title;
+  console.log(`\n── ${title} ${'─'.repeat(Math.max(0, 54 - title.length))}`);
+}
+
+/** 跑一段应当抛错的逻辑，返回错误信息；没抛错返回 null */
+function errMessage(fn: () => unknown): string | null {
+  try {
+    fn();
+    return null;
+  } catch (err) {
+    return (err as Error).message;
+  }
+}
+
+/** 在 graph 里找第一个带某字段的节点输入（不依赖具体节点 id） */
+function findInput(graph: Record<string, { inputs?: Record<string, unknown> }>, field: string): unknown {
+  for (const node of Object.values(graph)) {
+    if (node?.inputs && field in node.inputs) return node.inputs[field];
+  }
+  return undefined;
+}
+
+/**
+ * 只找**字面量**（跳过数组形式的连线）。
+ * ComfyUI 的 API 格式里 `[nodeId, outputIndex]` 表示"接在别人的输出上"；
+ * 种子这类值往往就是这么接的，所以断言得跳过连线去找真正被写入的那个节点。
+ */
+function findLiteral(
+  graph: Record<string, { inputs?: Record<string, unknown> }>,
+  field: string,
+): unknown {
+  for (const node of Object.values(graph)) {
+    const v = node?.inputs?.[field];
+    if (v !== undefined && !Array.isArray(v)) return v;
+  }
+  return undefined;
+}
+
+/**
+ * 造一张带噪声的 PNG（纯标准库）。
+ *
+ * 噪声是刻意的：纯色 PNG 压完只有几 KB，会从"该转码"的阈值下溜走，测不到真实路径。
+ */
+function makeTestPng(width: number, height: number): Buffer {
+  const stride = width * 3 + 1;
+  const raw = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y += 1) {
+    const row = y * stride;
+    raw[row] = 0; // 过滤器：none
+    for (let x = 0; x < width; x += 1) {
+      const o = row + 1 + x * 3;
+      raw[o] = (x * 31 + y * 17) % 256;
+      raw[o + 1] = (x * 3 + y) % 256;
+      raw[o + 2] = (y * 5 + x * 7) % 256;
+    }
+  }
+  const chunk = (type: string, body: Buffer): Buffer => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(body.length, 0);
+    const payload = Buffer.concat([Buffer.from(type, 'ascii'), body]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(payload), 0);
+    return Buffer.concat([len, payload, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // 位深
+  ihdr[9] = 2; // 色彩类型：truecolor
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+/** 自检专用：把产物（JPEG）读回来核对尺寸 */
+const jpegProbe = createImageLibrary({ codecs: [jpegCodec] });
+
+async function main(): Promise<void> {
+  // ── 模板 ────────────────────────────────────────────────────────────────
+  section('模板');
+  const registry = new TemplateRegistry(path.join(ASSETS, 'templates'), () => {});
+  await registry.load();
+  const list = registry.list();
+  check('模板目录能加载出模板', list.length === 1, `count=${list.length}`);
+  const tpl = list[0];
+  if (!tpl) throw new Error('没有模板，后面的检查无从谈起');
+  check('模板 id / 名称', tpl.def.id === 'txt2img-basic', `${tpl.def.id} · ${tpl.def.name}`);
+  check('模板声明了 12 个表单输入', (tpl.def.inputs ?? []).length === 12, `count=${(tpl.def.inputs ?? []).length}`);
+
+  const requiredNodes = tpl.def.requirements?.nodes ?? [];
+  const missing = requiredNodes.filter((cls) => !Object.values(tpl.graph).some((n) => n.class_type === cls));
+  check('graph 里含声明要求的全部节点类', missing.length === 0, missing.join(', '));
+
+  // bounds 收窄：ui.max 必须已经被显存护栏压住（前端滑块的上限就是这个）
+  const narrowed = narrowTemplateBounds(tpl.def, tpl.graph);
+  const stepsIn = (narrowed.inputs ?? []).find((i) => i.key === 'steps');
+  const widthIn = (narrowed.inputs ?? []).find((i) => i.key === 'width');
+  check('steps 的 ui.max 被收窄到护栏上限', stepsIn?.ui?.max === MAX_STEPS, `max=${stepsIn?.ui?.max}`);
+  check('width 的 ui.max 被收窄到护栏上限', widthIn?.ui?.max === MAX_SIDE, `max=${widthIn?.ui?.max}`);
+  check('width 的 ui.min 不低于护栏下限', (widthIn?.ui?.min ?? 0) >= MIN_SIDE, `min=${widthIn?.ui?.min}`);
+
+  // ── 渲染 ────────────────────────────────────────────────────────────────
+  section('渲染');
+  const before = JSON.stringify(tpl.graph);
+  const r = renderTemplate(tpl, {});
+  check('渲染不修改模板（深拷贝）', JSON.stringify(tpl.graph) === before);
+  check('默认值渲染出的 graph 非空', Object.keys(r.graph).length > 5, `nodes=${Object.keys(r.graph).length}`);
+  check('模板默认值没有被夹紧', r.safety.clamped.length === 0, `clamped=${r.safety.clamped.length}`);
+
+  const defaultPrompt = String((tpl.def.inputs ?? []).find((i) => i.key === 'prompt')?.default ?? '');
+  check('提示词落到了 graph 里', JSON.stringify(r.graph).includes(defaultPrompt.slice(0, 18)), defaultPrompt.slice(0, 24));
+
+  const seed = findLiteral(r.graph, 'seed');
+  check('seed=-1 被变换成真实种子', typeof seed === 'number' && seed >= 0, `seed=${seed}`);
+
+  const loraStr = findInput(r.graph, 'lora_str');
+  const lorasParsed = (() => {
+    try {
+      return JSON.parse(String(loraStr)) as Array<Record<string, unknown>>;
+    } catch {
+      return null;
+    }
+  })();
+  check('LoRA 被变换成 lora_str 富 JSON', Array.isArray(lorasParsed) && lorasParsed.length > 0, String(loraStr).slice(0, 60));
+  check('lora_str 里带权重字段', lorasParsed?.[0] !== undefined && 'weight' in (lorasParsed[0] ?? {}));
+
+  const coerced = renderTemplate(tpl, { steps: '5' }).values;
+  check('字符串数值被归一化成 number', coerced.steps === 5, `steps=${JSON.stringify(coerced.steps)}`);
+  const sizeApplied = renderTemplate(tpl, { width: 768, height: 640 }).graph;
+  check('用户填的宽高落图', findInput(sizeApplied, 'width') === 768 && findInput(sizeApplied, 'height') === 640);
+
+  // ── 显存护栏（最关键） ──────────────────────────────────────────────────
+  section('显存护栏');
+  check('步数越界被拒绝', /不能大于 24/.test(errMessage(() => renderTemplate(tpl, { steps: 999 })) ?? ''));
+  check('尺寸越界被拒绝', /不能大于 1216/.test(errMessage(() => renderTemplate(tpl, { width: 99999 })) ?? ''));
+
+  const nineLoras = Array.from({ length: MAX_LORAS + 1 }, (_, i) => ({
+    name: `l${i}`,
+    lora: `l${i}.safetensors`,
+    weight: 1,
+  }));
+  check('LoRA 超过 8 个被拒绝', /最多 8 个/.test(errMessage(() => renderTemplate(tpl, { loras: nineLoras })) ?? ''));
+
+  // 直接对 graph 用护栏：越界夹紧 + 数量超限拒绝 + 取值不明 fail closed
+  const overGraph = {
+    '1': { class_type: 'KSampler', inputs: { steps: 999, width: 4 } },
+  } as unknown as Parameters<typeof guardGraph>[0];
+  const scan = guardGraph(overGraph);
+  check('guardGraph 报告越界', scan.hits.length >= 2, `hits=${scan.hits.length}`);
+  check('guardGraph 把 steps 夹到上限', (overGraph as never as Record<string, { inputs: { steps: number } }>)['1']!.inputs.steps === MAX_STEPS);
+  check('guardGraph 把 width 夹到下限', (overGraph as never as Record<string, { inputs: { width: number } }>)['1']!.inputs.width === MIN_SIDE);
+
+  const countGraph = {
+    '1': { class_type: 'WeiLinPromptUIWithoutLora', inputs: { lora_str: JSON.stringify(nineLoras) } },
+  } as unknown as Parameters<typeof scanGraph>[0];
+  check('LoRA 数量超限被单独识别', scanGraph(countGraph).overCount.length > 0);
+
+  const unresolvedGraph = {
+    '1': { class_type: 'KSampler', inputs: { steps: ['99', 0] } },
+  } as unknown as Parameters<typeof scanGraph>[0];
+  check('取值不明（连线指向不存在的节点）', scanGraph(unresolvedGraph).unresolved.length > 0);
+  check('取值不明时 assertGraphSafe 拒绝', errMessage(() => assertGraphSafe(unresolvedGraph)) !== null);
+  check('正常 graph 能过出口断言', errMessage(() => assertGraphSafe(renderTemplate(tpl, {}).graph)) === null);
+
+  // ── 配额 ────────────────────────────────────────────────────────────────
+  section('配额');
+  check('队列深度上限 = 5', MAX_QUEUE_DEPTH === 5, String(MAX_QUEUE_DEPTH));
+  check('保留任务上限 = 200', MAX_JOBS_RETAINED === 200, String(MAX_JOBS_RETAINED));
+  check('请求体上限 = 256KB', MAX_BODY_BYTES === 256 * 1024, String(MAX_BODY_BYTES));
+
+  // ── 预设（用内存库，不碰插件空间） ──────────────────────────────────────
+  section('配置：设置项（填错不许炸）');
+  const cfgPaths = { templatesDir: '', dbFile: '', cacheDir: '', dataDir: '' };
+  const noCfg = buildConfig(undefined, cfgPaths);
+  check(
+    '未配置 → 5 / 200 / 预热开 / 缓存 5 分钟',
+    noCfg.maxQueueDepth === 5 &&
+      noCfg.maxJobsRetained === 200 &&
+      noCfg.depsWarmupOnStart === true &&
+      noCfg.depsCacheTtlMs === 5 * 60_000,
+    `${noCfg.maxQueueDepth} / ${noCfg.maxJobsRetained} / ${noCfg.depsWarmupOnStart} / ${noCfg.depsCacheTtlMs}`,
+  );
+  check('地址留空 → 默认 localhost:8188', noCfg.comfyBaseUrl === 'http://localhost:8188', noCfg.comfyBaseUrl);
+  check('地址只写 host:port 会自动补协议', noCfg.comfyBaseUrl === normalizeBaseUrl('localhost:8188'));
+
+  const tuned = buildConfig(
+    { maxQueueDepth: 8, maxJobsRetained: 50, depsWarmupOnStart: false, depsCacheTtlMinutes: 30 },
+    cfgPaths,
+  );
+  check(
+    '合法值全部生效',
+    tuned.maxQueueDepth === 8 &&
+      tuned.maxJobsRetained === 50 &&
+      tuned.depsWarmupOnStart === false &&
+      tuned.depsCacheTtlMs === 30 * 60_000,
+  );
+  check('数字字符串也认（表单送回来的可能是字符串）', buildConfig({ maxQueueDepth: '3' }, cfgPaths).maxQueueDepth === 3);
+  check(
+    '越界收敛：999 → 16、0 → 1、保留 1 → 10、缓存 1e9 → 1440',
+    buildConfig({ maxQueueDepth: 999 }, cfgPaths).maxQueueDepth === 16 &&
+      buildConfig({ maxQueueDepth: 0 }, cfgPaths).maxQueueDepth === 1 &&
+      buildConfig({ maxJobsRetained: 1 }, cfgPaths).maxJobsRetained === 10 &&
+      buildConfig({ depsCacheTtlMinutes: 1e9 }, cfgPaths).depsCacheTtlMs === 1440 * 60_000,
+  );
+  check(
+    '非法值回默认而不是抛错（abc / 空 / null / 对象）',
+    buildConfig({ maxQueueDepth: 'abc' }, cfgPaths).maxQueueDepth === 5 &&
+      buildConfig({ maxQueueDepth: null }, cfgPaths).maxQueueDepth === 5 &&
+      buildConfig({ depsCacheTtlMinutes: 'x' }, cfgPaths).depsCacheTtlMs === 5 * 60_000 &&
+      buildConfig({ maxQueueDepth: {} }, cfgPaths).maxQueueDepth === 5,
+  );
+  check(
+    '缓存 0 分钟 = 明确允许（每次重查上游）',
+    buildConfig({ depsCacheTtlMinutes: 0 }, cfgPaths).depsCacheTtlMs === 0,
+  );
+  check(
+    '布尔：false/no/off 都认，乱七八糟的字符串回默认',
+    buildConfig({ depsWarmupOnStart: false }, cfgPaths).depsWarmupOnStart === false &&
+      buildConfig({ depsWarmupOnStart: 'no' }, cfgPaths).depsWarmupOnStart === false &&
+      buildConfig({ depsWarmupOnStart: '随便' }, cfgPaths).depsWarmupOnStart === true,
+  );
+  check(
+    'configFiles 记下生效来源（/config 排障用）',
+    noCfg.configFiles[0] === '内置默认值' &&
+      buildConfig({ maxQueueDepth: 8 }, cfgPaths).configFiles.join('|').includes('maxQueueDepth') &&
+      buildConfig({ maxQueueDepth: 999 }, cfgPaths).configFiles.join('|').includes('越界'),
+  );
+
+  // ── 缩略图 ──────────────────────────────────────────────────────────────
+  section('缩略图：纯 JS 编解码（只在划算时转）');
+  // 缩放器从"惰性 import('sharp')，拿不到就原图直出"换成了 purejsimage。
+  // 这条链路的失败模式很隐蔽：图仍能显示，只是变小/变糊，没人会去翻日志。
+  // 所以用合成 PNG 把三条路径钉死：划算就转、不划算就透传、坏字节只回退不抛。
+  const bigPng = makeTestPng(900, 900);
+  const smallPng = makeTestPng(120, 120);
+  check(
+    '合成图体积落在阈值两侧（否则这段测不到真实路径）',
+    bigPng.length > 128 * 1024 && smallPng.length < 128 * 1024,
+    `大 ${Math.round(bigPng.length / 1024)}KB / 小 ${Math.round(smallPng.length / 1024)}KB`,
+  );
+  check(
+    '透传判定：库里 30KB、512px 的预览图，3:4 卡片尺寸不转；要 112px 时才转',
+    shouldPassThrough(30 * 1024, 512, 512, 336, 448) &&
+      !shouldPassThrough(30 * 1024, 512, 512, 112, 112) &&
+      !shouldPassThrough(2 * 1024 * 1024, 512, 512, 336, 448),
+  );
+  // 宽成 string 再比：万一将来有人把 tag 改回 'none'（也就是回到原图直出），这条要能响
+  const tagWidened: string = RESIZER_TAG;
+  check(
+    '缓存键里的引擎标识已换（否则会复用 sharp/原图时代的缓存）',
+    (await resizerTag()) === RESIZER_TAG && tagWidened !== 'none' && tagWidened.length > 0,
+    RESIZER_TAG,
+  );
+  check('缩放能力始终可用（纯 JS 随包走，没有可选依赖）', (await resizerAvailable()) === true);
+
+  const thumb = await makeThumbnail(bigPng, 256, 342);
+  check(
+    '大图真的转出了缩略图',
+    thumb !== null && thumb.length > 0,
+    thumb ? `${Math.round(thumb.length / 1024)}KB` : 'null',
+  );
+  check(
+    '产物是 JPEG（不是原图直出）',
+    thumb !== null && thumb[0] === 0xff && thumb[1] === 0xd8 && thumb[2] === 0xff,
+  );
+  check(
+    '产物比原图小一个量级',
+    thumb !== null && thumb.length * 4 < bigPng.length,
+    thumb ? `${Math.round(thumb.length / 1024)}KB vs ${Math.round(bigPng.length / 1024)}KB` : 'null',
+  );
+  if (thumb) {
+    const outMeta = await (await jpegProbe.open(thumb)).metadata();
+    check(
+      '产物尺寸就是请求的 256x342（cover 居中裁切）',
+      outMeta.width === 256 && outMeta.height === 342,
+      `${outMeta.width}x${outMeta.height}`,
+    );
+  }
+  check('小图 → 透传（null 表示用原图）', (await makeThumbnail(smallPng, 256, 342)) === null);
+  check(
+    '坏字节 → 回退原图，不抛异常',
+    (await makeThumbnail(Buffer.from('definitely not an image'), 256, 342)) === null,
+  );
+  const thumbStats = thumbStatus();
+  check(
+    '排障状态反映真实引擎与三条路径的计数',
+    thumbStats.engine === RESIZER_TAG &&
+      thumbStats.quality === THUMB_QUALITY &&
+      thumbStats.transcoded >= 1 &&
+      thumbStats.passthrough >= 1 &&
+      thumbStats.failed >= 1 &&
+      thumbStats.lastError !== null,
+    `transcoded=${thumbStats.transcoded} passthrough=${thumbStats.passthrough} failed=${thumbStats.failed} lastError=${thumbStats.lastError}`,
+  );
+
+  section('预设');
+  const db = openDatabase(':memory:');
+  check('库迁移到最新版本', userVersion(db) === 2, `user_version=${userVersion(db)}`);
+  const presets = new PresetStore(db);
+  check('4 类预设都可用', presets.listAll().length === PRESET_KINDS.length, `kinds=${presets.listAll().length}`);
+
+  presets.upsert('prompt', '测试', { description: 'd', values: { prompt: '1girl' } });
+  let kind = presets.list('prompt');
+  check('预设写入 + values 派生', kind.items[0]?.values.prompt === '1girl', JSON.stringify(kind.items[0]?.values));
+  presets.upsert('prompt', '测试', { description: 'd2', values: { prompt: '2girls' } });
+  kind = presets.list('prompt');
+  check('同名预设是覆盖写（不重复）', kind.items.length === 1 && kind.items[0]?.values.prompt === '2girls');
+  check('宽高对预设的两列都在', (() => {
+    presets.upsert('size', '竖版', { values: { width: 832, height: 1216 } });
+    const v = presets.list('size').items[0]?.values;
+    return v?.width === 832 && v?.height === 1216;
+  })());
+  check('缺列被拒绝', errMessage(() => presets.upsert('size', '坏', { values: { width: 1 } })) !== null);
+  check('未知 kind 被拒绝', errMessage(() => presets.upsert('nope', 'x', { values: {} })) !== null);
+  check('删除返回 true / 再删返回 false', presets.remove('prompt', '测试') && !presets.remove('prompt', '测试'));
+  closeDatabase(db);
+
+  console.log(
+    `\n${failures === 0 ? '✔' : '✘'} 自检完成：${total - failures}/${total} 项通过` +
+      (failures > 0 ? `，${failures} 项失败` : ''),
+  );
+  if (failures > 0) {
+    console.log('\n失败项：');
+    for (const f of failedChecks) console.log(`  ✘ ${f}`);
+  }
+  process.exit(failures === 0 ? 0 : 1);
+}
+
+main().catch((err) => {
+  console.error(`\n✘ 自检异常终止：${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+});

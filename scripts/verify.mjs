@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 统一验证入口：一条命令跑完 typecheck / smoke / build，每步只输出一行结论。
+ * 统一验证入口：一条命令跑完 typecheck / smoke / build / contract，每步只输出一行结论。
  *
  * 为什么要有它：单独跑这几条命令，光 smoke 一次就 190+ 行、近 10 KB，
  * 全量日志灌进上下文/终端既慢又难看出到底哪步挂了。这里把各步完整输出
@@ -8,7 +8,7 @@
  * 失败行回显，需要细节再去看日志文件。
  *
  * 用法：
- *   pnpm verify                     # typecheck → smoke → build
+ *   pnpm verify                     # typecheck → smoke → build → contract
  *   pnpm verify typecheck smoke     # 只跑指定步骤
  *   pnpm verify --no-build          # 跳过构建
  *   pnpm verify --verbose           # 额外把各步完整输出回显到终端
@@ -48,6 +48,15 @@ const STEPS = [
     args: ['build'],
     env: {},
     failRe: /\[ERROR\]|error TS\d+|error during build|✘/i,
+    failLimit: 12,
+  },
+  {
+    // 构建**之后**：契约测试要 import 插件的前端产物（lib/client.js）
+    id: 'contract',
+    cmd: 'pnpm',
+    args: ['contract'],
+    env: {},
+    failRe: /❌/,
     failLimit: 12,
   },
 ];

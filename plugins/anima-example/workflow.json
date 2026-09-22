@@ -1,0 +1,160 @@
+{
+  "17": {
+    "inputs": {
+      "unet_name": "Anima\\0.26.9.12.NAI.RDBT  Anima.b1V23Base_fp16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "21": {
+    "inputs": {
+      "filename_prefix": "server/anima",
+      "images": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "22": {
+    "inputs": {
+      "rotation": "none",
+      "samples": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "LatentRotate",
+    "_meta": {
+      "title": "旋转Latent"
+    }
+  },
+  "24": {
+    "inputs": {
+      "clip_name": "Anima\\Qwen-3-0.6B baseanima.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "27": {
+    "inputs": {
+      "samples": [
+        "56",
+        0
+      ],
+      "vae": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "30": {
+    "inputs": {
+      "vae_name": "Anima\\Qwen-Image VAE_qwenImageVAE.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "32": {
+    "inputs": {
+      "width": 832,
+      "height": 1216,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "空Latent图像"
+    }
+  },
+  "33": {
+    "inputs": {
+      "text": " blurry, soft focus, lowres, jpeg artifacts, chromatic aberration, artist name, oil painting, painterly, thick brushstrokes, impasto, canvas texture, traditional media, sketch, ugly, deformed, bad anatomy, bad hands, deformed hands, extra fingers, fused fingers, mutated hands, poorly drawn face, bad eyes, asymmetrical eyes, ",
+      "clip": [
+        "55",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "-"
+    }
+  },
+  "54": {
+    "inputs": {
+      "text": "dramatic angle,ultra-detailed,illustration,high resolution,an extremely delicate and beautiful,Accurate describe shapes,thorough and precise,bokeh,",
+      "clip": [
+        "55",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "+"
+    }
+  },
+  "55": {
+    "inputs": {
+      "lora_name": "Anima\\Anima Turbo LoRA-v0.2.safetensors",
+      "strength_model": 0.95,
+      "strength_clip": 1,
+      "model": [
+        "17",
+        0
+      ],
+      "clip": [
+        "24",
+        0
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "加载LoRA"
+    }
+  },
+  "56": {
+    "inputs": {
+      "seed": 939281134534128,
+      "steps": 6,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "55",
+        0
+      ],
+      "positive": [
+        "54",
+        0
+      ],
+      "negative": [
+        "33",
+        0
+      ],
+      "latent_image": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  }
+}

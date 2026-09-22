@@ -1,19 +1,22 @@
 {
-  "name": "@comfyui-server/web",
+  "name": "@comfyui-web/web",
   "version": "0.1.0",
   "private": true,
+  "description": "前端外壳：Vue 壳 + tab 栏 + 设置页 + import map（业务页面是插件）",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node scripts/vendor.mjs && vite",
+    "build": "node scripts/vendor.mjs && vite build",
     "preview": "vite preview",
+    "vendor": "node scripts/vendor.mjs",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@comfyui-server/shared": "workspace:*",
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.9",

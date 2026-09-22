@@ -1,0 +1,101 @@
+{
+  "name": "@comfyui-web/anima-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "第一个「真」插件：自带 workflow.json 做成一个 tab，插件自己提交 ComfyUI、收进度、落图、建自己的表",
+  "type": "module",
+  "main": "./server.js",
+  "exports": {
+    ".": "./server.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "typecheck": "vue-tsc --noEmit",
+    "test:contract": "node scripts/contract-test.mjs"
+  },
+  "files": [
+    "server.js",
+    "workflow.json",
+    "lib",
+    "package.json"
+  ],
+  "plugin": {
+    "contract": 1,
+    "title": "默认Anima",
+    "order": 2,
+    "client": "lib/client.js",
+    "settings": [
+      {
+        "key": "comfyuiBaseUrl",
+        "type": "string",
+        "label": "ComfyUI 地址",
+        "default": "http://localhost:8188",
+        "description": "插件直接向这个地址提交 /prompt 并订阅 /ws 收进度。留空 = 跟随设置页里的「统一 ComfyUI 地址」（那边也没填就用内置默认）；填了 = 只有这个插件用它。",
+        "fallback": "comfyuiBaseUrl"
+      },
+      {
+        "key": "negativePrompt",
+        "type": "textarea",
+        "label": "默认负向提示词",
+        "default": " blurry, soft focus, lowres, jpeg artifacts, chromatic aberration, artist name, oil painting, painterly, thick brushstrokes, impasto, canvas texture, traditional media, sketch, ugly, deformed, bad anatomy, bad hands, deformed hands, extra fingers, fused fingers, mutated hands, poorly drawn face, bad eyes, asymmetrical eyes, ",
+        "description": "表单里负向提示词的初始值；留空表示不预填。"
+      },
+      {
+        "key": "defaultSteps",
+        "type": "number",
+        "label": "默认步数",
+        "description": "表单初始值。护栏上限 32 步（见 README「安全护栏」），配超了会被收敛并记日志。",
+        "default": 6,
+        "min": 1,
+        "max": 32
+      },
+      {
+        "key": "defaultCfg",
+        "type": "number",
+        "label": "默认 CFG",
+        "default": 1,
+        "min": 0,
+        "max": 30,
+        "step": 0.1
+      },
+      {
+        "key": "defaultWidth",
+        "type": "number",
+        "label": "默认宽度",
+        "description": "表单初始值。长边护栏 1216（见 README「安全护栏」），配超了会被收敛并记日志。",
+        "default": 832,
+        "min": 64,
+        "max": 1216
+      },
+      {
+        "key": "defaultHeight",
+        "type": "number",
+        "label": "默认高度",
+        "description": "表单初始值。长边护栏 1216（见 README「安全护栏」），配超了会被收敛并记日志。",
+        "default": 1216,
+        "min": 64,
+        "max": 1216
+      },
+      {
+        "key": "historyLimit",
+        "type": "number",
+        "label": "历史保留条数",
+        "default": 50,
+        "min": 1,
+        "max": 1000,
+        "description": "列表页最多返回多少条；图片文件不随历史删除而删除。"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@comfyui-web/shared": "workspace:*",
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.9",
+    "vue": "^3.5.13",
+    "vue-tsc": "^2.2.0"
+  }
+}

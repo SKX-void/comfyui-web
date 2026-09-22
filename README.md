@@ -1,4 +1,14 @@
-# comfyui-server
+# comfyui-web
+
+> ## ⚠️ 本文件描述的是 **v1 单体服务**（`apps/server`，端口 8086），它已经被删除
+>
+> 现在是**插件化架构**：一个宿主（`apps/server`，端口 8087）同时提供外壳、
+> 插件前端产物与所有插件接口，业务逻辑住在插件里（`plugins/*`）。
+>
+> - 架构与决策：**[`docs/architecture.md`](./docs/architecture.md)**
+> - 怎么跑/怎么装插件：**[`docs/README.md`](./docs/README.md)**
+> - 下面这些命令（`pnpm dev:server`、`node dist/server.mjs`、`config.json` 的 port、
+>   `data/comfyui-server.db`）**都已经不存在或不生效**；保留本文件只作 v1 的历史记录。
 
 ComfyUI 的**轻前端服务器**：用一个网页表单调用 ComfyUI 出图，不碰节点图编辑器。
 
@@ -21,7 +31,7 @@ node dist/server.mjs
 # 打开 http://127.0.0.1:8080
 
 # 方式 B：连接真实 ComfyUI
-COMFY_BASE_URL=http://127.0.0.1:8188 pnpm --filter @comfyui-server/server start
+COMFY_BASE_URL=http://127.0.0.1:8188 pnpm --filter @comfyui-web/server start
 ```
 
 开发模式（Vite dev server + 热更新）：
@@ -71,11 +81,12 @@ pnpm verify
 ```
 
 ```
-▶ verify（typecheck → smoke → build）
-✔ typecheck    11.6s
-✔ smoke         4.0s
-✔ build        13.8s
-✅ verify 通过（3 步，29.4s）· 日志 .cache/verify/
+▶ verify（typecheck → smoke → build → contract）
+✔ typecheck    21.4s
+✔ smoke         4.1s
+✔ build        16.7s
+✔ contract      2.8s
+✅ verify 通过（4 步，45.0s）· 日志 .cache/verify/
 ```
 
 各步完整输出在 `.cache/verify/<step>.log`；**失败时自动摘出失败行回显并给出日志路径**，
@@ -107,7 +118,7 @@ dist/
 然后**一个进程同时当 API 服务器和静态文件服务器**：
 
 ```bash
-node dist/server.mjs                    # 或 pnpm --filter @comfyui-server/server start:bundle
+node dist/server.mjs                    # 或 pnpm --filter @comfyui-web/server start:bundle
 ```
 
 打开 `http://<host>:<config.json 的 port>` 就是完整应用：`/api/*` 走接口，
@@ -227,7 +238,7 @@ curl localhost:8086/api/system/health
 
 其他几点：
 
-- **改了代码要重启**：`pnpm build && docker compose restart comfyui-server`（挂载是 ro，但进程要重新加载产物）。
+- **改了代码要重启**：`pnpm build && docker compose restart comfyui-web`（挂载是 ro，但进程要重新加载产物）。
 - **本机 8086 被开发服务器占用**时：`HOST_PORT=9086 docker compose up -d`。
 - 网络用 external `server-net`（和你 SillyTavern 那份一致）；ComfyUI 若也在同一网络里，
   改 `config.json` 的 `comfyui.baseUrl` 为容器名:端口即可。
@@ -244,10 +255,10 @@ curl localhost:8086/api/system/health
 
 ### nginx 反向代理
 
-`nginx/comfyui-server.conf` 是一个**只含 server 块**的片段，丢进 `conf.d/` 就能用：
+`nginx/comfyui-web.conf` 是一个**只含 server 块**的片段，丢进 `conf.d/` 就能用：
 
 ```bash
-cp nginx/comfyui-server.conf /etc/nginx/conf.d/comfyui-server.conf
+cp nginx/comfyui-web.conf /etc/nginx/conf.d/comfyui-web.conf
 nginx -t && nginx -s reload
 ```
 
@@ -264,8 +275,8 @@ nginx -t && nginx -s reload
    Cache-Control`（不盖掉就会同时冒出两个 Cache-Control 头）；`index.html` 不带哈希，
    保持应用发来的 `max-age=0`。
 
-> nginx 与 comfyui-server 都在 `server-net` 里时，把三处 `proxy_pass` 改成
-> `http://comfyui-server:8086;`（容器里的 nginx 用 `127.0.0.1` 够不到宿主机的端口映射）。
+> nginx 与 comfyui-web 都在 `server-net` 里时，把三处 `proxy_pass` 改成
+> `http://comfyui-web:8086;`（容器里的 nginx 用 `127.0.0.1` 够不到宿主机的端口映射）。
 
 ### 两种流程的分工
 
@@ -283,7 +294,7 @@ nginx -t && nginx -s reload
 ## 目录结构
 
 ```
-comfyui-server/
+comfyui-web/
 ├── api.example.json          # 原始导出工作流（参考）
 ├── v1/                       # 规划文档
 ├── scripts/verify.mjs        # 统一验证入口（pnpm verify：typecheck + 冒烟 + 构建）
@@ -413,6 +424,11 @@ comfyui-server/
 
 ### 预览图体积（重要）
 
+> **v2 现状（anima-plus 插件）**：服务端现在自带纯 JS 缩略图（`purejsimage`，无原生模块），
+> 所以下面的「方案一：离线预缩放」已经从**必须**降为**可选**（老库想省 CPU 可以继续用）。
+> 现行策略（阈值透传 + JPEG q74）与实测数据见 `plugins/anima-plus/README.md` 的「缩略图」一节。
+> 本章其余内容保留的是 **v1 服务**（`@comfyui-web/server`，已随 §14.1d 删除）的实测记录。
+
 WeiLin 的 LoRA 预览图是**原始尺寸**。实测采样 40 个：
 
 | 格式 | 占比 | 平均大小 |
@@ -481,7 +497,7 @@ python scripts/resize-lora-previews.py --root "..." --apply
 需要时手动装上即可启用：
 
 ```bash
-pnpm --filter @comfyui-server/server add sharp
+pnpm --filter @comfyui-web/server add sharp
 ```
 
 启用后会把预览图缩到请求尺寸（`w`×`h`），单张约 8 KB 而非 30 KB。

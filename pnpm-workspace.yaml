@@ -1,6 +1,9 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  # v2 插件源码：宿主**不**导入它们，只提供构建与本地 link 安装的落脚点。
+  # profile 侧（profiles/<name>/）是一个独立 workspace，插件经 link: 装进去。
+  - 'plugins/*'
 
 # esbuild 需要 postinstall 才能就位（tsx / vite 都依赖它）
 allowBuilds:
