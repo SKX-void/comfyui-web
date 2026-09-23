@@ -1,8 +1,4 @@
 - id: anima-plus
   name: '@comfyui-web/anima-plus'
-  config:
-    comfyuiBaseUrl: http://10.2.3.22:8288
 - id: anima-example
   name: '@comfyui-web/anima-example'
-  config:
-    comfyuiBaseUrl: http://10.2.3.22:8288
