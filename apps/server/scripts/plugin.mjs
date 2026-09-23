@@ -4,7 +4,8 @@
  *
  * 设计要点（v2-architecture §7 / §11）：
  *   - **不重新发明包管理**：安装/卸载直接转调 profile 目录里的 pnpm；
- *   - 清单 plugins.yml 是唯一真源，CLI 只负责增删行；
+ *   - 清单 plugins.yml 是唯一真源，CLI 只负责增删行；**它不入库**（本机部署状态），
+ *     入库的是 `plugin snapshot` 生成的 plugins.example.yml 模板；
  *   - 宿主的产物与插件无关，所以增删插件**只需要重启宿主**，不需要重新构建。
  *
  * 用法：
@@ -12,6 +13,7 @@
  *   node apps/server/scripts/plugin.mjs add ./plugins/anima-example --id anima-example
  *   node apps/server/scripts/plugin.mjs remove anima-example   # 会问是否连数据一起删
  *   node apps/server/scripts/plugin.mjs enable|disable <id>
+ *   node apps/server/scripts/plugin.mjs snapshot   # 清单 → plugins.example.yml（剥掉部署值）
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -259,4 +261,26 @@ if (command === 'enable' || command === 'disable') {
   process.exit(0);
 }
 
-die(`未知命令 "${command}"：可用 list / add / remove / enable / disable`);
+if (command === 'snapshot') {
+  if (!fs.existsSync(manifestFile)) {
+    die(`${manifestFile} 不存在：没有可快照的清单（先 pnpm plugin add <包>）`);
+  }
+  const rows = readManifest();
+  for (const row of rows) {
+    if (typeof row?.id !== 'string' || typeof row?.name !== 'string') {
+      die('清单里有形状不对的行（缺 id 或 name）：先修好再快照，别把坏行写进模板');
+    }
+  }
+  // 模板是**基线**，只保留"这个 profile 装了什么"：
+  //   config   —— 每台机器一份的部署值（地址、并发…），设置页会往清单里写；
+  //   disabled —— 这批部署的启停状态，运行期也能在设置页切换。
+  // 两者都属于本机状态，剥掉才不会一提交就把某台机器的地址/开关带给别人。
+  const baseline = rows.map((row) => ({ id: row.id, name: row.name }));
+  const target = path.join(profileDir, 'plugins.example.yml');
+  fs.writeFileSync(target, yaml.dump(baseline, { lineWidth: 120 }), 'utf8');
+  console.log(`已写出模板 ${target}（${baseline.length} 行，不含 config/disabled）`);
+  console.log('  它是入库的基线：新克隆/换机器时，宿主启动发现没有 plugins.yml 会从它复制一份。');
+  process.exit(0);
+}
+
+die(`未知命令 "${command}"：可用 list / add / remove / enable / disable / snapshot`);

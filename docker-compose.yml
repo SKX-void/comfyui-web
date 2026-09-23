@@ -1,8 +1,4 @@
 # =============================================================================
-# comfyui-web —— 单文件产物 + 官方 node 镜像，不需要 Dockerfile、不需要在容器里 npm install
-#
-# 部署单元（放在同一个目录里，可以整个复制走）：
-#
 #   docker-compose.yml
 #   host.config.json     # 宿主配置（端口/profile/dataDir）
 #   dist/                # pnpm build 的产物：host/host.mjs + host/web/（前端外壳）

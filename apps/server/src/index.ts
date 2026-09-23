@@ -4,7 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { pino } from 'pino';
 
-import { loadHostConfig, profileDir, profileManifest } from './config.js';
+import { loadHostConfig, profileDir, profileManifest, profileManifestTemplate } from './config.js';
 import { bootHost } from './kernel.js';
 
 /**
@@ -41,6 +41,22 @@ async function main(): Promise<void> {
   const manifest = profileManifest(config);
   fs.mkdirSync(dir, { recursive: true });
   fs.mkdirSync(config.dataDir, { recursive: true });
+
+  // 清单是**本机部署状态**（不入库），入库的是剥掉部署值的模板。清单缺失就从模板复制一份：
+  // Include 拿到不存在的文件会抛 ConfigFileError 直接让宿主起不来，所以这一步必须在这里兜住
+  // （新克隆、新 profile、或换了台机器只搬了仓库文件时都会走到）。
+  const template = profileManifestTemplate(config);
+  if (!fs.existsSync(manifest)) {
+    if (fs.existsSync(template)) {
+      fs.copyFileSync(template, manifest);
+      logger.info({ manifest, template }, '清单不存在，已从模板复制（本机部署状态，不入库）');
+    } else {
+      logger.error(
+        { manifest, template },
+        '既没有清单也没有模板：插件树挂载会失败。跑 `pnpm plugin add <包>` 或 `pnpm plugin snapshot` 生成一个',
+      );
+    }
+  }
 
   const host = await bootHost({
     app,

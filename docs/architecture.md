@@ -61,6 +61,7 @@
 | D10 | 设置渲染 | **插件 `package.json` 的 `plugin.settings[]` 自描述 JSON**，宿主按它渲染表单（**偏离**原计划） | 原计划用 schemastery 推断，但那要**执行插件代码**才能拿到 schema —— 插件导入失败时设置页就瞎了，而坏插件恰恰最需要改配置。JSON 元数据在导入失败时依然可读 |
 | D11 | 交付顺序 | ① 框架本体（tab 栏 + 后端挂载点 + 设置）→ ② 极简工作流插件化安装验证 → ③ 改造 txt2img → anima-plus 插件 | 用户裁定 |
 | D12 | 存储归属 | **核不提供数据库句柄**：只按**包名**在 `data/plugins/<包名>/` 下分一块唯一空间；建库、写 JSON、版本迁移、清理全是插件自己的事 | 用户裁定「不存在跨插件库操作」；落地见 §5、§9。代价：核里不再有迁移账本可查；改包名＝换空间 |
+| D13 | 清单的入库形态 | **`plugins.yml` 不入库**（本机部署状态），入库 `plugins.example.yml` 模板 + profile 的 `package.json` 依赖；宿主启动时清单缺失就从模板复制（`pnpm plugin snapshot` 刷新模板） | `.gitignore` 只能整个文件忽略，而清单里的 `config` 必然含本机值（§5.7 连"跟随统一设置"也存解析后的地址），提交它 = 每次改设置都产生待提交 diff + secret（T3 明文）泄漏面。见 §6 |
 
 ---
 
@@ -404,6 +405,41 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
 - **`plugins.yml` 里不要写注释**，Include 重写文件会丢注释；说明放 `profiles/<name>/README.md`。
 - 运行期默认值以**插件代码**为准（`config.steps ?? 30`）；`plugin.settings[].default` 只是表单占位提示。
 
+### 6.1 清单本身也不入库（D13）
+
+上面那套分层把"随包发布"和"随部署变化"分开了，但**没解决"随机器变化"**：`config` 段就是每台机器
+一份的部署值（地址、并发、缓存），设置页写它，§5.7 的"跟随统一设置"还写**解析后的地址**。
+也就是说 `plugins.yml` 天然长着一张"这批部署的事实"的脸，而不是可以跟别人合并的源码。
+
+落地的形态：
+
+```
+profiles/<name>/plugins.example.yml   入库：基线（id/name），`pnpm plugin snapshot` 生成
+profiles/<name>/package.json          入库：插件集（依赖 + link:）
+profiles/<name>/plugins.yml           不入库：本机部署状态（Include 托管，设置页写）
+```
+
+- `.gitignore` 忽略 `/profiles/*/plugins.yml`；宿主启动时清单缺失就从模板复制一份
+  （`apps/server/src/index.ts`，profile 目录本来就在那里 `mkdirSync`）。
+  **bootstrap 是必需的**：Include 拿到不存在的文件会抛 `ConfigFileError` 让宿主起不来，
+  所以"只写 ignore"会让新克隆起不来。
+- 模板的刷新是显式动作：`pnpm plugin snapshot` 读 live 清单、剥掉 `config` / `disabled`
+  （`disabled` 也是这批部署的启停状态）写回模板。**不自动同步**，因为"这个插件从今天起是基线的一部分"
+  是个需要人确认的判断。
+
+**为什么不只忽略 `config` 段**：`.gitignore` 只能按文件/目录匹配，忽略不了 YAML 的某个字段。
+要么整文件不入库，要么把值挪进第二个文件 —— 后者就是把 T2 砍掉的覆盖层再请回来（§5.7 已实测
+补丁层的两个问题：改一次 >25s、且写不进文件）。
+
+**为什么不继续提交 `plugins.yml`**：它是唯一真源（D7），而真源里必然有本机值。提交它意味着
+每次在设置页改地址都留下一个待提交 diff，且行里一旦出现 secret（T3 是明文落盘）就是泄漏。
+
+**代价**：某台机器上 enable/disable、额外装的插件不再进 git。补偿：插件集有 `package.json` 的依赖
+这半份基线，行基线有 `plugins.example.yml`，而"这批部署怎么配的"本来就该在本机看。
+
+**止血选项**（不想动结构时）：`git update-index --skip-worktree profiles/default/plugins.yml`。
+纯本机技巧：上游改这个文件时 `git pull` 会报 "local changes would be overwritten"，且新克隆没有这层保护。
+
 其余规则不变：
 
 - 按 **row id** 定位；保存时**替换整段 config、不深合并**（cordis patch 语义，与 dsh 一致）。
@@ -537,9 +573,10 @@ comfyui-web/
 │   └── contract/            插件契约的类型包（纯类型，供插件 peerDep）
 ├── profiles/
 │   └── default/
-│       ├── package.json     插件依赖（pnpm 管理）+ profile manifest
+│       ├── package.json     插件依赖（pnpm 管理）+ profile manifest（入库，插件集基线）
 │       ├── pnpm-workspace.yaml  含 storeDir（防 HOME 只读，见下）
-│       └── plugins.yml      清单（Include 托管）
+│       ├── plugins.example.yml  清单模板（入库，D13；`pnpm plugin snapshot` 生成）
+│       └── plugins.yml      清单（Include 托管；**不入库**，本机部署状态）
 ├── plugins/                 ← 开发态的插件源码（构建/发布后进 profile 的 node_modules）
 ├── data/
 │   ├── ui-prefs.json        外壳偏好：标签栏顺序 + 默认首页（设置页写，坏了就退默认）
@@ -624,7 +661,7 @@ comfyui-web/
 |---|---|
 | `apps/server/` | 宿主后端：`config.ts` 配置、`kernel.ts` 装配、`core-plugin.ts` 宿主端点、`ui-prefs.ts` 外壳偏好存取、`handles/{space,routes}.ts` 两个句柄、`plugin-package.ts` 包清单解析、`scripts/{build,plugin}.mjs` |
 | `apps/web/` | 宿主前端：`index.html`（import map 是核心）、`src/main.ts` 插件装载器、`App.vue` tab 栏壳、`views/SettingsView.vue` + `components/SchemaForm.vue` |
-| `profiles/default/` | profile：`plugins.yml` + 独立 pnpm workspace + README |
+| `profiles/default/` | profile：`plugins.yml`（不入库）+ `plugins.example.yml` 模板 + 独立 pnpm workspace + README（D13） |
 | `plugins/anima-plus/` | **v1 整体搬完**：前端是 v1 的 `App.vue` + 8 个组件，后端是 v1 那 14 个模块逐字搬进 `server/`（模板/渲染/显存护栏/任务编排/LoRA/标签/预设），反代已删；另加依赖检查（`server/deps.ts`，见 §14.1f）。见 §14.1d 与 `plugins/anima-plus/README.md` |
 | `host.config.json` | 宿主配置（端口 8087、profile） |
 

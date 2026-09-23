@@ -30,7 +30,8 @@ node dist/host/host.mjs      # 一个进程同时提供 API 与前端
 > 旧单页前端也早就删了，它的代码现在住在 `plugins/anima-plus/client/src/`。
 > 改名也已经做完：宿主目录是 `apps/server`，包名 `@comfyui-web/server`（`pnpm dev:host` 走的就是它）。
 
-设计文档在 `docs/architecture.md`（含决策清单、契约、实施结果与验收证据）。
+设计文档在 `docs/architecture.md`（含决策清单、契约、实施结果与验收证据）；**配置文件的分工看
+`docs/config.md`**（十几个"配置"文件分别属于随包发布 / 随部署 / 随机器 / 随用户哪一层）。
 
 ---
 
@@ -42,7 +43,13 @@ pnpm plugin add ./plugins/anima-example --id anima-example   # 装（本地目�
 # 重启宿主 → tab 自动出现
 pnpm plugin disable anima-example         # 也可以运行期在设置页切换
 pnpm plugin remove anima-example          # 会问「要不要连数据一起删」（--drop-data/--keep-data）
+pnpm plugin snapshot                      # 把当前清单剥掉本机部署值（config/disabled）写回 plugins.example.yml
 ```
+
+**`profiles/<name>/plugins.yml` 不入库**：设置页会把本机地址之类的部署值写回它（连"跟随统一设置"
+的项也存解析后的地址），所以它是"这批部署的事实"，跟 `data/` 一样当作本机状态。入库的是
+`plugins.example.yml` 模板；宿主启动时清单缺失会**自动从模板复制一份**。
+装完插件想让基线跟上就跑一次 `pnpm plugin snapshot`。详见 `profiles/default/README.md`。
 
 **装插件不需要重新构建宿主。** 这是本方案的核心主张，验收口径是
 `sha256(dist/host/**)` 在装插件前后逐字节一致 —— 宿主产物里既没有插件代码，
@@ -111,13 +118,19 @@ export default {
 apps/server/          宿主后端（cordis 微内核 + 文件空间/路由两个句柄 + 宿主端点）
 apps/web/             宿主前端（壳 + tab 栏 + 设置页：插件开关/配置 + 标签页排序 + 默认首页；Vue 经 import map 提供）
 plugins/*             插件源码（宿主不 import 它们）
-profiles/<name>/      profile：plugins.yml（清单）+ 自己的 node_modules
-  plugins.yml           清单唯一真源；设置页会重写它，所以别写注释
+profiles/<name>/      profile：插件清单 + 自己的 node_modules
+  plugins.yml           清单唯一真源（**不入库**，本机部署状态）；设置页会重写它，所以别写注释
+  plugins.example.yml   入库的基线模板（pnpm plugin snapshot）；清单缺失时宿主从它复制
   README.md             说明写这里
-data/                 运行期数据：ui-prefs.json（标签栏顺序/默认首页）+ plugins/<包名>/（每插件自己的空间）
+data/                 运行期数据：ui-prefs.json（标签栏顺序/默认首页/统一地址）+ plugins/<包名>/（每插件自己的空间）
 dist/host/            宿主产物：host.mjs + web/
 host.config.json      宿主配置（端口/profile/路径）
+docker-compose.yml    部署单元（挂 dist/host.config.json/profiles/plugins/data）
+nginx.conf            反向代理（conf.d 片段，只有 server 块）
 ```
+
+> 以上这些"配置"文件各属于哪一层（随包发布 / 随部署 / 随机器 / 随用户）、谁能改、入不入库：
+> 见 **`docs/config.md`**。
 
 ## 自检
 

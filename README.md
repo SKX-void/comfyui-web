@@ -255,10 +255,10 @@ curl localhost:8086/api/system/health
 
 ### nginx 反向代理
 
-`nginx/comfyui-web.conf` 是一个**只含 server 块**的片段，丢进 `conf.d/` 就能用：
+`nginx.conf`（仓库根）是一个**只含 server 块**的片段，丢进 `conf.d/` 就能用：
 
 ```bash
-cp nginx/comfyui-web.conf /etc/nginx/conf.d/comfyui-web.conf
+cp nginx.conf /etc/nginx/conf.d/comfyui-web.conf
 nginx -t && nginx -s reload
 ```
 

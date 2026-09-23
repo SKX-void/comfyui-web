@@ -98,3 +98,14 @@ export function profileDir(config: HostConfig): string {
 export function profileManifest(config: HostConfig): string {
   return path.join(profileDir(config), 'plugins.yml');
 }
+
+/**
+ * profile 的清单**模板**（入库的基线）。
+ *
+ * 清单本身不入库：它是"这批部署的事实"——设置页会把本机 ComfyUI 地址之类写进去，
+ * 连"留空 = 跟随统一设置"的项也存解析后的地址（§5.7）。所以入库的是这个剥掉
+ * `config`/`disabled` 的模板，宿主启动时清单缺失就从它复制一份。
+ */
+export function profileManifestTemplate(config: HostConfig): string {
+  return path.join(profileDir(config), 'plugins.example.yml');
+}
