@@ -83,6 +83,44 @@
   },
   "inputs": [
     {
+      "key": "prompt",
+      "label": "描述提示词",
+      "type": "tag-selector",
+      "required": true,
+      "default": "1girl, solo, blue hair, looking at viewer",
+      "ui": {
+        "rows": 5,
+        "placeholder": "输入提示词",
+        "preset": "prompt"
+      }
+    },
+    {
+      "key": "qualityPos",
+      "label": "质量词（正）",
+      "type": "textarea",
+      "required": false,
+      "default": "dramatic angle,ultra-detailed,illustration,high resolution,an extremely delicate and beautiful,Accurate describe shapes,thorough and precise,bokeh,",
+      "ui": {
+        "rows": 3,
+        "preset": "qualityPos",
+        "collapsible": true,
+        "collapsed": true
+      }
+    },
+    {
+      "key": "qualityNeg",
+      "label": "质量词（负）",
+      "type": "textarea",
+      "required": false,
+      "default": "blurry, soft focus, lowres, jpeg artifacts, chromatic aberration, artist name, oil painting, painterly, thick brushstrokes, impasto, canvas texture, traditional media, sketch, ugly, deformed, bad anatomy, bad hands, deformed hands, extra fingers, fused fingers, mutated hands, poorly drawn face, bad eyes, asymmetrical eyes,",
+      "ui": {
+        "rows": 3,
+        "preset": "qualityNeg",
+        "collapsible": true,
+        "collapsed": true
+      }
+    },
+    {
       "key": "loras",
       "label": "LoRA",
       "type": "lora-select",
@@ -107,40 +145,6 @@
       "source": {
         "kind": "comfy",
         "folder": "diffusion_models"
-      }
-    },
-    {
-      "key": "prompt",
-      "label": "描述提示词",
-      "type": "tag-selector",
-      "required": true,
-      "default": "1girl, solo, blue hair, looking at viewer",
-      "ui": {
-        "rows": 5,
-        "placeholder": "输入提示词",
-        "preset": "prompt"
-      }
-    },
-    {
-      "key": "qualityPos",
-      "label": "质量词（正）",
-      "type": "textarea",
-      "required": false,
-      "default": "dramatic angle,ultra-detailed,illustration,high resolution,an extremely delicate and beautiful,Accurate describe shapes,thorough and precise,bokeh,",
-      "ui": {
-        "rows": 3,
-        "preset": "qualityPos"
-      }
-    },
-    {
-      "key": "qualityNeg",
-      "label": "质量词（负）",
-      "type": "textarea",
-      "required": false,
-      "default": "blurry, soft focus, lowres, jpeg artifacts, chromatic aberration, artist name, oil painting, painterly, thick brushstrokes, impasto, canvas texture, traditional media, sketch, ugly, deformed, bad anatomy, bad hands, deformed hands, extra fingers, fused fingers, mutated hands, poorly drawn face, bad eyes, asymmetrical eyes,",
-      "ui": {
-        "rows": 3,
-        "preset": "qualityNeg"
       }
     },
     {

@@ -393,7 +393,12 @@ onMounted(() => {
           :models="models"
           :disabled="submitting"
         />
+      </section>
 
+      <section class="card">
+        <div class="card-head"><h2>进度</h2></div>
+
+        <!-- 开始生成放在进度卡顶部：点了就在同一张卡里看进度，不用在两张卡之间来回找 -->
         <div class="actions">
           <button class="btn primary" :disabled="!canSubmit" @click="submit">
             {{ submitting ? '生成中…' : '开始生成' }}
@@ -403,10 +408,6 @@ onMounted(() => {
             缺节点 {{ currentDeps?.missing.join('、') }} —— 装好并重启 ComfyUI 后即可生成
           </span>
         </div>
-      </section>
-
-      <section class="card">
-        <div class="card-head"><h2>进度</h2></div>
 
         <div class="status-line">
           <strong>状态：</strong><span>{{ status }}</span>

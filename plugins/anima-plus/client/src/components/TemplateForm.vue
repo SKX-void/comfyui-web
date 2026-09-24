@@ -7,10 +7,12 @@
  * - 行内任意字段声明 `ui.swap: "<key>"` 时，该字段后出现 ⇄ 一键交换
  * - 字段声明 `ui.preset` 时出现预设切换器（单字段在标签行右侧，
  *   整行则在行上方；`targets` 决定预设覆盖哪些字段）
+ * - 单字段声明 `ui.collapsible` 时标题行变成 ▸/▾，收起后只留标题 + 值摘要；
+ *   `ui.collapsed: true` 决定初始是收起的（质量词这种"填一次就不动"的长文本用得上）
  *
  * 控件本身的渲染见 FieldControl.vue。
  */
-import { computed } from 'vue';
+import { computed, reactive } from 'vue';
 import type { TemplateInput } from '@comfyui-web/shared';
 import { isVisible, type FieldModel } from '@/form';
 import { applyPreset } from '@/presets';
@@ -55,6 +57,34 @@ const layout = computed<LayoutItem[]>(() => {
 
 const allKeys = computed(() => (props.inputs ?? []).map((i) => i.key));
 
+/**
+ * 折叠状态。只记"用户手动切过的"，没切过的按模板的 `ui.collapsed` 走
+ * —— 不做初始化快照，因为模板随时可能换（换完新字段自然回到模板默认值）。
+ */
+const foldState = reactive<Record<string, boolean>>({});
+
+function foldable(input: TemplateInput): boolean {
+  return input.ui?.collapsible === true;
+}
+
+function isCollapsed(input: TemplateInput): boolean {
+  return foldState[input.key] ?? input.ui?.collapsed === true;
+}
+
+function toggleFold(input: TemplateInput): void {
+  foldState[input.key] = !isCollapsed(input);
+}
+
+/** 收起时的值摘要：至少让人知道里面不是空的（长提示词截断） */
+function collapsedValue(input: TemplateInput): string {
+  const v = props.values[input.key];
+  const flat = (Array.isArray(v) ? v.join('、') : v === undefined || v === null ? '' : String(v))
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!flat) return '（空）';
+  return flat.length > 48 ? `${flat.slice(0, 48)}…` : flat;
+}
+
 /** 归一化 ui.preset：字符串 = kind，目标为自身；对象可取显式 targets */
 function presetSpec(input: TemplateInput): { kind: string; targets: string[] } | null {
   const p = input.ui?.preset;
@@ -97,7 +127,23 @@ function onApplyPreset(values: Record<string, unknown>): void {
       <!-- 独占一行 -->
       <div v-if="item.kind === 'single'" class="field">
         <div class="field-head">
-          <label class="field-label">
+          <!-- 可折叠：整行可点，收起时标题后面跟一段值摘要 -->
+          <button
+            v-if="foldable(item.inputs[0]!)"
+            type="button"
+            class="field-label fold-toggle"
+            :aria-expanded="!isCollapsed(item.inputs[0]!)"
+            :title="isCollapsed(item.inputs[0]!) ? '展开' : '收起'"
+            @click="toggleFold(item.inputs[0]!)"
+          >
+            <span class="caret">{{ isCollapsed(item.inputs[0]!) ? '▸' : '▾' }}</span>
+            <span class="fold-label">{{ item.inputs[0]!.label }}</span>
+            <span v-if="item.inputs[0]!.required" class="req">*</span>
+            <span v-if="isCollapsed(item.inputs[0]!)" class="folded-value">
+              {{ collapsedValue(item.inputs[0]!) }}
+            </span>
+          </button>
+          <label v-else class="field-label">
             {{ item.inputs[0]!.label }}
             <span v-if="item.inputs[0]!.required" class="req">*</span>
           </label>
@@ -110,16 +156,18 @@ function onApplyPreset(values: Record<string, unknown>): void {
             @apply="onApplyPreset"
           />
         </div>
-        <FieldControl
-          :input="item.inputs[0]!"
-          :value="props.values[item.inputs[0]!.key]"
-          :models="props.models"
-          :disabled="props.disabled"
-          @update="onUpdate"
-        />
-        <p v-if="item.inputs[0]!.description" class="desc">
-          {{ item.inputs[0]!.description }}
-        </p>
+        <template v-if="!isCollapsed(item.inputs[0]!)">
+          <FieldControl
+            :input="item.inputs[0]!"
+            :value="props.values[item.inputs[0]!.key]"
+            :models="props.models"
+            :disabled="props.disabled"
+            @update="onUpdate"
+          />
+          <p v-if="item.inputs[0]!.description" class="desc">
+            {{ item.inputs[0]!.description }}
+          </p>
+        </template>
       </div>
 
       <!-- 同行分组 -->
@@ -200,6 +248,40 @@ function onApplyPreset(values: Record<string, unknown>): void {
 }
 .req {
   color: #f87171;
+}
+/* 可折叠字段的标题行：把 button 的默认外观去掉，字号/粗细/颜色沿用 .field-label */
+.field-label.fold-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.field-label.fold-toggle:hover .fold-label {
+  color: #e2e8f0;
+}
+.caret {
+  flex: 0 0 auto;
+  color: #93c5fd;
+  font-size: 11px;
+  line-height: 1;
+}
+/* 两个 span 都是 flex 子项：不放开 min-width 的话长文本会把标题行顶宽 */
+.fold-label,
+.folded-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folded-value {
+  flex: 0 1 auto;
+  font-weight: 400;
+  color: #64748b;
 }
 .desc {
   font-size: 12px;

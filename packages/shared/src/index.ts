@@ -83,6 +83,13 @@ export interface TemplateInput {
      *   —— 一条预设同时改多个字段（如宽高对）
      */
     preset?: string | { kind: string; targets?: string[] };
+    /**
+     * 可折叠：标题行变成可点的 ▸/▾，收起时只留标题 + 当前值摘要（预设切换器照常可用）。
+     * 只对独占一行的字段生效；同行分组（`ui.row`）里的字段不支持。
+     */
+    collapsible?: boolean;
+    /** 折叠的初始状态；只在 `collapsible: true` 时有意义，省略即展开 */
+    collapsed?: boolean;
   };
   /** 条件显示：按另一个 input 的值决定是否显示 */
   visibleIf?: { key: string; equals?: unknown; notEquals?: unknown };
