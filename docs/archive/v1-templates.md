@@ -1,6 +1,6 @@
 # 工作流模板设计
 
-> 状态：**讨论稿**（待用户确认）
+> ⚠️ **历史文档（v1 单体时代）**：描述的是已被取代的单体服务与当时的规划，只作来龙去脉参考，**不要照着实现**。现行文档索引见 [`docs/README.md`](../README.md)。
 > 上游文档：[v1-plan](./v1-plan.md) · [v1-architecture](./v1-architecture.md) · [v1-api](./v1-api.md)
 
 本项目与工作流**高度定制化绑定**（决策 D5）。本文定义"模板"这一层抽象：
@@ -165,7 +165,7 @@
 
 ### 3.4 `promptBinding` — **WeiLin 专用**
 
-这是与 WeiLin 节点对接的核心配置（详见 [v1-weilin.md](./v1-weilin.md)）。
+这是与 WeiLin 节点对接的核心配置（详见 [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md)）。
 
 | 字段 | 说明 |
 |------|------|
@@ -253,7 +253,7 @@
 "<wlr:Anima\\画师\\taffy-style:0.9:1:1>"
 ```
 
-> 名称**不含** `.safetensors`（节点自动补），格式见 [v1-weilin.md](./v1-weilin.md) §4.2。
+> 名称**不含** `.safetensors`（节点自动补），格式见 [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md) §4.2。
 
 ---
 
@@ -308,7 +308,7 @@ if len(opt_text) > 0: text_dec = opt_text + ", " + text_dec
 > **做法 2 可能可行**（传字符串字面量），但需**冒烟验证（H5）**。
 > 示例中 `33`（负向）已经从 `["43", 2]` 取 CLIP，说明链路复用是常规做法。
 
-### 5.3 LoRA 与触发词（见 [v1-weilin.md](./v1-weilin.md) §4–5）
+### 5.3 LoRA 与触发词（见 [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md) §4–5）
 
 **结论：只需写节点的字符串字段，节点自行完成加载与触发词注入。**
 
@@ -345,7 +345,7 @@ if len(opt_text) > 0: text_dec = opt_text + ", " + text_dec
 > - **用 `OnlyLoraStack`** → 不注入，触发词由我们按 `loraWorks` 拼（**用户编辑生效**）
 >
 > 本拆分设计**不会重复注入**（43 无正文、19 不注入）。
-> 详见 [v1-weilin.md](./v1-weilin.md) §5.3 的方案 A/B/C。
+> 详见 [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md) §5.3 的方案 A/B/C。
 > 若选方案 B，模板 `promptBinding` 需记录 LoRA 节点与触发词注入目标节点。
 
 ---

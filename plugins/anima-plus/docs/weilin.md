@@ -1,7 +1,7 @@
 # WeiLin 对接方案
 
-> 状态：**讨论稿**（待用户确认）
-> 上游文档：[v1-plan](./v1-plan.md) · [v1-template](./v1-template.md)
+> 本文是 `plugins/anima-plus` 的**设计记录**（写得比代码早）。真相源是代码（`server/weilin/`、`server/jobs/`），与代码不一致时以代码为准。
+> 上游文档：[v1-plan](../../../docs/archive/v1-plan.md) · [v1-template](../../../docs/archive/v1-templates.md)
 > 源码：`/workspace/WeiLin-Comfyui-Tools`
 
 你的诉求：**要 WeiLin 的 LoRA 选择 + 自动提示词注入**，但不确定怎么和「自己填 API JSON」的模式对接。
@@ -448,7 +448,7 @@ i18n（vue-i18n，已有 zh_CN）              → 保留复用 ✅
 }
 ```
 
-> 这个"面板 ↔ 节点"的对应关系，就是 [v1-template.md](./v1-template.md) 里
+> 这个"面板 ↔ 节点"的对应关系，就是 [docs/archive/v1-templates.md](../../../docs/archive/v1-templates.md) 里
 > `bindings` 的天然组织方式。**一个面板绑一个节点，不交叉。**
 
 ---

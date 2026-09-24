@@ -17,8 +17,12 @@ function runnable(plugin: PluginInfo): boolean {
 /**
  * 装载一个插件的前端入口。
  *
- * 插件 bundle 里的 `import { ... } from 'vue'` 经页面的 import map 解析到**同一份**
- * Vue 实例（见 index.html），所以插件组件能直接渲染进宿主的组件树。
+ * **共享 Vue 是这里的关键**：宿主 index.html 里的 import map 给 `vue` / `vue-router`
+ * 一个真实 URL，插件 bundle 里的裸 `import { ... } from 'vue'` 由**浏览器**解析到与宿主
+ * 完全相同的模块实例。一旦出现两个 Vue 副本，provide/inject、响应式、组件树全部失效 ——
+ * 所以插件 bundle 里的 `external` 是硬要求，不是优化。完整机制见 docs/architecture.md §7.1。
+ *
+ * 于是插件组件能直接渲染进宿主的组件树，宿主不需要知道插件是谁。
  */
 async function mountPlugin(router: Router, plugin: PluginInfo): Promise<TabEntry> {
   const url = plugin.clientUrl as string;

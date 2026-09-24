@@ -1,7 +1,7 @@
 /**
  * 宿主自己的 HTTP 封装。
  *
- * 注意：**这不是给插件用的 SDK** —— 按项目决策（v2-architecture §1.2 N3），
+ * 注意：**这不是给插件用的 SDK** —— 按项目决策（docs/architecture.md §1.2 N3），
  * 插件自己写 fetch/EventSource，宿主不提供前端 SDK。
  */
 export async function getJSON<T>(url: string): Promise<T> {

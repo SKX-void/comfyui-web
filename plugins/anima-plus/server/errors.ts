@@ -42,7 +42,7 @@ export class AppError extends Error {
     return new AppError('COMFYUI_ERROR', message, 502, details);
   }
 
-  /** 在途任务已达上限：直接劝退，比让任务静静躺在队列里诚实（v1-safety.md §8） */
+  /** 在途任务已达上限：直接劝退，比让任务静静躺在队列里诚实（plugins/anima-plus/docs/safety.md §8） */
   static queueFull(max: number): AppError {
     return new AppError(
       'QUEUE_FULL',

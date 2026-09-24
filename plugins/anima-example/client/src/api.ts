@@ -1,8 +1,8 @@
 /**
  * 插件的接口层。
  *
- * 前缀只有一个常量：`/api/p/anima-example`（宿主统一给插件加的前缀）。
- * 与 anima-plus 不同，这里**没有反代** —— 后端就在本插件里（plugins/anima-example/server.js）。
+ * 前缀只有一个常量：`/api/p/anima-example`（宿主统一给插件加的前缀）；
+ * 后端就在本插件里（`server.js`），没有反代。
  */
 
 export const API_BASE = '/api/p/anima-example';

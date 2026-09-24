@@ -1,0 +1,14 @@
+{
+  "name": "@comfyui-web/tab-hello",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "description": "目录型 tab 插件示例：把目录丢进 /tabs 就是一个工作流插件（自包含，无 node_modules）",
+  "plugin": {
+    "contract": 1,
+    "title": "Hello 工作流",
+    "order": 50,
+    "client": "client.js"
+  }
+}

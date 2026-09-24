@@ -9,7 +9,7 @@ import { AppError } from '../errors.js';
  * 加一种预设 = 加一条 registry + 一条迁移。
  */
 
-/** v1 单用户；将来换真实用户标识即可，表结构无需改 */
+/** 目前单用户（uid 恒为 'local'）；将来换真实用户标识即可，表结构无需改 */
 export const LOCAL_UID = 'local';
 
 const NAME_MAX = 64;

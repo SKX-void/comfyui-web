@@ -30,7 +30,7 @@ export interface PluginSettingField {
 }
 
 export interface PluginPackageManifest {
-  /** 契约版本：宿主不认就拒绝加载（v2-architecture §4.5） */
+  /** 契约版本：宿主不认就拒绝加载（docs/architecture.md §4.5） */
   contract?: number;
   title?: string;
   icon?: string;
@@ -81,10 +81,15 @@ function readManifest(pkgJsonPath: string): ResolvedPluginPackage {
 }
 
 /**
- * 把 plugins.yml 里的模块说明符解析成插件包。
+ * 把 plugins.yml / tabs 扫描结果里的模块说明符解析成插件包。
  *
  * - 相对路径（`./x.mjs`）→ 相对 profile 目录解析，再往上找 package.json；
+ * - 绝对路径（`/abs/tabs/hello/server.js`）→ 目录型 tab（D14），往入口所在目录找 package.json；
  * - 裸包名（`@comfyui-web/demo`）→ 用 profile 自己的 node_modules 解析。
+ *
+ * 说明符可以带 query（`/abs/server.js?v=abc`）—— 那是**目录型 tab 热重载**用来绕开
+ * Node ESM 模块缓存的（不同 URL = 不同模块实例），文件系统这一侧必须把它剥掉，
+ * 否则 `existsSync` 立刻判不存在、清单与前端产物全丢。
  *
  * 裸包名要求插件包导出 `./package.json`（`exports` 里显式声明），
  * 否则回落到"解析主入口再往上找 package.json"。
@@ -93,10 +98,11 @@ export function resolvePluginPackage(
   specifier: string,
   profileDir: string,
 ): ResolvedPluginPackage | undefined {
-  const isPathLike = specifier.startsWith('.') || path.isAbsolute(specifier);
+  const filePart = stripSpecifierSuffix(specifier);
+  const isPathLike = filePart.startsWith('.') || path.isAbsolute(filePart);
 
   if (isPathLike) {
-    const abs = path.isAbsolute(specifier) ? specifier : path.resolve(profileDir, specifier);
+    const abs = path.isAbsolute(filePart) ? filePart : path.resolve(profileDir, filePart);
     if (!fs.existsSync(abs)) return undefined;
     const pkgJson = findPackageJsonUpward(path.dirname(abs));
     return pkgJson ? readManifest(pkgJson) : undefined;
@@ -106,15 +112,21 @@ export function resolvePluginPackage(
 
   // 首选：直接解析 package.json（需要插件包导出它）
   try {
-    return readManifest(require.resolve(`${specifier}/package.json`));
+    return readManifest(require.resolve(`${filePart}/package.json`));
   } catch {
     // 回落：解析主入口再往上找
   }
   try {
-    const entry = require.resolve(specifier);
+    const entry = require.resolve(filePart);
     const pkgJson = findPackageJsonUpward(path.dirname(entry));
     return pkgJson ? readManifest(pkgJson) : undefined;
   } catch {
     return undefined;
   }
+}
+
+/** `/abs/server.js?v=abc` → `/abs/server.js`；`./x.mjs#frag` → `./x.mjs` */
+function stripSpecifierSuffix(specifier: string): string {
+  const index = specifier.search(/[?#]/);
+  return index === -1 ? specifier : specifier.slice(0, index);
 }

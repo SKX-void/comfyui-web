@@ -7,8 +7,8 @@ const clientSrc = fileURLToPath(new URL('./client/src', import.meta.url));
 /**
  * 插件前端产物 = 一个自包含 ESM（`lib/client.js`）+ 一个 CSS（`lib/client.css`）。
  *
- * - `vue` / `vue-router` 必须 external：由宿主页面的 import map 提供**同一份**实例，
- *   打进产物就会出现两个 Vue，组件树直接崩；
+ * - `vue` / `vue-router` 必须 external：由宿主页面的 import map 提供
+ *   （为什么必须是同一份 Vue：见 apps/web/src/main.ts 与 docs/architecture.md §7.1）；
  * - CSS 走 `lib/client.css`，插件运行期用 `import.meta.url` 定位后以 <link> 注入。
  */
 export default defineConfig({

@@ -1,7 +1,7 @@
 /**
  * 前后端共享类型。
  *
- * 设计依据：v1/v1-api.md（对外契约）、v1/v1-template.md（模板格式）。
+ * 设计依据：docs/archive/v1-api.md（对外契约）、docs/archive/v1-templates.md（模板格式）。
  */
 
 // ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ export interface GraphNode {
 export type Graph = Record<string, GraphNode>;
 
 // ---------------------------------------------------------------------------
-// 模板（v1-template.md）
+// 模板（docs/archive/v1-templates.md）
 // ---------------------------------------------------------------------------
 
 /** 表单控件类型 */
@@ -113,7 +113,7 @@ export interface Binding {
   when?: { key: string; equals?: unknown; truthy?: boolean };
 }
 
-/** WeiLin 提示词节点绑定（v1-template.md §3.4） */
+/** WeiLin 提示词节点绑定（docs/archive/v1-templates.md §3.4） */
 export interface PromptBinding {
   node: string;
   positiveField: string;
@@ -125,10 +125,9 @@ export interface PromptBinding {
 /**
  * 需要用户自己装的节点包。
  *
- * `url` **由作者手写、不走 ComfyUI-Manager 的推测**：Manager 的"类 → 包"映射并不
- * 可靠（同名包、改过名的目录、不在 Manager 上的包都会猜错），而作者本来就知道自己
- * 用的是哪个仓库。写上地址的另一个好处是 WeiLin 这种**不在 Manager 上**的包，
- * 用户也能一眼找到去装的地方。
+ * `url` **由作者手写、不走 ComfyUI-Manager 的推测**：它的"类 → 包"映射并不可靠
+ * （同名包、改过名的目录都会猜错），原因见 plugins/anima-plus/scripts/gen-deps.mjs 的注释。
+ * 写上地址的另一个好处是 WeiLin 这种**不在 Manager 上**的包，用户也能一眼找到去装的地方。
  */
 export interface PackRequirement {
   name: string;
@@ -198,7 +197,7 @@ export interface TagRef {
 }
 
 // ---------------------------------------------------------------------------
-// 任务（v1-api.md §A.3）
+// 任务（docs/archive/v1-api.md §A.3）
 // ---------------------------------------------------------------------------
 
 export type JobStatus =
@@ -260,7 +259,7 @@ export interface CreateJobResponse {
   createdAt: string;
 }
 
-/** SSE 事件（v1-api.md §A.3） */
+/** SSE 事件（docs/archive/v1-api.md §A.3） */
 export type JobEventType =
   | 'snapshot'
   | 'queued'
@@ -277,7 +276,7 @@ export interface JobEvent {
 }
 
 // ---------------------------------------------------------------------------
-// 错误（v1-api.md §A.6）
+// 错误（docs/archive/v1-api.md §A.6）
 // ---------------------------------------------------------------------------
 
 export type ApiErrorCode =
@@ -358,7 +357,7 @@ export interface HealthResponse {
   comfyMode: 'real' | 'mock';
   comfyui: { reachable: boolean; version?: string; baseUrl: string };
   ws: { connected: boolean };
-  /** WeiLin 插件状态（v1-weilin.md §3.2；不可用时前端降级） */
+  /** WeiLin 插件状态（plugins/anima-plus/docs/weilin.md §3.2；不可用时前端降级） */
   weilin: {
     available: boolean;
     isLoading: boolean;
@@ -370,7 +369,7 @@ export interface HealthResponse {
 }
 
 // ---------------------------------------------------------------------------
-// WeiLin 数据源（v1-api.md §A.2）
+// WeiLin 数据源（docs/archive/v1-api.md §A.2）
 // ---------------------------------------------------------------------------
 
 export interface LoraListItem {
@@ -426,7 +425,7 @@ export interface TagItem {
 }
 
 // ---------------------------------------------------------------------------
-// 预设（每类别一张表；uid 预留多用户，v1 固定 'local'）
+// 预设（每类别一张表；uid 预留多用户，目前固定 'local'）
 // ---------------------------------------------------------------------------
 
 /** 预设字段元数据：dialog 据此展示"详细内容"与生成新建表单 */

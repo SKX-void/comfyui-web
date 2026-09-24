@@ -1,5 +1,5 @@
 /**
- * 资源配额（v1-safety.md §8）。
+ * 资源配额（plugins/anima-plus/docs/safety.md §8）。
  *
  * 与 `limits.ts` 的分工：
  *   - `limits.ts`：**图里的值** —— 单个任务会不会打爆显存（步数、尺寸、LoRA 数）

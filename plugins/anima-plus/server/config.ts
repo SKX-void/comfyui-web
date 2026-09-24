@@ -1,5 +1,5 @@
 /**
- * 插件自己的配置（旧服务 `apps/server/src/config.ts` 的裁剪版）。
+ * 插件自己的配置（从已删除的旧单体服务裁剪而来；同名的 `apps/server/src/config.ts` 现在是**宿主**的配置）。
  *
  * 旧那份是 355 行的**进程级配置**：端口、静态目录、env 覆盖、仓库根定位……
  * 插件不需要这些 —— 宿主管进程，核只给一个文件空间。
@@ -20,7 +20,7 @@ export interface PluginSettings {
   maxQueueDepth?: unknown;
   /** 任务表保留条数：内存里留多少条历史 */
   maxJobsRetained?: unknown;
-  /** 启动时预热依赖检查（省掉首屏那次 9MB 拉取） */
+  /** 启动时预热依赖检查（省掉首屏那次拉取；object_info 很贵，缓存策略见 server/deps.ts） */
   depsWarmupOnStart?: unknown;
   /** 依赖检查缓存时长（分钟，0 = 不缓存、每次重查） */
   depsCacheTtlMinutes?: unknown;
@@ -60,7 +60,7 @@ const DEFAULT_COMFY_BASE_URL = 'http://localhost:8188';
 
 /**
  * 用户很可能只写 `localhost:8188`：补上协议、去掉尾斜杠。
- * （旧实现同样做了这件事，见 apps/server/src/config.ts 的 normalizeBaseUrl）
+ * （旧实现也这么做；这个函数现在只住在插件里）
  */
 export function normalizeBaseUrl(raw: string): string {
   const trimmed = raw.trim().replace(/\/+$/, '');
@@ -146,7 +146,7 @@ export function buildConfig(
     maxQueueDepth,
     maxJobsRetained,
     depsWarmupOnStart,
-    // 0 = 不缓存：每次检查都拉一遍上游（约 9MB / 2s），只在装包调参时用
+    // 0 = 不缓存：每次检查都拉一遍上游，只在装包调参时用（object_info 很贵，缓存策略见 server/deps.ts）
     depsCacheTtlMs: depsCacheTtlMinutes * 60_000,
     configFiles: [
       configured === '' ? '内置默认值' : 'plugins.yml: anima-plus 行的 config.comfyuiBaseUrl',

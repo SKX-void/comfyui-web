@@ -1,7 +1,7 @@
 # 架构设计：ComfyUI 轻前端服务器（单体版，已被取代）
 
-> 状态：**讨论稿**（待用户确认）
-> 上游文档：[计划](../plan.md)
+> ⚠️ **历史文档（v1 单体时代）**：描述的是已被取代的单体服务与当时的规划，只作来龙去脉参考，**不要照着实现**。现行文档索引见 [`docs/README.md`](../README.md)。
+> 上游文档：[计划](./v1-plan.md)
 
 ---
 
@@ -52,7 +52,7 @@
 
 ### 2.1 `http/` — 路由层
 
-- 定义对外 REST 契约（见 [v1-api.md](../api.md)）
+- 定义对外 REST 契约（见 [v1-api.md](./v1-api.md)）
 - 请求体校验（Zod / TypeBox）
 - 统一错误映射：`ComfyUI 错误 → 领域错误 → HTTP 状态码`
 - **不含业务逻辑**，只做编排调用
@@ -70,7 +70,7 @@ template.json  +  values  ──render──▶  graph  ──validate──▶ 
 - 校验：
   - **静态**：模板自身 schema 合法（binding 指向的节点/字段存在）
   - **动态**：渲染后对 `/object_info` 校验类型与必填项
-- 详见 [templates.md](../templates.md)
+- 详见 [templates.md](./v1-templates.md)
 
 ### 2.3 `jobs/` — 任务编排
 
@@ -108,7 +108,7 @@ WS 连接策略：**一个 ComfyUI 实例一条长连接**（ComfyUI 的 `/ws` �
 
 ### 2.5 `weilin/` — WeiLin 适配层
 
-两种模式（见 [weilin.md](../weilin.md) §3）：
+两种模式（见 [weilin.md](../../plugins/anima-plus/docs/weilin.md) §3）：
 
 - **代理模式（v1 采用）**：`/api/tags/*` → `/weilin/prompt_ui/api/prompt/*`，只做转发 + 精简
 - **直读模式（可选）**：直接读 `user_data/*.db`，绕过 HTTP
@@ -210,7 +210,7 @@ apps/web/src/
 ```
 
 **改造要点**：删掉 `window.parent.postMessage`，改为 Pinia store 双向绑定。
-详见 [weilin.md](../weilin.md) §6.3。
+详见 [weilin.md](../../plugins/anima-plus/docs/weilin.md) §6.3。
 
 > 收益：提示词的标签着色、翻译、自动补全、LoRA 权重/触发词 UI 等
 > **大量成熟交互细节无需重写**。
@@ -288,15 +288,15 @@ node dist/server.mjs   →   /api/* 走接口，其余交给前端（SPA 回退 
 | 关注点 | 候选 | 结论 |
 |--------|------|------|
 | HTTP 框架 | Fastify / Hono / Express | **Fastify**（性能+生态+SSE 支持好） |
-| WS 客户端 | `ws` / `undici` | **`ws`**（上游只有 WS，见 [API](../api.md) §B.2） |
+| WS 客户端 | `ws` / `undici` | **`ws`**（上游只有 WS，见 [API](./v1-api.md) §B.2） |
 | 校验 | Zod / TypeBox | **Zod**（DX 好）；若需 JSON Schema 复用则 TypeBox |
 | 存储 | ~~SQLite + better-sqlite3~~ → **`node:sqlite`（Node 内置）** | 已落地：零依赖、零原生编译。better-sqlite3 是原生模块，与「纯 JS 构建」目标冲突（同 sharp） |
 | 日志 | pino | **pino** |
-| 前端 | Vue 3 + Vite + Pinia + vue-i18n | ✅ **已定**（Q1）——为复用 WeiLin 组件，见 [WeiLin](../weilin.md) §6 |
+| 前端 | Vue 3 + Vite + Pinia + vue-i18n | ✅ **已定**（Q1）——为复用 WeiLin 组件，见 [WeiLin](../../plugins/anima-plus/docs/weilin.md) §6 |
 | 包管理 | pnpm workspace | **pnpm** |
 
 > 前端选 Vue 3 的**决定性理由**：WeiLin 的前端就是 Vue 3.5 应用且与 ComfyUI 解耦，
-> 可直接搬运其提示词编辑器与 LoRA 选择器（[WeiLin](../weilin.md) §6）。
+> 可直接搬运其提示词编辑器与 LoRA 选择器（[WeiLin](../../plugins/anima-plus/docs/weilin.md) §6）。
 
 ---
 
@@ -312,7 +312,7 @@ node dist/server.mjs   →   /api/* 走接口，其余交给前端（SPA 回退 
 
 ## 8. 待办：需要验证的技术假设
 
-见 [v1-plan.md](../plan.md) §4 的假设表（H1–H7）。状态：
+见 [v1-plan.md](./v1-plan.md) §4 的假设表（H1–H7）。状态：
 
 - ✅ 已由源码确认：**H2 / H3 / H6 / H7**
 - ⚠️ 仍需运行时验证：**H1（WS + client_id）/ H4（WeiLin 接口）/ H5（opt_text 字面量）**

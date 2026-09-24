@@ -186,7 +186,8 @@ class ComfyClient {
   }
 
   /**
-   * ComfyUI 的进度事件只投给「提交时带的 client_id」，所以这里只维护**一条**共享连接。
+   * 本仓所有任务共用一个 clientId、只维护**一条**共享连接
+   * （原因见 plugins/anima-plus/server/comfy/real.ts 的注释），靠 prompt_id 区分归属。
    * progress 事件在部分版本里不带 prompt_id，靠 execution_start 记住当前在跑哪个 prompt。
    */
   #connect() {

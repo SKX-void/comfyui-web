@@ -1,10 +1,10 @@
 /**
  * 动态表单：由模板 inputs 渲染控件。
- * 控件类型见 v1-architecture.md §4.2。
+ * 控件类型见 `docs/architecture.md` §4.2（`plugin.settings[]`）。
  *
- * 说明：本文件是**骨架版**。`tag-selector` / `lora-select` 目前只是可用的
- * 简易实现，后续会把 WeiLin 的 prompt_index.vue / lora_stack.vue 搬进来替换
- * （见 v1-weilin.md §6）。
+ * 控件类型来自 manifest 的 `plugin.settings[]`；`tag-selector` / `lora-select` 由
+ * `components/TagSelector.vue` / `LoraSelector.vue` 实现（WeiLin 的提示词编辑器与 LoRA 栈，
+ * 见 plugins/anima-plus/docs/weilin.md §6）。
  */
 import type { LoraRef, TemplateInput } from '@comfyui-web/shared';
 import { deepClone } from '@/clone';

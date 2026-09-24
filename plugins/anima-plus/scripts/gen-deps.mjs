@@ -10,7 +10,8 @@
  *   README.md   ← `<!-- deps:start -->` … `<!-- deps:end -->` 之间的表格
  *
  * 包名与地址**由模板手写**、不查 ComfyUI-Manager：它的"类 → 包"推测会猜错，
- * 而且不在 Manager 上的包（例如 WeiLin）根本查不到。详见 docs/architecture.md §14.1f。
+ * 而且不在 Manager 上的包（例如 WeiLin）根本查不到 —— 作者本来就知道自己用的是哪个仓库。
+ * 详见 `plugins/anima-plus/README.md`「依赖声明与检查」；来龙去脉见 `docs/archive/v2-implementation-notes.md` §14.1f。
  *
  * 用法：
  *   node scripts/gen-deps.mjs           # 写入两份文件

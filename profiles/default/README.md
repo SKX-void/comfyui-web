@@ -5,6 +5,8 @@
 - `plugins.yml` —— 插件清单，由宿主内的 Include 托管（设置页保存时会重写它）。**不入库**，见下。
 - `plugins.example.yml` —— 入库的基线模板（`pnpm plugin snapshot` 生成），只有 `id` / `name`。
 - `package.json` —— 本 profile 的插件依赖（本地插件是 `link:../../plugins/x`），用 `pnpm plugin add <包>` 增删。
+  它是这个**独立 workspace 的根工程**：`name`（`@comfyui-web/profile`）只是为了满足 pnpm，
+  **没有任何代码读它**，所以复制/改名 profile 目录（`profiles/personal` 之类）不需要同步改它。
 - `node_modules/` —— 插件代码（不提交）。
 
 ## 清单不入库：本机状态 vs 入库基线

@@ -30,9 +30,9 @@ export function decodeAssetId(id: string): {
 }
 
 interface ManagerOptions {
-  /** 所有任务共用的 client_id（ComfyUI 进度只投递给提交者，见 v1-api.md §B.2） */
+  /** 本仓所有任务共用一个 clientId（原因见 server/comfy/real.ts 的注释），靠 prompt_id 区分归属 */
   clientId: string;
-  /** 依赖检查服务：提交前查节点用它的缓存（object_info 约 9MB/2s） */
+  /** 依赖检查服务：提交前查节点用它的缓存（object_info 很贵，缓存策略见 server/deps.ts） */
   deps: DepsService;
   log: (msg: string, meta?: unknown) => void;
   /** 对账周期（毫秒），默认 10s */
@@ -201,8 +201,8 @@ export class JobManager {
     let handedOff = false;
     try {
       // 模板依赖的节点是否都已加载（v1-roadmap M2 验收）。
-      // nodes 由 loader 从 graph.json 推导（手写清单漂过），检查走 DepsService 的缓存
-      // —— 之前每次提交都要整份拉 9MB 的 object_info。
+      // nodes 由 loader 从 graph.json 推导（手写清单漂过）；检查走 DepsService 的缓存
+      // （object_info 很贵，缓存策略见 server/deps.ts）。
       // 查不到（上游不可达）时**跳过检查**：下面的 submit 会给出更准确的连接错误，
       // 不能因为"检查不了"就把任务拦下。
       const required = tpl.def.requirements?.nodes ?? [];

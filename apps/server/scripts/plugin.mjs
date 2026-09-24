@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * v2 插件 CLI —— profile 的包管理器外壳。
+ * 插件 CLI —— profile 的包管理器外壳。
  *
- * 设计要点（v2-architecture §7 / §11）：
+ * 设计要点（docs/architecture.md §6「清单与配置分层」）：
  *   - **不重新发明包管理**：安装/卸载直接转调 profile 目录里的 pnpm；
  *   - 清单 plugins.yml 是唯一真源，CLI 只负责增删行；**它不入库**（本机部署状态），
  *     入库的是 `plugin snapshot` 生成的 plugins.example.yml 模板；

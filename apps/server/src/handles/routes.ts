@@ -8,7 +8,7 @@ export type ActivationResolver = (
 ) => 'active' | 'disabled' | 'inactive' | 'unknown' | 'rejected';
 
 /**
- * 后端路由挂载点（v2-architecture §5.3）。
+ * 后端路由挂载点（docs/architecture.md §5.3）。
  *
  * ## 为什么不用 fastify 自己的 register
  *

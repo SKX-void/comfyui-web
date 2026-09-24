@@ -2,9 +2,9 @@
 /**
  * 把 Vue / Vue Router 的**浏览器 ESM 构建**复制到 public/vendor/。
  *
- * 为什么需要这一步：宿主 index.html 里的 import map 必须给插件一个**真实存在的 URL**，
- * 插件的 bundle 里 `import { ref } from 'vue'` 才能被浏览器解析到**同一份** Vue 实例。
- * 两个 Vue 副本 = provide/inject、响应式、组件树全部失效。
+ * 这一步负责产出 import map 需要的**真实存在的 URL**（public/vendor/ 下的副本文件），
+ * 插件 bundle 里的裸 `vue` 说明符才能被浏览器解析到宿主那一份实例。
+ * 为什么必须是同一份 Vue：见 apps/web/src/main.ts 与 docs/architecture.md §7.1。
  *
  * Vue 复制 dev/prod 两份：dev 用带警告的版本，构建产物用压缩版
  * （由 vite.config.ts 的 transformIndexHtml 替换 index.html 里的占位符）。

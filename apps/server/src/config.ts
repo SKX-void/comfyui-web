@@ -10,7 +10,7 @@ const BUNDLED = typeof __BUNDLED__ !== 'undefined' && __BUNDLED__;
 const ROOT_MARKER = 'pnpm-workspace.yaml';
 
 /**
- * 仓库根目录。规则与 v1 的 config.ts 一致：源码态从 `apps/server/src` 往上找
+ * 仓库根目录：源码态从 `apps/server/src` 往上找
  * `pnpm-workspace.yaml`，打包态则把产物所在目录当根（`dist/host/` 被整包搬走也成立）。
  */
 export const repoRoot = (() => {
@@ -26,7 +26,7 @@ export const repoRoot = (() => {
 })();
 
 export interface HostConfig {
-  /** 监听地址与端口（v2 独立端口，默认 8087，不碰 v1 的 8086） */
+  /** 监听地址与端口（宿主唯一的端口，默认 8087） */
   host: string;
   port: number;
   /** 宿主数据目录：插件文件空间（data/plugins/<包名>/）与其它运行期数据 */
@@ -35,6 +35,11 @@ export interface HostConfig {
   profilesDir: string;
   /** 默认启用的 profile 名 */
   profile: string;
+  /**
+   * tab 插件目录：每个子目录 = 一个**自包含**的工作流插件（目录名即 id，见 src/tabs.ts）。
+   * 它和 profile 是两种来源，但走**同一套** manifest 契约与 Loader 生命周期。
+   */
+  tabsDir: string;
   /** 宿主前端产物目录（仅打包/生产态用于静态托管） */
   webDir: string;
   logLevel: string;
@@ -46,6 +51,7 @@ const DEFAULTS = {
   dataDir: 'data',
   profilesDir: 'profiles',
   profile: 'default',
+  tabsDir: 'tabs',
   logLevel: 'info',
 } as const;
 
@@ -57,7 +63,7 @@ function readOptionalConfigFile(): Partial<HostConfig> {
 
   for (const file of candidates) {
     if (!fs.existsSync(file)) continue;
-    // 支持 // 与 /* */ 注释：与 v1 的 config.json 保持同一种可读性
+    // 支持 // 与 /* */ 注释（配置是给人改的，允许写注释）
     const raw = fs.readFileSync(file, 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/(^|[^:])\/\/.*$/gm, '$1');
@@ -83,6 +89,7 @@ export function loadHostConfig(): HostConfig {
     dataDir,
     profilesDir: abs(raw.profilesDir ?? DEFAULTS.profilesDir),
     profile,
+    tabsDir: abs(raw.tabsDir ?? DEFAULTS.tabsDir),
     logLevel: process.env.COMFYUI_WEB_LOG_LEVEL ?? raw.logLevel ?? DEFAULTS.logLevel,
     // 前端位置固定：产物态是 `<host.mjs 所在目录>/web`，源码态是仓库根的 dist/host/web
     webDir: raw.webDir ? abs(raw.webDir) : path.join(distHost, 'web'),

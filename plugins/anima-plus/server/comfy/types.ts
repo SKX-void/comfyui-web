@@ -1,6 +1,6 @@
 import type { Graph } from '@comfyui-web/shared';
 
-/** ComfyUI 上游事件类型（v1-api.md §B.2） */
+/** ComfyUI 上游事件类型（docs/archive/v1-api.md §B.2） */
 export type ComfyEventType =
   | 'status'
   | 'execution_start'
@@ -51,12 +51,10 @@ export interface ViewParams {
 /**
  * ComfyUI 客户端抽象。
  *
- * 有两个实现：
- * - RealComfyClient：HTTP + WebSocket（v1-api.md §B）
- * - MockComfyClient：进程内模拟（无需 ComfyUI 即可跑通链路）
+ * 唯一实现是 RealComfyClient：HTTP + WebSocket（docs/archive/v1-api.md §B）。
+ * （旧服务里的 MockComfyClient 随旧服务一起删了。）
  *
- * ⚠️ 关键约束：ComfyUI 的进度事件只投递给「提交时的 client_id」，
- * 因此本服务器对所有任务使用**同一个 clientId**，并靠 prompt_id 区分归属。
+ * ⚠️ 本仓所有任务共用一个 clientId（原因见 server/comfy/real.ts 的注释），靠 prompt_id 区分归属。
  */
 export interface ComfyClient {
   readonly mode: 'real' | 'mock';

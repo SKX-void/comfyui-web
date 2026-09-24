@@ -2,7 +2,7 @@
 /**
  * anima-plus 自检：**不需要 ComfyUI、不需要网络、不起 HTTP**。
  *
- * 旧服务那份 896 行的 `apps/server/scripts/smoke.ts` 是随进程一起跑的（mock 客户端 +
+ * 旧服务那份 896 行的 smoke 脚本（`apps/server/scripts/smoke.ts`，已随旧服务删除）是随进程一起跑的（mock 客户端 +
  * 真 HTTP + 真 SQLite），删掉 8086 之后它没法原样搬过来。这里只保留**纯函数级**、
  * 且最值钱的那几段：模板静态校验 → 渲染与值变换 → **显存护栏** → 配额 → 预设 CRUD。
  *

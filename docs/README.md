@@ -1,7 +1,21 @@
 # 快速上手
 
 本仓就是**一套当前系统**：一个后端（宿主 + 插件）、一个前端（外壳 + tab）。
-没有 v1/v2 之分，只有"哪些东西还没搬完"这个临时状态。
+业务逻辑全在插件里，宿主只提供框架。
+
+**文档地图**（别猜，按这张表找）：
+
+| 文档 | 回答什么 |
+|---|---|
+| 本文 | 怎么跑起来、怎么装插件、怎么自己写一个插件、目录约定 |
+| [`architecture.md`](./architecture.md) | 架构与决策（D1–D14）、插件契约（§4）、核给的句柄（§5）、配置分层（§6）、落地现状（§14） |
+| [`config.md`](./config.md) | 十几个"配置"文件分别属于随包发布 / 随部署 / 随机器 / 随用户 / 随目录哪一层，谁能改，入不入库 |
+| [`../tabs/README.md`](../tabs/README.md) | 目录型插件（`tabs/<id>/`）：怎么写、热到什么程度、收尾契约 |
+| [`../profiles/default/README.md`](../profiles/default/README.md) | profile 是什么、为什么插件依赖要单独一个 workspace |
+| [`archive/`](./archive/README.md) | **历史文档**（v1 单体时代 + v2 落地过程），只作来龙去脉参考 |
+| 各插件的 `README.md` | 那个插件的设置项与内部结构（`plugins/*/README.md`） |
+
+> 约定：**过程叙事不要写进现行文档**。落地过程写进 `archive/`，现行文档只留结论与状态。
 
 ```bash
 pnpm install
@@ -15,23 +29,19 @@ scripts/dev-stack.sh 8087 5173
 #   tsx watch 盯整个仓库 → 写文件又触发重启 → 无限重启循环，服务只在 1 秒的窗口里可达。
 #   `--watch-path` 只盯源码目录，从根上避开这类"自己写自己看"的坑。
 pnpm dev:host                # 后端宿主，8087（node --watch-path，改 src/ 自动重启）
-COMFYUI_WEB_DEV_PORT=5173 pnpm dev:web   # 前端外壳（vite，把 /api 与 /plugins 代理到后端）
+pnpm dev:web                # 前端外壳（vite :5173，把 /api 与 /plugins 代理到后端）
 
 # 生产态：构建 + 单进程
 pnpm build                   # → dist/host/host.mjs + dist/host/web/
 node dist/host/host.mjs      # 一个进程同时提供 API 与前端
 ```
 
-打开 <http://127.0.0.1:8087>（或开发态的 5175）。宿主**自己不含任何业务功能**：
+打开 <http://127.0.0.1:8087>（或开发态的 <http://127.0.0.1:5173>）。宿主**自己不含任何业务功能**：
 没装插件时只有一个欢迎页和设置页。
 
-> **8086 那个旧服务（`apps/server`）已经删除**：`anima-plus` 的业务接口整体搬进了插件
-> （`plugins/anima-plus/server/`，逐字搬运 + 4 处适配），反代与 `upstreamBaseUrl` 设置项都不在了。
-> 旧单页前端也早就删了，它的代码现在住在 `plugins/anima-plus/client/src/`。
-> 改名也已经做完：宿主目录是 `apps/server`，包名 `@comfyui-web/server`（`pnpm dev:host` 走的就是它）。
-
-设计文档在 `docs/architecture.md`（含决策清单、契约、实施结果与验收证据）；**配置文件的分工看
-`docs/config.md`**（十几个"配置"文件分别属于随包发布 / 随部署 / 随机器 / 随用户哪一层）。
+> **8086 那个旧服务已经删除**：`anima-plus` 的业务接口整体搬进了插件（`plugins/anima-plus/server/`，
+> 逐字搬运 + 4 处适配），反代与 `upstreamBaseUrl` 设置项都不在了。旧单页前端也早就删了，
+> 它的代码现在住在 `plugins/anima-plus/client/src/`。历史文档在 [`archive/`](./archive/README.md)。
 
 ---
 
@@ -118,6 +128,7 @@ export default {
 apps/server/          宿主后端（cordis 微内核 + 文件空间/路由两个句柄 + 宿主端点）
 apps/web/             宿主前端（壳 + tab 栏 + 设置页：插件开关/配置 + 标签页排序 + 默认首页；Vue 经 import map 提供）
 plugins/*             插件源码（宿主不 import 它们）
+tabs/<id>/            目录型工作流插件（**目录名即 id**，自包含无依赖；见 docs/config.md §6）
 profiles/<name>/      profile：插件清单 + 自己的 node_modules
   plugins.yml           清单唯一真源（**不入库**，本机部署状态）；设置页会重写它，所以别写注释
   plugins.example.yml   入库的基线模板（pnpm plugin snapshot）；清单缺失时宿主从它复制
@@ -129,13 +140,13 @@ docker-compose.yml    部署单元（挂 dist/host.config.json/profiles/plugins/
 nginx.conf            反向代理（conf.d 片段，只有 server 块）
 ```
 
-> 以上这些"配置"文件各属于哪一层（随包发布 / 随部署 / 随机器 / 随用户）、谁能改、入不入库：
+> 以上这些"配置"文件各属于哪一层（随包发布 / 随部署 / 随机器 / 随用户 / 随目录）、谁能改、入不入库：
 > 见 **`docs/config.md`**。
 
 ## 自检
 
 ```bash
-pnpm -r typecheck            # 含 v1，全绿才算没回归
-pnpm plugin list          # 清单与安装状态
-node apps/server/scripts/plugin.mjs --help 2>/dev/null || true
+pnpm verify                  # typecheck + 构建 + 冒烟（日志与产物在 .cache/verify/）
+pnpm -r typecheck
+pnpm plugin list             # 清单与安装状态
 ```

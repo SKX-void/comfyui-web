@@ -19,9 +19,8 @@ interface ApiErrorBody {
 }
 
 /**
- * 业务路由还没搬进本插件，所有接口经**宿主内的插件反代**转发到上游旧服务
- * （见 plugins/anima-plus/server.js）。搬完之后这里改成空串或插件自己的前缀即可，
- * 调用方一行不用动。
+ * 本插件的接口前缀（宿主统一加的 `/api/p/<id>`）。
+ * 后端就在本插件里（`server/index.ts` 组装、`server/http/routes.ts` 挂路由），**没有反代**。
  */
 export const API_BASE = '/api/p/anima-plus';
 
@@ -86,7 +85,7 @@ export const api = {
 
   /**
    * 依赖检查：模板需要的节点类，这台 ComfyUI 有没有。
-   * `refresh` 绕过服务端 5 分钟缓存（object_info 约 9MB / 2s）。
+   * `refresh` 绕过服务端默认 5 分钟缓存（object_info 很贵，缓存策略见 server/deps.ts）。
    */
   deps: (refresh = false) => request<DepsReport>(`/api/deps${refresh ? '?refresh=1' : ''}`),
 

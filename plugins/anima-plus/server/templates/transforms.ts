@@ -33,7 +33,7 @@ function stripExt(name: string): string {
  * 前端现在不再暴露这两个权重，依赖这里的默认值。
  *
  * 注意：LoRA 名可能含反斜杠（如 "Anima\\画师\\x"），
- * 这里只做原样透传，**绝不规范化路径**（v1-weilin.md §8）。
+ * 这里只做原样透传，**绝不规范化路径**（plugins/anima-plus/docs/weilin.md §8）。
  */
 function normalizeLora(raw: unknown): LoraRef {
   const r = raw as Partial<LoraRef>;
@@ -49,14 +49,14 @@ function normalizeLora(raw: unknown): LoraRef {
     triggerWeight:
       r.triggerWeight === undefined ? 1 : asNumber(r.triggerWeight, 'LoRA triggerWeight'),
     displayName: r.displayName ?? name,
-    // loraWorks 仅前端显示用：WeiLin 节点不读取它（v1-weilin.md §5.3）
+    // loraWorks 仅前端显示用：WeiLin 节点不读取它（plugins/anima-plus/docs/weilin.md §5.3）
     loraWorks: r.loraWorks ?? '',
     hidden: r.hidden ?? false,
   };
 }
 
 /**
- * 值变换器（v1-template.md §4）。
+ * 值变换器（docs/archive/v1-templates.md §4）。
  *
  * 说明：`weilinLora` 产出的 JSON **字符串**里含反斜杠转义，
  * 因此这里始终用「先构造对象、再 JSON.stringify 一次」的方式，绝不手写字符串。
@@ -127,7 +127,7 @@ export function applyTransform(
 
     case 'weilinLoraTags': {
       const arr = asArray<unknown>(value, 'weilinLoraTags 的输入');
-      // 格式：<wlr:名:模型权重:CLIP权重:触发词权重>（v1-weilin.md §4.2）
+      // 格式：<wlr:名:模型权重:CLIP权重:触发词权重>（plugins/anima-plus/docs/weilin.md §4.2）
       const tags = arr
         .map(normalizeLora)
         .filter((l) => !l.hidden)

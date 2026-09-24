@@ -1,7 +1,7 @@
 # 路线图与验收标准
 
-> 状态：**讨论稿**（待用户确认）
-> 上游文档：[计划](./plan.md) · [单体架构](./archive/monolith-architecture.md)
+> ⚠️ **历史文档（v1 单体时代）**：描述的是已被取代的单体服务与当时的规划，只作来龙去脉参考，**不要照着实现**。现行文档索引见 [`docs/README.md`](../README.md)。
+> 上游文档：[计划](./v1-plan.md) · [单体架构](./v1-architecture.md)
 
 ---
 
@@ -95,7 +95,7 @@ config.json                     # 配置文件（默认指向 10.2.3.22:8188）
 
 ## M0 · 冒烟验证（阻断式）
 
-**目标**：验证 [v1-plan.md](./plan.md) §4 中**尚未由源码确认**的假设。
+**目标**：验证 [v1-plan.md](./v1-plan.md) §4 中**尚未由源码确认**的假设。
 
 > 进度：H2 / H3 / H6 / H7 已由源码确认；本阶段聚焦 **H1 / H4 / H5** 与运行时行为。
 
@@ -171,7 +171,7 @@ config.json                     # 配置文件（默认指向 10.2.3.22:8188）
 
 ### 任务
 
-- [ ] 定义 `template.schema.json`（依据 [templates.md](./templates.md) §2）
+- [ ] 定义 `template.schema.json`（依据 [templates.md](./v1-templates.md) §2）
 - [ ] `templates/` 加载器 + 静态校验（启动时快速失败）
 - [ ] `render()`：bindings 应用 + transform 变换器
 - [ ] 动态校验：渲染后对 `/object_info` 校验

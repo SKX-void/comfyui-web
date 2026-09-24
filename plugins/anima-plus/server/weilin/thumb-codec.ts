@@ -25,7 +25,7 @@ import { webpCodec } from 'purejsimage/codecs/webp';
  *
  * 实测（ARM64 弱主机）：3072x2048 PNG 转码 474ms，期间事件循环最长只阻塞 32ms
  * （编码器内部在分块 await），所以不需要 worker；内存增量 14MB。
- * 详见 docs/architecture.md §14.1g 与 README「缩略图」。
+ * 详见 `plugins/anima-plus/README.md`「缩略图」；来龙去脉见 `docs/archive/v2-implementation-notes.md` §14.1g。
  */
 
 /** 只注册用得到的三个：预览图 13/14 是 WebP，产出图是 PNG，另有少量 JPEG */

@@ -11,6 +11,7 @@ import type { Logger } from 'pino';
 import { SpaceService } from './handles/space.js';
 import { RoutesService } from './handles/routes.js';
 import { resolvePluginPackage, SUPPORTED_CONTRACT } from './plugin-package.js';
+import { TabsService } from './tabs.js';
 import { apply as applyCore, inject as coreInject, isPluginEntry, name as coreName, shortId } from './core-plugin.js';
 import type { CorePluginConfig } from './core-plugin.js';
 
@@ -27,6 +28,8 @@ export interface BootOptions {
   profileDir: string;
   manifestFile: string;
   dataDir: string;
+  /** 目录型工作流插件（每个子目录一个，目录名即 id）；不存在就是没有 */
+  tabsDir: string;
   logger: Logger;
 }
 
@@ -71,7 +74,7 @@ function rowIdentity(
 
 /**
  * 契约闸门：在树挂载**之前**读一遍 plugins.yml，把"宿主不认识的契约版本"的行
- * 用 patch 层禁掉 —— 文件本身不动，插件也不会被导入（v2-architecture §4.5）。
+ * 用 patch 层禁掉 —— 文件本身不动，插件也不会被导入（docs/architecture.md §4.5）。
  */
 function computeGate(
   rows: unknown[],
@@ -123,7 +126,7 @@ function makeRawConfigReader(
 }
 
 export async function bootHost(options: BootOptions): Promise<BootedHost> {
-  const { app, profileDir, manifestFile, dataDir, logger } = options;
+  const { app, profileDir, manifestFile, dataDir, logger, tabsDir } = options;
 
   // 1. 句柄：先建出来，插件的 inject 才有东西可等。
   //    核只给**文件空间**：存储形态（SQLite / JSON / …）是插件自己的事。
@@ -150,31 +153,48 @@ export async function bootHost(options: BootOptions): Promise<BootedHost> {
   // core 插件启动时按 ui-prefs.json 的跟随名单把值写进对应插件的行配置（见 §5.7）。
   const patches = gatePatches;
 
-  // 3. 宿主内置 core 插件（宿主级端点，不占插件前缀）
+  // 3. 目录型 tab 的注册表（`/tabs/<id>/`，目录名即 id）。
+  //    它和 profile 是**同一个 manifest 契约的两个来源**：契约闸门、失败隔离、
+  //    清单端点、前端 tab 装载全部复用，所以先建出来交给 core。
+  const tabs = new TabsService(ctx, tabsDir, logger, gate);
+
+  // 4. 宿主内置 core 插件（宿主级端点，不占插件前缀）
   const coreConfig: CorePluginConfig = {
     app,
     profile: options.profile,
     profileDir,
     manifestFile,
     dataDir,
+    tabsDir,
+    tabs,
     resolvePackage: (specifier) => resolvePluginPackage(specifier, profileDir),
     gate,
     readRawConfigs: makeRawConfigReader(manifestFile, logger),
   };
   ctx.plugin({ name: coreName, inject: [...coreInject], apply: applyCore }, coreConfig);
 
-  // 4. 树：Include 作为 Loader 的一个 entry 挂载（不是当插件挂）。
+  // 5. 树：Include 作为 Loader 的一个 entry 挂载（不是当插件挂）。
   //    create 自己分配 entry id，文件里的行 id 只用于 patch 定位；
   //    子行的 id 形如 `<includeId>:<行 id>`。
-  ctx.loader.builtins.include = Include;
-  await ctx.loader.create({
-    name: 'cordis:include',
-    config: {
-      path: pathToFileURL(manifestFile).href,
-      ...(patches.length > 0 ? { patches } : {}),
-    },
-  });
-  await ctx.loader.await();
+  //    清单不存在就整段跳过：只放 `/tabs` 的部署不该被"必须先有 profile"挡住。
+  if (fs.existsSync(manifestFile)) {
+    ctx.loader.builtins.include = Include;
+    await ctx.loader.create({
+      name: 'cordis:include',
+      config: {
+        path: pathToFileURL(manifestFile).href,
+        ...(patches.length > 0 ? { patches } : {}),
+      },
+    });
+    await ctx.loader.await();
+  } else {
+    logger.info({ manifestFile }, '没有 profile 清单：这次只加载 /tabs 目录型插件');
+  }
+
+  // 6. 目录型 tab → Loader entries。之后目录增删由 fs.watch 触发重扫（热挂/热卸），
+  //    改插件**代码**不热（Node 的 ESM 模块缓存按 URL 记），这是 PoC 的明确边界。
+  const scanned = await tabs.rescan();
+  tabs.watch();
 
   // 路由分发要靠"这一行现在是不是活的"来兜底：插件的路由表是内存里的，
   // 停用/卸载后不能再由它对外服务。
@@ -193,7 +213,7 @@ export async function bootHost(options: BootOptions): Promise<BootedHost> {
     return 'unknown';
   });
 
-  // 5. 装配审计：单插件失败隔离 —— 记录并继续，让设置页能把坏插件显示出来
+  // 7. 装配审计：单插件失败隔离 —— 记录并继续，让设置页能把坏插件显示出来
   //    （契约闸门那种"整行拒绝"已经在挂载前处理了）
   const broken: Array<{ id: string; reason: string }> = [];
   for (const entry of ctx.loader.entries()) {
@@ -222,6 +242,8 @@ export async function bootHost(options: BootOptions): Promise<BootedHost> {
       profile: options.profile,
       profileDir,
       manifest: fs.existsSync(manifestFile),
+      tabsDir,
+      tabs: scanned.added.length + scanned.failed.length,
       plugins: [...ctx.loader.entries()].filter((e) => e.options.name !== 'cordis:include').length,
     },
     '宿主内核已装配',
@@ -232,6 +254,7 @@ export async function bootHost(options: BootOptions): Promise<BootedHost> {
     space,
     gate,
     dispose: async () => {
+      tabs.dispose();
       try {
         await ctx.fiber.dispose();
       } catch (err) {

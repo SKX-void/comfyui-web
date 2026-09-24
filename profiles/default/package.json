@@ -1,14 +1,9 @@
 {
-  "name": "comfyui-web-profile-default",
+  "name": "@comfyui-web/profile",
   "version": "0.1.0",
   "private": true,
   "description": "v2 默认 profile：插件清单 + 插件依赖",
   "type": "module",
-  "plugin": {
-    "profile": {
-      "title": "默认"
-    }
-  },
   "dependencies": {
     "@comfyui-web/anima-example": "link:../../plugins/anima-example",
     "@comfyui-web/anima-plus": "link:../../plugins/anima-plus"

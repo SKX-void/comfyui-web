@@ -56,7 +56,7 @@ export function validateTemplate(def: TemplateDef, graph: Graph, origin: string)
     if (!graph[outNode]) problems.push(`outputs.nodes 指向不存在的节点: ${outNode}`);
   }
 
-  // ---- 安全护栏（v1-safety.md）------------------------------------------
+  // ---- 安全护栏（plugins/anima-plus/docs/safety.md）------------------------------------------
   // 1) 表单默认值不得越过安全上限：这种模板一提交必被拒，属于作者笔误，启动期就拦下
   for (const input of def.inputs ?? []) {
     const bounds = effectiveBounds(def, graph, input);

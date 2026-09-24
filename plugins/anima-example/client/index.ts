@@ -3,7 +3,8 @@
  *
  * 契约（docs/architecture.md §4.4）：默认导出**纯数据** `{ tabs, routes }` ——
  * 插件不创建 app、不碰 router、不渲染 tab 栏。组件挂进宿主的组件树，
- * 所以 `import ... from 'vue'` 必须由宿主页面的 import map 解析（保证是同一份 Vue 实例）。
+ * 所以这里只用裸 `vue` 说明符，交给宿主页面的 import map 解析
+ * （为什么必须是同一份 Vue：见 apps/web/src/main.ts 与 docs/architecture.md §7.1）。
  */
 import { defineComponent, h } from 'vue';
 

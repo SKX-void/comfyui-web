@@ -1,5 +1,5 @@
 /**
- * WeiLin 适配层（v1-weilin.md §3）。
+ * WeiLin 适配层（plugins/anima-plus/docs/weilin.md §3）。
  *
  * 复用 WeiLin 注册在 ComfyUI 上的 REST 路由（前缀 /weilin/prompt_ui/api/），
  * 不重新实现标签库 / LoRA 索引逻辑。
@@ -128,7 +128,7 @@ export class WeilinClient {
   // 探活
   // -------------------------------------------------------------------------
 
-  /** 能力探测（v1-weilin.md §3.2）。失败即视为不可用，前端降级。 */
+  /** 能力探测（plugins/anima-plus/docs/weilin.md §3.2）。失败即视为不可用，前端降级。 */
   async probe(): Promise<WeilinStatus> {
     if (this.mode === 'mock') {
       return { available: true, isLoading: false, progress: 100, total: 6, current: 6 };

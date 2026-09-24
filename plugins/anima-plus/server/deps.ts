@@ -15,9 +15,8 @@ import type { TemplateRegistry } from './templates/loader.js';
  * 判据只有一个 —— `GET /object_info` 的键集合（= 已注册的节点类）。它比"包装没装"
  * 更准：包装了但 import 失败、缺 Python 依赖时，**包在而节点不在**，查包会给假阳性。
  *
- * "缺的节点出自哪个包"则用**模板里手写的声明**（`requirements.packs[].url`）回答，
- * 不查 ComfyUI-Manager：它的"类 → 包"映射会猜错，而且 WeiLin 这类不在 Manager 上的
- * 包根本查不到。作者本来就知道自己用的是哪个仓库。
+ * "缺的节点出自哪个包"则用**模板里手写的声明**（`requirements.packs[].url`）回答 ——
+ * 为什么不查 ComfyUI-Manager 的"类 → 包"推测，见 scripts/gen-deps.mjs 的注释。
  *
  * object_info 约 9MB / 2s，**必须缓存**；提交前的检查也走同一份缓存。
  * 缓存时长可由设置项调（`ttlMs`）：`0` = 不缓存，用于"刚在 ComfyUI 装完包、想立刻重查"。

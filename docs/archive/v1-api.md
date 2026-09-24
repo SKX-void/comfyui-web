@@ -1,7 +1,7 @@
 # API 契约
 
-> 状态：**讨论稿**（待用户确认）
-> 上游文档：[计划](./plan.md) · [单体架构](./archive/monolith-architecture.md)
+> ⚠️ **历史文档（v1 单体时代）**：描述的是已被取代的单体服务与当时的规划，只作来龙去脉参考，**不要照着实现**。现行文档索引见 [`docs/README.md`](../README.md)。
+> 上游文档：[计划](./v1-plan.md) · [单体架构](./v1-architecture.md)
 
 本文分两部分：
 - **Part A**：本服务器**对外**（给 SPA）的 API —— 我们自己的契约
@@ -86,13 +86,13 @@ Base URL：`http://127.0.0.1:8080/api`
 }
 ```
 
-> `inputs[].type` 取值见 [单体架构](./archive/monolith-architecture.md) §4.2。
+> `inputs[].type` 取值见 [单体架构](./v1-architecture.md) §4.2。
 > `source` 描述选项数据来源，前端按 `kind` 调对应接口。
 
 ## A.2 数据源（标签 / LoRA / 模型）
 
 > 这一组是 **WeiLin 适配层** 的对外出口，内部转发到 `/weilin/prompt_ui/api/*`。
-> 详见 [weilin.md](./weilin.md)。
+> 详见 [weilin.md](../../plugins/anima-plus/docs/weilin.md)。
 
 ### `GET /api/loras/browse`
 

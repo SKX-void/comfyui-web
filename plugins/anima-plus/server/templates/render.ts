@@ -20,9 +20,9 @@ export interface LoadedTemplate {
 }
 
 /**
- * 按 input 类型做值归一化与校验（v1-template.md §5 步骤 2）。
+ * 按 input 类型做值归一化与校验（docs/archive/v1-templates.md §5 步骤 2）。
  *
- * `graph` 用于把安全上限（v1-safety.md）折算到字段上：模板里的 `ui.max`
+ * `graph` 用于把安全上限（plugins/anima-plus/docs/safety.md）折算到字段上：模板里的 `ui.max`
  * 只是 UI 提示，真正说了算的是安全策略，两者取交集。
  * 不传 graph 时退化为"只认模板自己的 ui 边界"——越界值仍会被后面的护栏挡住。
  */
@@ -130,11 +130,11 @@ export interface RenderResult {
 }
 
 /**
- * 渲染：把表单值注入模板 graph（v1-template.md §5）。
+ * 渲染：把表单值注入模板 graph（docs/archive/v1-templates.md §5）。
  *
  * 返回**新的** graph，不修改模板（深拷贝）。
  *
- * 最后一步是安全护栏（v1-safety.md）——这里是"值已经全部落图"的唯一位置，
+ * 最后一步是安全护栏（plugins/anima-plus/docs/safety.md）——这里是"值已经全部落图"的唯一位置，
  * 也是模板/transform/预设三条来路都必经的收口：
  *   - 越界值能追溯到用户输入 → 抛错（给出字段级提示，绝不悄悄改用户的参数）
  *   - 只来自模板（const/默认图） → 夹紧到安全值并记在 `safety.clamped` 里

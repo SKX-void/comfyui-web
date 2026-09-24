@@ -1,8 +1,7 @@
 # 项目计划
 
-> 状态：**讨论稿**（待用户确认）
-> 目录约定：本仓库所有规划文档使用 `v1` 前缀，存放于 `v1/`。
-> 相关文档：[单体架构](./archive/monolith-architecture.md) · [API](./api.md) · [模板](./templates.md) · [WeiLin](./weilin.md) · [路线图](./roadmap.md)
+> ⚠️ **历史文档（v1 单体时代）**：描述的是已被取代的单体服务与当时的规划，只作来龙去脉参考，**不要照着实现**。现行文档索引见 [`docs/README.md`](../README.md)。
+> 相关文档：[单体架构](./v1-architecture.md) · [API](./v1-api.md) · [模板](./v1-templates.md) · [WeiLin](../../plugins/anima-plus/docs/weilin.md) · [路线图](./v1-roadmap.md)
 
 ---
 
@@ -30,8 +29,8 @@ ComfyUI 自带前端（节点图编辑器）对一个"只想出图"的用户来�
 | D2 | 后端栈 | **Node.js + TypeScript** | 与前端同语言，类型可共享 |
 | D3 | 前端栈 | **Vue 3**（已定） | WeiLin 前端本身即 Vue 3.5，**可直接复用其组件**，见 §3.3 |
 | D4 | 部署形态 | **先本机自用，架构预留多用户** | 单用户实现 + 多用户数据模型 |
-| D5 | 与工作流关系 | **高度定制化绑定** | 模板化，见 v1-template.md |
-| D6 | 与 WeiLin 关系 | **强依赖**：复用其 REST API + 复用其 Vue 组件 | 用户明确接受强依赖，见 §3.3 / v1-weilin.md |
+| D5 | 与工作流关系 | **高度定制化绑定** | 模板化，见 v1-templates.md |
+| D6 | 与 WeiLin 关系 | **强依赖**：复用其 REST API + 复用其 Vue 组件 | 用户明确接受强依赖，见 §3.3 / plugins/anima-plus/docs/weilin.md |
 | D7 | 触发词注入 | **沿用节点原生注入**（Q15 方案 A，零代码） | 不自行实现；原生体验已足够好 |
 | D8 | 实施节奏 | **先搭框架跑通链路 → 再改进 WeiLin 组件的前端呈现** | 分两阶段，避免一开始陷入组件细节 |
 | D9 | 无 ComfyUI 时的开发 | 内置 **mock 模式**（`COMFY_MODE=mock`） | `/workspace/ComfyUI` 无 venv/torch，本地跑不起来 |
@@ -97,7 +96,7 @@ WeiLin 的**前端本身就是 Vue 3 应用**（`src/`，60+ 个 `.vue` 组件�
 
 **结论**：WeiLin 的前端已经是「通过 HTTP + postMessage 驱动的独立应用」，
 **搬运到我们的前端是可行的**——只需把 postMessage 适配层换成我们自己的状态绑定。
-这是 D3 选 Vue 3 的决定性理由。详见 [v1-weilin.md](./weilin.md) §6。
+这是 D3 选 Vue 3 的决定性理由。详见 [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md) §6。
 
 ### 3.4 WeiLin 插件侧（`/workspace/WeiLin-Comfyui-Tools`）
 
@@ -136,7 +135,7 @@ SQLite 位于 `WeiLin-Comfyui-Tools/../../../user_data/`，即 **`/workspace/use
 > **拆分意图（用户说明）**：不用 WeiLin 的 `WeiLinPromptUIOnlyLoraStack`（它**不注入触发词**），
 > 而用全能组件 `WeiLinPromptUI` 承担 LoRA 加载，**因为只有它会自动注入触发词**；
 > 同时把 `positive` 清空成只有标签，使该节点不产出任何正文，
-> 从而与主提示词节点彻底解耦。源码已确认此判断成立（见 [v1-weilin.md](./weilin.md) §5.3）。
+> 从而与主提示词节点彻底解耦。源码已确认此判断成立（见 [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md) §5.3）。
 
 **节点 `43` 的真实载荷**（这是对接的核心）：
 
@@ -171,11 +170,11 @@ SQLite 位于 `WeiLin-Comfyui-Tools/../../../user_data/`，即 **`/workspace/use
 > **结论（回答了"能不能只改 API JSON"）**：**能**。
 > 只要往 `43.inputs.positive`（内嵌 `<wlr:...>`）或 `43.inputs.lora_str`（富 JSON）写值，
 > 节点执行期会自动完成 **LoRA 加载 + 触发词提取 + 触发词注入**。
-> 服务器**不需要**实现 LoRA 加载逻辑。完整机制见 [v1-weilin.md](./weilin.md) §4–5。
+> 服务器**不需要**实现 LoRA 加载逻辑。完整机制见 [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md) §4–5。
 >
 > ⚠️ **一个例外**：触发词用的是 **Civitai/元数据/文件名**，节点**不读**你编辑的 `loraWorks`。
 > 即"自动注入"生效，但注入的未必是你编辑的词。这需要按 **Q15** 决策，
-> 见 [v1-weilin.md](./weilin.md) §5.3。
+> 见 [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md) §5.3。
 
 ---
 
@@ -207,7 +206,7 @@ SQLite 位于 `WeiLin-Comfyui-Tools/../../../user_data/`，即 **`/workspace/use
 | H3 | `opt_clip` 是连线输入，服务器不能直接注入 | ✅ **源码确认 + 真机验证** | 模板保留完整 CLIP 链路，真机出图成功 |
 | H4 | WeiLin REST 接口就绪 | ✅ **真机验证通过** | `get_lora_load_status` 返回 288 个 LoRA；`get_lora_list` **41MB**（需用分页端点） |
 | H5 | `opt_text` 可传字面量字符串 | ⬜ 未验证 | 不影响当前设计（模板走连线，未用字面量） |
-| H6 | 触发词注入由节点自动完成 | ✅ **源码确认** | 见 [v1-weilin.md](./weilin.md) §5 |
+| H6 | 触发词注入由节点自动完成 | ✅ **源码确认** | 见 [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md) §5 |
 | H7 | WeiLin 前端组件与 ComfyUI 解耦 | ✅ **源码确认** | 无 `LiteGraph`/`window.app` 依赖（§3.3） |
 
 > **真机环境基线**（2026-09-18 实测）：
@@ -263,12 +262,12 @@ comfyui-web/               # 本仓库（monorepo）
 
 | # | 问题 | 影响 |
 |---|------|------|
-| Q2 | 模板格式：**自定义 DSL** vs **ComfyUI graph 子集 + 占位符**？ | 影响 v1-template.md 设计 |
-| Q3 | LoRA 应用方式：**写 `lora_str`/`positive`** vs **服务器改图插节点**？ | 见 v1-weilin.md §4 |
+| Q2 | 模板格式：**自定义 DSL** vs **ComfyUI graph 子集 + 占位符**？ | 影响 v1-templates.md 设计 |
+| Q3 | LoRA 应用方式：**写 `lora_str`/`positive`** vs **服务器改图插节点**？ | 见 plugins/anima-plus/docs/weilin.md §4 |
 | Q5 | 任务历史落库用 **SQLite** 还是只读 ComfyUI `/history`？ | 影响持久化复杂度 |
 | Q6 | 是否需要图片/资源的**长期归档**（ComfyUI output 会被清理）？ | 影响存储设计 |
-| **Q15** | **触发词来源**：沿用节点自动注入（Civitai/元数据）vs 我们按 `loraWorks` 注入？ | **新增，见 v1-weilin.md §5.3** |
-| **Q16** | 前端组件策略：**直接搬 WeiLin 的 `.vue` 源码** vs **嵌入 UMD 产物** vs **照着重写**？ | **新增，见 v1-weilin.md §6** |
+| **Q15** | **触发词来源**：沿用节点自动注入（Civitai/元数据）vs 我们按 `loraWorks` 注入？ | **新增，见 plugins/anima-plus/docs/weilin.md §5.3** |
+| **Q16** | 前端组件策略：**直接搬 WeiLin 的 `.vue` 源码** vs **嵌入 UMD 产物** vs **照着重写**？ | **新增，见 plugins/anima-plus/docs/weilin.md §6** |
 
 ---
 
@@ -292,7 +291,7 @@ comfyui-web/               # 本仓库（monorepo）
 
 1. **你确认 §6 的待决事项**（尤其 Q3 / Q15 / Q16）
 2. 我写一个**最小冒烟脚本**，运行时验证 H1 / H4 / H5（其余已由源码确认）
-3. 冒烟通过后，按 [v1-roadmap.md](./roadmap.md) 的 M1 开始实现
+3. 冒烟通过后，按 [v1-roadmap.md](./v1-roadmap.md) 的 M1 开始实现
 
 ---
 
@@ -300,8 +299,8 @@ comfyui-web/               # 本仓库（monorepo）
 
 | 文档 | 内容 |
 |------|------|
-| [v1-architecture.md](./archive/monolith-architecture.md) | 分层架构、组件职责、调用链路、时序图 |
-| [v1-api.md](./api.md) | 服务器对外 REST/SSE 契约 + 对 ComfyUI 的调用规范 |
-| [v1-template.md](./templates.md) | 工作流模板格式、输入映射、校验规则 |
-| [v1-weilin.md](./weilin.md) | WeiLin 对接方案、LoRA/标签/翻译/随机提示词 |
-| [v1-roadmap.md](./roadmap.md) | 里程碑、任务拆解、验收标准 |
+| [v1-architecture.md](./v1-architecture.md) | 分层架构、组件职责、调用链路、时序图 |
+| [v1-api.md](./v1-api.md) | 服务器对外 REST/SSE 契约 + 对 ComfyUI 的调用规范 |
+| [v1-templates.md](./v1-templates.md) | 工作流模板格式、输入映射、校验规则 |
+| [plugins/anima-plus/docs/weilin.md](../../plugins/anima-plus/docs/weilin.md) | WeiLin 对接方案、LoRA/标签/翻译/随机提示词 |
+| [v1-roadmap.md](./v1-roadmap.md) | 里程碑、任务拆解、验收标准 |

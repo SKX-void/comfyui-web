@@ -7,5 +7,7 @@
   "dataDir": "data",
   "profilesDir": "profiles",
   "profile": "default",
+  // tab 插件目录：每个子目录 = 一个自包含的工作流插件（目录名即 id，见 src/tabs.ts）
+  "tabsDir": "tabs",
   "logLevel": "info"
 }

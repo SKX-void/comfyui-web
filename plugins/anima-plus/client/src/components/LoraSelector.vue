@@ -11,7 +11,7 @@
  * WeiLin 的 `get_lora_list` 是 41MB，服务端已缓存并按层切片。
  *
  * 注意：触发词由 WeiLin 节点在执行期**自动注入**，此处仅作展示，
- * 写进 loraWorks 也不会改变注入结果（v1-weilin.md §5.3）。
+ * 写进 loraWorks 也不会改变注入结果（plugins/anima-plus/docs/weilin.md §5.3）。
  */
 import { computed, onMounted, ref, watch } from 'vue';
 import type { LoraFolderEntry, LoraListItem, LoraMeta } from '@comfyui-web/shared';

@@ -29,10 +29,10 @@ const RECONNECT_MAX_MS = 10_000;
 /**
  * 真实 ComfyUI 客户端。
  *
- * 依据 v1-api.md §B：
+ * 依据 docs/archive/v1-api.md §B：
  * - 只有 WebSocket，没有 SSE
  * - progress / progress_state 只投递给提交时的 client_id
- * - 因此这里只维护**一条**共享连接，使用同一个 clientId
+ * - 因此全服务只维护**一条**共享连接、所有任务共用一个 clientId，靠 prompt_id 区分归属
  */
 export class RealComfyClient implements ComfyClient {
   readonly mode = 'real' as const;
@@ -220,7 +220,7 @@ export class RealComfyClient implements ComfyClient {
     clientId: string,
     extraData?: Record<string, unknown>,
   ): Promise<SubmitResult> {
-    // 出口断言（v1-safety.md 第 3 层）：宁可提交失败，也不许把越界值打到 GPU。
+    // 出口断言（plugins/anima-plus/docs/safety.md 第 3 层）：宁可提交失败，也不许把越界值打到 GPU。
     // 正常情况下渲染阶段的护栏已经夹紧过，走到这里还越界说明上游有 bug。
     assertGraphSafe(graph);
 
@@ -295,7 +295,7 @@ export class RealComfyClient implements ComfyClient {
   }
 
   async fetchImage(params: ViewParams): Promise<{ data: Buffer; contentType: string }> {
-    // 防路径穿越（v1-api.md §B.4）
+    // 防路径穿越（docs/archive/v1-api.md §B.4）
     if (params.filename.includes('..') || params.filename.startsWith('/')) {
       throw AppError.badRequest(`非法文件名: ${params.filename}`);
     }

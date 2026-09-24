@@ -8,7 +8,7 @@ const appDir = fileURLToPath(new URL('.', import.meta.url));
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 /**
- * 后端端口**只从 host.config.json 读**，保证与后端永远一致（v1 的双真源漂移坑）。
+ * 后端端口**只从 host.config.json 读**，保证与后端永远一致（曾经踩过"两处各写一个端口"的坑）。
  *
  * 例外：`COMFYUI_WEB_PORT` 可以临时覆盖 —— 排查时经常会出现"配置端口被别的实例占着，
  * 新实例只能起在别的端口"的情况（本仓就踩过），没有这个开关就只能去改配置文件。
@@ -30,10 +30,9 @@ function readHostPort(): number {
 const hostTarget = `http://127.0.0.1:${readHostPort()}`;
 
 /**
- * 宿主与插件共享的运行时：必须保持**裸说明符**，交给浏览器 import map 解析。
- *
- * 这条是"加插件不重编宿主"的核心机制。若把它们打进宿主 bundle，
- * 插件 bundle（external 掉 vue）就会拿到另一份 Vue 实例。
+ * 宿主与插件共享的运行时：保持**裸说明符**，交给浏览器 import map 解析 ——
+ * 这正是"加插件不重编宿主"的核心机制。
+ * 为什么必须是同一份 Vue：见 apps/web/src/main.ts 与 docs/architecture.md §7.1。
  */
 const SHARED_RUNTIME = ['vue', 'vue-router'];
 
@@ -77,14 +76,15 @@ function importMapVendor(mode: string): Plugin {
 }
 
 /**
- * dev 端口：默认 5175，可用 `COMFYUI_WEB_DEV_PORT` 覆盖。
+ * dev 端口：**默认 5173**（本机外部入口 nginx 就固定指向它，例如 `5180 → 172.x.x.x:5173`），
+ * 需要换端口用 `COMFYUI_WEB_DEV_PORT` 覆盖，不改文件。
  *
- * 存在的理由：本机入口常被外部 nginx 固定（例如 `5180 → 172.x.x.x:5173`），
- * 那种情况下 v2 必须能顶到指定端口上，否则前端根本进不来。
+ * `server.strictPort: true`：端口被占就直接失败，不会自己漂到 5174 —— 否则外面那个
+ * 固定入口会静默指空，表现为"前端打不开"而不是"端口被占"。
  */
 function readWebPort(): number {
   const override = Number(process.env.COMFYUI_WEB_DEV_PORT);
-  return Number.isInteger(override) && override > 0 ? override : 5175;
+  return Number.isInteger(override) && override > 0 ? override : 5173;
 }
 
 export default defineConfig(({ mode, command }) => ({
@@ -102,7 +102,7 @@ export default defineConfig(({ mode, command }) => ({
     entries: [],
   },
   build: {
-    // 与 v1 的 dist/web 分开：v2 产物统一在 dist/host/ 下，互不干扰
+    // 产物统一在 dist/host/ 下（与其它 dist 子目录互不干扰）
     outDir: fileURLToPath(new URL('../../dist/host/web', import.meta.url)),
     emptyOutDir: true,
     rollupOptions: {

@@ -58,7 +58,7 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
   app.get('/api/templates/:id', async (req) => {
     const { id } = req.params as { id: string };
     const tpl = templates.get(id);
-    // 用安全策略收窄下发的 ui.min/max（v1-safety.md）：
+    // 用安全策略收窄下发的 ui.min/max（plugins/anima-plus/docs/safety.md）：
     // 前端滑块/数字框因此不会给出"填了也一定会被拒"的区间，
     // 而且改上限只需改策略一处，不用回头改 template.json 里的提示值。
     const def = narrowTemplateBounds(tpl.def, tpl.graph);
@@ -131,7 +131,7 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
   });
 
   /**
-   * SSE 事件流（v1-api.md §A.3）。
+   * SSE 事件流（docs/archive/v1-api.md §A.3）。
    * 连接即发 snapshot，断线重连可恢复，无需回放。
    */
   app.get('/api/jobs/:id/events', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -195,7 +195,7 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
   });
 
   // -------------------------------------------------------------------------
-  // 预设（全局共用；uid 预留多用户，v1 固定 'local'）
+  // 预设（全局共用；uid 预留多用户，目前固定 'local'）
   //
   // 每种预设一张表、类型化列。响应额外带一个由列**派生**的 `values`
   // （键为模板 input 的 key），前端据此直接 Object.assign 到表单值。
@@ -291,13 +291,13 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
   });
 
   // -------------------------------------------------------------------------
-  // WeiLin 数据源（v1-api.md §A.2 / v1-weilin.md §7）
+  // WeiLin 数据源（docs/archive/v1-api.md §A.2 / plugins/anima-plus/docs/weilin.md §7）
   //
   // 体积约束：get_lora_list(41MB) 与 lorainfo/info(71KB/条) 绝不整体下发。
   // -------------------------------------------------------------------------
 
   /**
-   * LoRA 目录浏览（v1-api.md §A.2）。
+   * LoRA 目录浏览（docs/archive/v1-api.md §A.2）。
    *
    * 语义：**只返回指定目录的直属内容**，不递归子目录。
    * 子目录以 folders 形式返回，由前端逐层进入。

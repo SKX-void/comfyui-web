@@ -1,0 +1,436 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import type { Context } from 'cordis';
+import type { Logger } from 'pino';
+
+import {
+  resolvePluginPackage,
+  SUPPORTED_CONTRACT,
+  type ResolvedPluginPackage,
+} from './plugin-package.js';
+
+/**
+ * `/tabs` —— **目录型工作流插件**（决策 D14，已落地）。
+ *
+ * 每个子目录就是一个插件，**目录名即 id**：
+ *
+ * ```
+ * tabs/hello/package.json   { "name": "@comfyui-web/tab-hello", "main": "server.js",
+ *                             "plugin": { "contract": 1, "title": "…", "client": "client.js" } }
+ * tabs/hello/server.js      cordis 插件（export name / inject / apply）
+ * tabs/hello/client.js      ESM 前端入口（export default { tabs, routes }）；vue 走页面 import map
+ * ```
+ *
+ * ## 与 profile 的关系
+ *
+ * 两者是**同一个 manifest 契约的两个来源**：profile 的行写模块说明符（裸包名 / 相对路径），
+ * tab 的行写**服务端入口的绝对路径**（loader 的 `import()` 直接吃绝对路径）。
+ * 契约闸门、失败隔离、`GET /api/plugins`、设置页 schema、前端 tab 装载全部复用，
+ * 不新增第二套生命周期。
+ *
+ * ## 为什么要求"自包含"
+ *
+ * 插件产物本来就自带依赖（esbuild 把 deps inline 进 `lib/server.js`），所以 tabs 目录下
+ * **没有** node_modules：插件只 import node 内置模块 + 宿主给的句柄。要第三方库就先 bundle。
+ * 只有这样，"丢一个目录进去就是一个 tab"才成立（也免掉 N 份 node_modules 与不可复现的安装）。
+ *
+ * ## 状态归插件自己
+ *
+ * `/tabs` 只回答"有哪几个 tab"，**不持有它们的配置**：插件用 `ctx.space` 在自己的
+ * `data/plugins/<包名>/` 里自持数据库 / 配置文件。所以宿主对目录型插件的
+ * `PUT /api/plugins/:id/config` 是**拒绝**的（见 core-plugin.ts），
+ * 免得出现"改完没落盘、重启就丢"的假象。
+ */
+
+/** 目录名即 id：规则与 profile 行 id 一致（它决定路由前缀与前端资源前缀） */
+const TAB_ID_RE = /^[a-z][a-z0-9_-]*$/;
+
+export interface ScannedTab {
+  id: string;
+  dir: string;
+  /** 服务端入口绝对路径；`problem` 存在时它可能并不存在 */
+  entry: string;
+  pkg?: ResolvedPluginPackage;
+  /** 不能加载的原因：这一行仍会以 disabled 挂上，好让设置页把原因显示出来 */
+  problem?: string;
+  /**
+   * 目录内容指纹（相对路径 + 大小 + mtime）。变了就说明**代码变了**，
+   * 需要卸载后用带 cache-buster 的新说明符重挂（Node 的 ESM 缓存按 URL 记）。
+   */
+  fingerprint: string;
+}
+
+/**
+ * 扫 `<tabsDir>` 下的子目录。
+ *
+ * 坏目录不抛异常、也不消失，而是带着 `problem` 回来 —— 与 profile 清单里
+ * "契约不符的行仍占一个位置"是同一种处理，运维看得见才有得修。
+ */
+export function scanTabs(tabsDir: string, logger?: Logger): ScannedTab[] {
+  if (!fs.existsSync(tabsDir)) return [];
+
+  const tabs: ScannedTab[] = [];
+  const broken: Array<{ id: string; problem: string }> = [];
+
+  for (const dirent of fs.readdirSync(tabsDir, { withFileTypes: true })) {
+    // `.` / `_` 前缀留给草稿与备注；只认目录
+    if (!dirent.isDirectory() || dirent.name.startsWith('.') || dirent.name.startsWith('_')) continue;
+
+    const id = dirent.name;
+    const dir = path.join(tabsDir, id);
+    const fallbackEntry = path.join(dir, 'server.js');
+    const fingerprint = fingerprintDir(dir);
+    const bad = (problem: string, entry = fallbackEntry): void => {
+      tabs.push({ id, dir, entry, problem, fingerprint });
+      broken.push({ id, problem });
+    };
+
+    if (!TAB_ID_RE.test(id)) {
+      bad(`目录名非法：必须小写字母开头、只含 [a-z0-9_-]`);
+      continue;
+    }
+
+    const pkgJson = path.join(dir, 'package.json');
+    if (!fs.existsSync(pkgJson)) {
+      bad('缺少 package.json（manifest 与入口都写在里面）');
+      continue;
+    }
+
+    let main = 'server.js';
+    try {
+      const raw = JSON.parse(fs.readFileSync(pkgJson, 'utf8')) as { main?: unknown };
+      if (typeof raw.main === 'string' && raw.main !== '') main = raw.main;
+    } catch (err) {
+      bad(`package.json 解析失败：${message(err)}`);
+      continue;
+    }
+
+    const entry = path.resolve(dir, main);
+    if (!fs.existsSync(entry)) {
+      bad(`入口不存在：${main}`, entry);
+      continue;
+    }
+
+    // 与 profile 行同一套解析：path-like 说明符 → 读入口所在包的 manifest
+    const pkg = resolvePluginPackage(entry, tabsDir);
+    if (pkg === undefined) {
+      bad('解析不到 manifest（package.json 缺 plugin 段？）', entry);
+      continue;
+    }
+
+    const contract = pkg.manifest.contract;
+    if (contract !== undefined && contract !== SUPPORTED_CONTRACT) {
+      bad(`契约版本不符：声明 contract=${String(contract)}，宿主支持 ${SUPPORTED_CONTRACT}`, entry);
+      continue;
+    }
+
+    tabs.push({ id, dir, entry, pkg, fingerprint });
+  }
+
+  tabs.sort((a, b) => a.id.localeCompare(b.id));
+  if (logger !== undefined && broken.length > 0) {
+    logger.warn({ broken }, '有 tab 目录没通过检查（仍会以禁用状态出现在清单里）');
+  }
+  return tabs;
+}
+
+export interface RescanResult {
+  added: string[];
+  removed: string[];
+  /** 代码变了、被就地重挂的 tab */
+  reloaded: string[];
+  failed: Array<{ id: string; reason: string }>;
+}
+
+/**
+ * 目录内容指纹：任一文件的相对路径 / 大小 / mtime 变了它就变。
+ *
+ * 用它而不是"看 fs.watch 报的文件名"，是为了对**编辑器写盘方式**不敏感
+ * （直接写 vs 临时文件 + rename 都只是 mtime 变化），也顺手挡掉"事件到了但内容没变"的空重扫。
+ * 排除 `.` 前缀与 `node_modules`：前者是草稿，后者按约定不该存在。
+ */
+function fingerprintDir(dir: string): string {
+  const parts: string[] = [];
+  const walk = (current: string): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const dirent of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (dirent.name.startsWith('.') || dirent.name === 'node_modules') continue;
+      const abs = path.join(current, dirent.name);
+      if (dirent.isDirectory()) {
+        walk(abs);
+        continue;
+      }
+      if (!dirent.isFile()) continue;
+      try {
+        const stat = fs.statSync(abs);
+        parts.push(`${path.relative(dir, abs)}:${stat.size}:${Math.floor(stat.mtimeMs)}`);
+      } catch {
+        // 扫描途中文件消失：忽略，下一次重扫会看到
+      }
+    }
+  };
+  walk(dir);
+  return parts.join('|');
+}
+
+/**
+ * 目录型 tab 的注册表：扫描 → Loader 增删 / 就地重挂。
+ *
+ * 热的边界：
+ *
+ * - **增删目录**热：cordis 的 create/remove 不需要重启宿主，`GET /api/plugins` 立刻反映；
+ * - **改代码**热：目录指纹一变就卸载重挂，说明符带 `?v=<token>` 绕开 Node 的 ESM 模块缓存
+ *   （同一 URL 不会重新求值，换个 URL 就是新模块实例）。重挂 = 新的 fiber，
+ *   所以插件必须在 `ctx.effect(() => () => 收尾)` 里关掉自己开的东西（文件、定时器、在跑的任务）；
+ * - **内存状态会随重挂丢失** —— 要活下来的状态请写进 `ctx.space`（`data/plugins/<包名>/`）。
+ */
+export class TabsService {
+  /** 已挂上的 tab：`ok` = 正常挂载，`bad` = 因 problem 以 disabled 挂着；值里带挂载时的目录指纹 */
+  private readonly mounted = new Map<string, { state: 'ok' | 'bad'; fingerprint: string }>();
+  private queue: Promise<unknown> = Promise.resolve();
+  private watcher?: fs.FSWatcher;
+  private timer?: NodeJS.Timeout;
+  private poll?: NodeJS.Timeout;
+  /** 只在第一次扫描时把"有坏目录"打到日志（之后每 2s 扫一次，不能每次都刷） */
+  private firstScan = true;
+  /** 重挂计数：和 Date.now() 一起构成 cache-buster，保证同一毫秒内的多次重挂也不撞 */
+  private reloads = 0;
+
+  /**
+   * 兜底轮询间隔。
+   *
+   * **监听不是保证**：实测 Linux 上 `fs.watch(dir, {recursive:true})` 会静默失聪
+   * （连续追加写一次事件都不来，也没报错）。所以"改代码热"靠的是**指纹轮询**这一条硬保证，
+   * `fs.watch` 只是把延迟从 2s 压到 0.3s。一次轮询 = 几个目录的 readdir + stat，成本可忽略。
+   */
+  private static readonly POLL_MS = 2000;
+
+  constructor(
+    private readonly ctx: Context,
+    private readonly tabsDir: string,
+    private readonly logger: Logger,
+    /** 与契约闸门共用同一张表：坏 tab 的原因也走这里，清单页照旧能显示 */
+    private readonly gate: Map<string, string>,
+  ) {}
+
+  /** 这个 id 是不是目录型 tab（core 据此决定配置能不能写） */
+  owns(id: string): boolean {
+    return this.mounted.has(id);
+  }
+
+  get dir(): string {
+    return this.tabsDir;
+  }
+
+  list(): ScannedTab[] {
+    const tabs = scanTabs(this.tabsDir, this.firstScan ? this.logger : undefined);
+    this.firstScan = false;
+    return tabs;
+  }
+
+  /** 重扫并让 Loader 跟上；并发调用排队（两次重扫叠在一起没有意义） */
+  async rescan(): Promise<RescanResult> {
+    const run = this.queue.then(() => this.rescanNow());
+    this.queue = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  private async rescanNow(): Promise<RescanResult> {
+    const result: RescanResult = { added: [], removed: [], reloaded: [], failed: [] };
+    const scanned = this.list();
+
+    // 目录没了 → 卸载（也包括改名：旧 id 卸载、新 id 挂载）
+    const seen = new Set(scanned.map((tab) => tab.id));
+    for (const id of [...this.mounted.keys()]) {
+      if (seen.has(id)) continue;
+      this.remove(id);
+      result.removed.push(id);
+    }
+
+    // profile 清单已占用的 id 不许覆盖：清单是唯一真源，不能有两个
+    const taken = new Set<string>();
+    for (const entry of this.ctx.loader.entries()) {
+      if (entry.options.name === 'cordis:include') continue;
+      const short = shortId(entry.id);
+      if (!this.mounted.has(short)) taken.add(short);
+    }
+
+    for (const tab of scanned) {
+      const current = this.mounted.get(tab.id);
+
+      if (tab.problem !== undefined) {
+        // 状态没变就不动它（避免每次重扫都卸载重挂）
+        if (current?.state === 'bad' && this.gate.get(tab.id) === tab.problem) {
+          this.mounted.set(tab.id, { state: 'bad', fingerprint: tab.fingerprint });
+          continue;
+        }
+        if (current !== undefined) this.remove(tab.id);
+        this.gate.set(tab.id, tab.problem);
+        await this.create(tab.id, tab.entry, true, tab.fingerprint);
+        result.failed.push({ id: tab.id, reason: tab.problem });
+        continue;
+      }
+
+      if (taken.has(tab.id)) {
+        const reason = 'id 与 profile 清单里的插件重名：目录型 tab 与 profile 行不能同名';
+        if (current?.state === 'bad' && this.gate.get(tab.id) === reason) {
+          this.mounted.set(tab.id, { state: 'bad', fingerprint: tab.fingerprint });
+          continue;
+        }
+        if (current !== undefined) this.remove(tab.id);
+        this.gate.set(tab.id, reason);
+        await this.create(tab.id, tab.entry, true, tab.fingerprint);
+        result.failed.push({ id: tab.id, reason });
+        continue;
+      }
+
+      // 已在跑、且代码没变：不动
+      if (current?.state === 'ok' && current.fingerprint === tab.fingerprint) continue;
+
+      const reload = current?.state === 'ok';
+      const wasDisabled = reload ? (this.findEntry(tab.id)?.disabled ?? false) : false;
+      if (current !== undefined) this.remove(tab.id);
+      this.gate.delete(tab.id);
+      try {
+        // 代码变了才带 cache-buster：初次挂载用干净路径，`/api/plugins` 里的说明符更好读
+        await this.create(tab.id, tab.entry, wasDisabled, tab.fingerprint, reload);
+        if (reload) result.reloaded.push(tab.id);
+        else result.added.push(tab.id);
+      } catch (err) {
+        const reason = `挂载失败：${message(err)}`;
+        this.gate.set(tab.id, reason);
+        result.failed.push({ id: tab.id, reason });
+      }
+    }
+
+    await this.ctx.loader.await();
+    return result;
+  }
+
+  private findEntry(id: string) {
+    for (const entry of this.ctx.loader.entries()) {
+      if (shortId(entry.id) === id) return entry;
+    }
+    return undefined;
+  }
+
+  private async create(
+    id: string,
+    entry: string,
+    disabled: boolean,
+    fingerprint: string,
+    bustCache = false,
+  ): Promise<void> {
+    // id **不带 `:`**：`:` 是 loader 的 group 路径分隔符，带它会让 resolve/remove 找不到这一行。
+    //
+    // 类型签名把 `id` 排除了（默认由 loader 随机分配），但运行期 `ensureId()` **认调用方给的 id**
+    // —— Include 给子行定 id 也是这么做的。这里必须显式给：**目录名即 id** 是这套东西的全部意义
+    // （它同时是路由前缀 `/api/p/<id>` 与前端资源前缀 `/plugins/<id>/`）。
+    const options = {
+      id,
+      name: bustCache ? `${entry}?v=${this.nextToken()}` : entry,
+      config: {},
+      ...(disabled ? { disabled: true } : {}),
+    } as unknown as Parameters<typeof this.ctx.loader.create>[0];
+    await this.ctx.loader.create(options);
+    this.mounted.set(id, { state: disabled ? 'bad' : 'ok', fingerprint });
+  }
+
+  /** 重挂用的 cache-buster：不同 URL = 不同模块实例（`plugin-package.ts` 会剥掉它做文件解析） */
+  private nextToken(): string {
+    this.reloads += 1;
+    return `${Date.now().toString(36)}${this.reloads.toString(36)}`;
+  }
+
+  private remove(id: string): void {
+    try {
+      this.ctx.loader.remove(id);
+    } catch (err) {
+      this.logger.warn({ id, err: message(err) }, '卸载 tab 失败');
+    }
+    // 路由表也放掉：插件被卸载后旧 handler 的闭包不该再留在内存里
+    try {
+      this.ctx.routes.release(id);
+    } catch {
+      // routes 服务还没就绪（启动早期）时忽略
+    }
+    this.mounted.delete(id);
+    this.gate.delete(id);
+  }
+
+  /**
+   * 开始盯着 tab 目录：`fs.watch` 做快路径（约 0.3s），指纹轮询做硬保证（约 2s）。
+   *
+   * 递归监听才能看见 `tabs/<id>/server.js` 的改动；平台不支持递归时退化成只看一层，
+   * 此时增删目录仍靠事件、改代码靠轮询。
+   */
+  watch(): void {
+    if (!fs.existsSync(this.tabsDir)) {
+      this.logger.info({ tabsDir: this.tabsDir }, '没有 tab 目录（不存在就当作没有目录型插件）');
+      return;
+    }
+    try {
+      this.watcher = fs.watch(this.tabsDir, { recursive: true }, () => this.schedule());
+      this.watcher.on('error', (err) => {
+        this.logger.warn({ tabsDir: this.tabsDir, err: message(err) }, 'tab 目录监听出错，已关闭（轮询继续兜底）');
+        this.watcher?.close();
+        this.watcher = undefined;
+      });
+      this.logger.info({ tabsDir: this.tabsDir }, '已监听 tab 目录（递归）：增删目录、改代码都会热重扫');
+    } catch (err) {
+      this.logger.warn(
+        { tabsDir: this.tabsDir, err: message(err) },
+        '递归监听不可用，退化为只看一层；改代码靠 2s 轮询兜底',
+      );
+      try {
+        this.watcher = fs.watch(this.tabsDir, () => this.schedule());
+      } catch (err2) {
+        this.logger.warn(
+          { tabsDir: this.tabsDir, err: message(err2) },
+          '监听 tab 目录失败；改代码仍由轮询兜底，也可 POST /api/tabs/rescan',
+        );
+      }
+    }
+
+    // 轮询是"改代码热"的硬保证（见 POLL_MS 的注释）：事件漏了就靠它
+    this.poll = setInterval(() => this.schedule(), TabsService.POLL_MS);
+    this.poll.unref();
+  }
+
+  private schedule(): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    // 防抖稍长一点：编辑器保存常常是"写临时文件 + rename"，一次保存会来好几个事件；
+    // 指纹会在重扫时兜住"内容其实没变"的情况。
+    this.timer = setTimeout(() => {
+      void this.rescan()
+        .then((result) => {
+          const changed =
+            result.added.length + result.removed.length + result.reloaded.length + result.failed.length;
+          if (changed > 0) this.logger.info({ ...result }, 'tab 目录有变化，已重扫');
+        })
+        .catch((err: unknown) => this.logger.warn({ err: message(err) }, '重扫 tab 目录失败'));
+    }, 300);
+    this.timer.unref();
+  }
+
+  dispose(): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    if (this.poll !== undefined) clearInterval(this.poll);
+    this.watcher?.close();
+  }
+}
+
+/** `include:anima-plus` → `anima-plus`（与 core-plugin 的 shortId 同一约定） */
+function shortId(entryId: string): string {
+  const index = entryId.indexOf(':');
+  return index === -1 ? entryId : entryId.slice(index + 1);
+}
+
+function message(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}

@@ -11,9 +11,9 @@ import { isBlank, type HostGlobals, type SettingSource } from './host-globals.js
 import type { PluginPackageManifest, PluginSettingField, ResolvedPluginPackage } from './plugin-package.js';
 
 /**
- * 宿主内置 core 插件：提供 v2 的宿主级端点。
+ * 宿主内置 core 插件：提供宿主级端点。
  *
- * 它不是 plugs.yml 里的插件，而是宿主自己 mount 的 cordis 插件 ——
+ * 它不是 plugins.yml 里的插件，而是宿主自己 mount 的 cordis 插件 ——
  * 因为这几条路由是**宿主级**路径（`/api/plugins`、`/plugins/*`），
  * 不属于 `/api/p/<pluginId>` 的插件前缀约定。
  *
@@ -31,6 +31,18 @@ export interface CorePluginConfig {
   profile: string;
   profileDir: string;
   manifestFile: string;
+  /** tab 插件目录（目录型工作流插件；见 src/tabs.ts） */
+  tabsDir: string;
+  /** 目录型 tab 的注册表：手动重扫 + "这个 id 是不是目录型插件" */
+  tabs: {
+    rescan(): Promise<{
+      added: string[];
+      removed: string[];
+      reloaded: string[];
+      failed: Array<{ id: string; reason: string }>;
+    }>;
+    owns(id: string): boolean;
+  };
   /** 数据目录：外壳偏好存在 `<dataDir>/ui-prefs.json` */
   dataDir: string;
   /** 模块说明符 → 插件包 */
@@ -367,8 +379,19 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
     profile: config.profile,
     profileDir: config.profileDir,
     manifestFile: config.manifestFile,
+    tabsDir: config.tabsDir,
     contract: SUPPORTED_CONTRACT,
   }));
+
+  // ---- 目录型 tab（`/tabs/<id>/`）----------------------------------------
+
+  /**
+   * 手动重扫 `/tabs`。
+   *
+   * 正常情况下增删目录会由 fs.watch 自动重扫；这个端点是给"watch 在某些文件系统上
+   * 不灵"（网络盘、容器挂载）和排查用的兜底。返回增删结果，便于一眼看出有没有生效。
+   */
+  app.post('/api/tabs/rescan', async () => config.tabs.rescan());
 
   // ---- 插件清单（唯一真源）------------------------------------------------
 
@@ -389,7 +412,13 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
       const enabled = request.body?.enabled !== false;
       await ctx.loader.update(entry.id, { disabled: !enabled });
       await ctx.loader.await();
-      return { plugin: await describe(ctx.loader.resolve(entry.id), config.readRawConfigs()) };
+      return {
+        plugin: await describe(ctx.loader.resolve(entry.id), config.readRawConfigs()),
+        // 目录型 tab 的启停是运行期状态，宿主不落盘（它的状态归插件自己在 data/ 里管）
+        ...(config.tabs.owns(request.params.id)
+          ? { warning: '目录型 tab 的启停不落盘：重启后回到 /tabs 目录的默认状态' }
+          : {}),
+      };
     },
   );
 
@@ -403,6 +432,13 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
       const next = request.body?.config;
       if (next === null || typeof next !== 'object' || Array.isArray(next)) {
         return reply.code(400).send({ error: 'config 必须是对象' });
+      }
+      // 目录型 tab 的配置**不经过清单**：它的状态归插件自己（`ctx.space` → data/plugins/<包名>/）。
+      // 宿主如果"收下但只在内存里改"，用户会以为存住了、重启才发现没有 —— 所以直接拒绝。
+      if (config.tabs.owns(request.params.id)) {
+        return reply.code(400).send({
+          error: `目录型 tab ${request.params.id} 自己持有配置（data/plugins/…），宿主不写 plugins.yml`,
+        });
       }
       const fields = resolveCached(entry.options.name)?.manifest.settings ?? [];
       const restored = restoreMaskedSecrets(
@@ -493,7 +529,7 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
 
   // ---- 插件前端产物托管 --------------------------------------------------
   // 关键：从 profile 的 node_modules 真实路径直送，**不复制进 dist**。
-  // 一旦改成"构建期拷贝"，整个方案就退化成混合编译了（v2-architecture §5.3）。
+  // 一旦改成"构建期拷贝"，整个方案就退化成混合编译了（docs/architecture.md §5.3）。
 
   app.get<{ Params: { id: string; '*': string } }>('/plugins/:id/*', async (request, reply) => {
     const id = request.params.id;

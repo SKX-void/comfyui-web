@@ -64,6 +64,7 @@ async function main(): Promise<void> {
     profileDir: dir,
     manifestFile: manifest,
     dataDir: config.dataDir,
+    tabsDir: config.tabsDir,
     logger,
   });
 
@@ -105,7 +106,7 @@ async function main(): Promise<void> {
   await app.listen({ host: config.host, port: config.port });
   logger.info(
     { url: `http://${config.host === '0.0.0.0' ? '127.0.0.1' : config.host}:${config.port}` },
-    'v2 宿主已启动',
+    '宿主已启动',
   );
 }
 
