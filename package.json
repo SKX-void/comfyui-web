@@ -18,7 +18,6 @@
     "build:web": "pnpm --filter @comfyui-web/web build",
     "pack:dist": "node scripts/build-dist.mjs",
     "bundle:host": "pnpm --filter @comfyui-web/server bundle",
-    "plugin": "node apps/server/scripts/plugin.mjs",
     "typecheck": "pnpm -r typecheck",
     "smoke": "pnpm --filter @comfyui-web/anima-plus smoke",
     "contract": "pnpm -r --filter \"./plugins/*\" test:contract",

@@ -24,7 +24,6 @@ export const uiPrefs = ref<UiPrefs>({
   tabOrder: [],
   home: null,
   globals: { comfyuiBaseUrl: '' },
-  following: [],
 });
 
 /**
@@ -43,32 +42,21 @@ export async function fetchUiPrefs(): Promise<void> {
         comfyuiBaseUrl:
           typeof prefs?.globals?.comfyuiBaseUrl === 'string' ? prefs.globals.comfyuiBaseUrl : '',
       },
-      following: Array.isArray(prefs?.following) ? prefs.following : [],
     };
   } catch (err) {
     console.warn('[host] 读取外壳偏好失败，按默认处理：', err);
-    uiPrefs.value = { tabOrder: [], home: null, globals: { comfyuiBaseUrl: '' }, following: [] };
+    uiPrefs.value = { tabOrder: [], home: null, globals: { comfyuiBaseUrl: '' } };
   }
 }
 
 /**
  * 写偏好：后端返回**清洗后**的值，用它回填，保证界面显示的就是真存下来的那份。
  *
- * 统一 ComfyUI 地址这类全局设置会影响插件：后端保存后立刻重算兜底补丁，并把
- * "跟随它的插件"回报回来（`following`），设置页据此说清楚刚刚发生了什么。
+ * 统一地址只是宿主给的只读默认值：宿主不把它写进任何插件，所以这里没有"谁跟着变了"要回报。
  */
-export async function saveUiPrefs(
-  next: UiPrefs,
-): Promise<{ following: string[]; warning?: string }> {
-  const data = await putJSON<{ prefs: UiPrefs; following?: string[]; warning?: string }>(
-    '/api/ui',
-    next,
-  );
+export async function saveUiPrefs(next: UiPrefs): Promise<void> {
+  const data = await putJSON<{ prefs: UiPrefs }>('/api/ui', next);
   uiPrefs.value = data.prefs;
-  return {
-    following: Array.isArray(data.following) ? data.following : [],
-    ...(data.warning !== undefined ? { warning: data.warning } : {}),
-  };
 }
 
 /**

@@ -8,10 +8,9 @@
 | 文档 | 回答什么 |
 |---|---|
 | 本文 | 怎么跑起来、怎么装插件、怎么自己写一个插件、目录约定 |
-| [`architecture.md`](./architecture.md) | 架构与决策（D1–D14）、插件契约（§4）、核给的句柄（§5）、配置分层（§6）、落地现状（§14） |
+| [`architecture.md`](./architecture.md) | 架构与决策（D1–D19）、插件契约（§4）、核给的句柄（§5）、配置分层（§6）、落地现状（§14） |
 | [`config.md`](./config.md) | 十几个"配置"文件分别属于随包发布 / 随部署 / 随机器 / 随用户 / 随目录哪一层，谁能改，入不入库 |
 | [`../tabs/README.md`](../tabs/README.md) | 目录型插件（`tabs/<id>/`）：怎么写、热到什么程度、收尾契约 |
-| [`../profiles/default/README.md`](../profiles/default/README.md) | profile 是什么、为什么插件依赖要单独一个 workspace |
 | [`archive/`](./archive/README.md) | **历史文档**（v1 单体时代 + v2 落地过程），只作来龙去脉参考 |
 | 各插件的 `README.md` | 那个插件的设置项与内部结构（`plugins/*/README.md`） |
 
@@ -23,11 +22,11 @@ pnpm install
 # 开发态：一条命令起整套热更新栈（后端 node --watch-path + 外壳 vite dev + 插件 build --watch）
 scripts/dev-stack.sh 8087 5173
 
-# 或者手动分开起：
-#   注意后端 dev 用的是 `node --watch-path=src`，**不是 `tsx watch`**：
-#   cordis 的 loader 每次启动都会重写 profiles/<name>/.cordis/resolve.mjs（内容其实恒定），
-#   tsx watch 盯整个仓库 → 写文件又触发重启 → 无限重启循环，服务只在 1 秒的窗口里可达。
-#   `--watch-path` 只盯源码目录，从根上避开这类"自己写自己看"的坑。
+# 或者手动分开起（`pnpm dev:host` 已经带了下面那串 --exclude）：
+#   注意 cordis 的 loader 每次启动都会写 .cordis/resolve.mjs，位置是「baseUrl 往上最近的那个
+#   package.json」旁边（现在 baseUrl = tabs/，所以落在仓库根）；
+#   tsx watch 盯整个仓库 → 写文件又触发重启 → 无限重启循环，服务只在 1 秒的窗口里可达，
+#   所以必须 --exclude 掉它（还有 data/dist/tabs/web）。
 pnpm dev:host                # 后端宿主，8087（tsx watch，改 src/ 自动重启）
 pnpm dev:web                # 前端外壳（vite :5173，把 /api 与 /plugins 代理到后端）
 pnpm dev:plugins            # 插件产物 watcher（改 plugins/* 源码边写边出 tabs/）
@@ -49,18 +48,13 @@ node dist/app/server.mjs     # 一个进程同时提供 API 与前端（dist/ �
 ## 装一个插件
 
 ```bash
-pnpm plugin list                          # 看当前清单
-pnpm plugin add ./plugins/anima-example --id anima-example   # 装（本地目录走 link:，npm 包直接写包名）
-# 重启宿主 → tab 自动出现
-pnpm plugin disable anima-example         # 也可以运行期在设置页切换
-pnpm plugin remove anima-example          # 会问「要不要连数据一起删」（--drop-data/--keep-data）
-pnpm plugin snapshot                      # 把当前清单剥掉本机部署值（config/disabled）写回 plugins.example.yml
+pnpm build:plugins            # 插件源码（plugins/<id>/）→ tabs/<id>/，宿主热重扫
+# 手写 tab：直接把目录丢进 tabs/（三个文件的骨架见 tabs/README.md）
 ```
 
-**`profiles/<name>/plugins.yml` 不入库**：设置页会把本机地址之类的部署值写回它（连"跟随统一设置"
-的项也存解析后的地址），所以它是"这批部署的事实"，跟 `data/` 一样当作本机状态。入库的是
-`plugins.example.yml` 模板；宿主启动时清单缺失会**自动从模板复制一份**。
-装完插件想让基线跟上就跑一次 `pnpm plugin snapshot`。详见 `profiles/default/README.md`。
+**插件 = `tabs/<id>/`**（目录即插件，D16/D19）：没有清单、没有安装步骤、没有 `node_modules`，
+宿主**唯一**的装载来源就是它。`tabs/` **不入库**（构建产物、可复现），仓库只留 `tabs/README.md`。
+启停在设置页按**运行期**切换（不落盘），插件配置由插件自己持有（`data/plugins/<包名>/`）。
 
 **装插件不需要重新构建宿主。** 这是本方案的核心主张，验收口径是
 `sha256(dist/app/**)` 在装插件前后逐字节一致 —— 宿主产物里既没有插件代码，
@@ -130,13 +124,10 @@ apps/server/          宿主后端（cordis 微内核 + 文件空间/路由两�
 apps/web/             宿主前端（壳 + tab 栏 + 设置页：插件开关/配置 + 标签页排序 + 默认首页；Vue 经 import map 提供）
 plugins/*             插件**源码工程**（宿主不 import 它们；构建成 tabs/<id>/，D16）
 tabs/<id>/            插件**交付物**（**目录名即 id**，自包含无依赖，**不入库**；见 docs/config.md §6）
-profiles/<name>/      profile：插件清单 + 自己的 node_modules
-  plugins.yml           清单唯一真源（**不入库**，本机部署状态）；设置页会重写它，所以别写注释
-  plugins.example.yml   入库的基线模板（pnpm plugin snapshot）；清单缺失时宿主从它复制
-  README.md             说明写这里
+tabs/README.md        仓库里 tabs/ 唯一入库的文件：目录型插件的写法
 data/                 开发态的运行时数据：host.json（唯一配置文件，不存在时自动生成）+ plugins/<包名>/
 dist/                 交付物（**不入库**）：app/{server.mjs,web/} + tabs/（插件拷贝）+ data/（空，运行时写入）
-docker-compose.yml    部署单元（只挂 ./dist 一个可写卷 + REPO_ROOT=/app/dist）
+docker-compose.yml    部署单元（./dist/app 与 ./dist/tabs 只读挂载，./dist/data 可写；REPO_ROOT=/）
 nginx.conf            反向代理（conf.d 片段，只有 server 块）
 ```
 
@@ -148,5 +139,4 @@ nginx.conf            反向代理（conf.d 片段，只有 server 块）
 ```bash
 pnpm verify                  # typecheck + 构建 + 冒烟（日志与产物在 .cache/verify/）
 pnpm -r typecheck
-pnpm plugin list             # 清单与安装状态
 ```

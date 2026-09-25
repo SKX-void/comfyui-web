@@ -19,7 +19,7 @@ const plugin = computed(() => plugins.value.find((p) => p.id === id.value));
       </p>
       <div class="card">
         <div class="kv"><span>id</span><code>{{ plugin.id }}</code></div>
-        <div class="kv"><span>模块</span><code>{{ plugin.specifier }}</code></div>
+        <div class="kv"><span>服务端入口</span><code>{{ plugin.entry }}</code></div>
         <div class="kv"><span>阶段</span><code>{{ plugin.phase }}</code></div>
       </div>
     </template>

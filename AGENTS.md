@@ -12,7 +12,7 @@ ComfyUI 的**轻前端 + 工作流插件宿主**。三个概念：
 | 要改什么 | 先看 |
 |---|---|
 | 跑起来 / 装插件 / 写插件 / 目录约定 | `docs/README.md` |
-| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D18 | `docs/architecture.md` §4 / §5 / §2 |
+| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D19 | `docs/architecture.md` §4 / §5 / §2 |
 | 某个配置该写进哪个文件、入不入库 | `docs/config.md`（五层表） |
 | 插件源码放哪、产物怎么来（`plugins/*` → `tabs/*`） | `docs/architecture.md` §4.1 + `tabs/README.md` |
 | 目录型插件（`tabs/`）怎么写、热到什么程度 | `tabs/README.md` |
@@ -21,23 +21,23 @@ ComfyUI 的**轻前端 + 工作流插件宿主**。三个概念：
 ## 命令
 
 ```bash
-pnpm dev:host                          # 宿主 :8087（tsx watch，排除 profiles/data/dist/tabs/web）
+pnpm dev:host                          # 宿主 :8087（tsx watch，排除 .cordis/data/dist/tabs/web）
 pnpm dev:web                           # 外壳（vite :5173，代理 /api 与 /plugins）
 pnpm dev:plugins                       # 插件产物 watcher（pack.mjs --watch → tabs/）：改源码边写边出产物
 pnpm dev                               # 先 build:plugins 垫一次产物，再 apps/* dev（新克隆用这个）
 pnpm build                             # → dist/app/{server.mjs,web/} + dist/tabs/ + dist/data/（完整可搬，不入库）
 pnpm verify                            # typecheck → smoke → build → tabs-sync → contract（日志 .cache/verify/）
 pnpm -r typecheck
-pnpm plugin list | add | remove | enable | disable | snapshot   # profile 工具，D16 后随 profiles/ 一起删
 ```
 
 ## 这个环境的坑（都踩过）
 
 - **bash 输出会被吞**：可能产生大量输出的命令（build/typecheck/curl 循环）必须
   `setsid nohup <cmd> > /tmp/x.log 2>&1 < /dev/null &`，然后读 `/tmp/x.log`。
-- **`tsx watch` 会盯整仓，必须带 `--exclude`**：实测 cordis 启动时重写 `profiles/<name>/.cordis/resolve.mjs`，
-  不排除就是每 2s 重启一次的活锁；改 `tabs/`、`data/` 也会连带重启宿主。
-  `pnpm dev:host` 已经排除 `profiles/data/dist/tabs/web`：改 `src/` 才重启，改 tab 走宿主自己的热重扫。
+- **`tsx watch` 会盯整仓，必须带 `--exclude`**：cordis 启动时会在「`baseUrl` 往上最近的那个
+  `package.json`」旁写 `.cordis/resolve.mjs`。现在 `baseUrl` 是 `tabs/`，于是它落在**仓库根** ——
+  不排除就是每 2s 重启一次的活锁（宿主永远起不来）；改 `tabs/`、`data/` 也会连带重启宿主。
+  `pnpm dev:host` 已经排除 `.cordis/data/dist/tabs/web`：改 `src/` 才重启，改 tab 走宿主自己的热重扫。
 - **跨 bash 调用起的后台进程杀不掉**（PID namespace 限制）：验证请"同一次调用内起进程 + kill"，
   或换个空闲端口再起，别指望后面 `kill` 掉它。
 - 端口：宿主 `8087`，外壳 vite dev **固定 5173**（`strictPort`，被占就直接失败；换端口用 `COMFYUI_WEB_DEV_PORT`），`/api`、`/plugins` 由它代理到宿主。
@@ -50,15 +50,16 @@ pnpm plugin list | add | remove | enable | disable | snapshot   # profile 工具
   插件前端**不要**把 `vue` / `vue-router` 打进 bundle（import map 提供，与宿主同一份）。
 - 插件只拿 `ctx.routes` / `ctx.space`（按需 `inject`），**存储形态自管**（SQLite？JSON？随便），
   数据写进 `ctx.space`（→ `data/plugins/<包名>/`），宿主不代管、不迁移、不清理。
-- 目录型 tab（`tabs/<id>/`）：**交付物**（编译完、自包含、无 `node_modules`）、目录名即 id、配置自己持有
-  —— 宿主的 `PUT /api/plugins/:id/config` 对它返回 400，`PUT enabled` 只在本次运行期生效。
-  它的源码在 `plugins/<id>/`，改完要 `pnpm build:plugins`（或常驻 `pnpm dev:plugins`）。`tabs/` **不入库**，
-  库里只有手写示例 `tabs/hello/`（`.gitignore`：`/tabs/*/` + `!/tabs/hello/`）；`tabs-sync` 只查「产物能不能装载」。
+- tab（`tabs/<id>/`）：**交付物**（编译完、自包含、无 `node_modules`）、目录名即 id、配置自己持有
+  —— 宿主**没有**写它配置的端点，插件把设置写进自己的 `ctx.space` 后请求 `POST /api/tabs/:id/reload`；
+  `PUT enabled` 只在本次运行期生效。
+  源码在 `plugins/<id>/`，改完要 `pnpm build:plugins`（或常驻 `pnpm dev:plugins`）。`tabs/` **不入库**，
+  仓库只留 `tabs/README.md`；**手写 tab：把目录直接丢进 `tabs/`**；`tabs-sync` 只查「产物能不能装载」。
 - **改代码即热重挂**（说明符带 `?v=` 换 URL）：收尾写在 `ctx.effect(() => () => 收尾)`，
   内存状态一律归零，要活下来的写 `ctx.space`。
-- `profiles/<name>/plugins.yml` **不入库**（本机部署状态，设置页会重写、注释会丢）；
-  要更新基线跑 `pnpm plugin snapshot`。**整套 profile 机制正在退役**（D16）：改完 `tabs/` 是唯一来源，
-  `profiles/` + `pnpm plugin` + Include 装配一起删，别在这上面加新东西。
+- **profile 机制已删除（D19）**：`profiles/`、Include 装配、清单落盘、契约 patch 层、`pnpm plugin`、
+  `fallback`/`following` 全没了 —— `tabs/` 是唯一的插件来源，别在这上面加新东西。
+  统一 ComfyUI 地址只剩「只读默认值」一条语义（`data/host.json` 的 `globals`）。
 - 装插件 / 加 tab **不需要重新构建宿主**（`sha256(dist/app/**)` 前后逐字节一致）；这条是方案的核心主张，
   别用"构建期拷贝插件"之类的做法破坏它。
 - 前端共享代码放 `packages/shared`（纯类型/常量）。
@@ -76,4 +77,4 @@ pnpm plugin list | add | remove | enable | disable | snapshot   # profile 工具
 ## 完成前
 
 跑验证，并把证据写进回复（命令 + 观察到的输出）。**没跑验证就不要说"完成"**：
-`pnpm verify`；只改 `/tabs` 时至少 `curl -s localhost:8087/api/plugins` 看 phase 与 specifier。
+`pnpm verify`；只改 `/tabs` 时至少 `curl -s localhost:8087/api/plugins` 看 phase 与 entry。

@@ -12,19 +12,17 @@ import { hostInfo, plugins } from '../store';
     </p>
 
     <div v-if="hostInfo" class="card">
-      <div class="kv"><span>profile</span><code>{{ hostInfo.profile }}</code></div>
-      <div class="kv"><span>profile 目录</span><code>{{ hostInfo.profileDir }}</code></div>
-      <div class="kv"><span>插件清单</span><code>{{ hostInfo.manifestFile }}</code></div>
+      <div class="kv"><span>数据目录</span><code>{{ hostInfo.dataDir }}</code></div>
+      <div class="kv"><span>tab 目录</span><code>{{ hostInfo.tabsDir }}</code></div>
       <div class="kv"><span>契约版本</span><code>{{ hostInfo.contract }}</code></div>
       <div class="kv"><span>已登记插件</span><code>{{ plugins.length }}</code></div>
     </div>
 
     <h3>装一个插件</h3>
-    <pre class="code">pnpm plugin add ./plugins/anima-example --id anima-example
-# 重启宿主后，tab 会自动出现</pre>
+    <pre class="code">把编译好的目录放进 tabs/：tabs/&lt;id&gt;/{package.json,server.js,client.js}
+# 宿主会热重扫，tab 自动出现（也可以 POST /api/tabs/rescan 手动重扫）</pre>
     <p class="muted">
-      装插件只需要重启宿主，<strong>不需要重新构建宿主</strong> ——
-      宿主产物里既没有插件代码，也没有 Vue 本体。
+      装插件<strong>不需要重新构建宿主</strong> —— 宿主产物里既没有插件代码，也没有 Vue 本体。
     </p>
   </div>
 </template>

@@ -19,19 +19,9 @@ lib/
 /data/*
 !/data/.gitkeep
 
-# profile：profile 的 package.json 提交（插件集与 link 的基线），装进来的东西不提交
-/profiles/*/node_modules/
-/profiles/*/pnpm-lock.yaml
-# 清单是**本机部署状态**（设置页会把本机 ComfyUI 地址等部署值写回它，跟随统一设置
-# 那种也存解析后的地址，见 docs/architecture.md §6/§5.7），所以不入库。
-# 入库的是基线模板 plugins.example.yml（`pnpm plugin snapshot` 生成），
-# 宿主启动时清单缺失会从它复制一份（见 apps/server/src/index.ts）。
-/profiles/*/plugins.yml
-
 # tabs/：宿主装载的**构建产物**（plugins/* → tabs/<id>/，D16）。可复现（重建 16/16 字节一致）
-# 且体积大，不入库；仓库只留目录说明与手写示例。见 docs/architecture.md §4.1
+# 且体积大，不入库；仓库只留目录说明（tabs/README.md）。见 docs/architecture.md §4.1
 /tabs/*/
-!/tabs/hello/
 
 # 前端 import map 的 vendor 产物（由 scripts/vendor.mjs 从 node_modules 复制）
 /apps/web/public/vendor/

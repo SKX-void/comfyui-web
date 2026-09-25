@@ -48,23 +48,24 @@
 | # | 决策项 | 结论 | 依据 |
 |---|---|---|---|
 | D1 | 前端栈 | **继续 Vue 3** | v1 组件（`TemplateForm` / `LoraSelector` / `PresetPicker` …）全复用；不引入 React |
-| D2 | 插件内核 | **cordis** + `@cordisjs/plugin-loader` + `@cordisjs/plugin-include` + `schemastery` | 微内核 DI + 可逆注册 + 文件清单托管，正是「可插拔」的最小完整集 |
-| D3 | 内核版本 | **锁死确切版本，不用 `^`** | 上游停在 RC 期，小版本漂移会咬人。实际落地：`cordis@4.0.0-rc.10`、`@cordisjs/plugin-loader@1.0.0-rc.7`、`@cordisjs/plugin-include@1.1.0` |
-| D4 | 插件来源与安装 | **npm 包 + profile 目录 + `plugin add`（转发 pnpm）** | 对齐 dsh：插件是包，profile 是清单，安装即改清单 |
+| D2 | 插件内核 | **cordis** + `@cordisjs/plugin-loader`（~~`@cordisjs/plugin-include` + `schemastery`~~，已随 D19 删除） | 微内核 DI + 可逆注册，正是「可插拔」的最小集；清单托管随 profile 一起去掉了 |
+| D3 | 内核版本 | **锁死确切版本，不用 `^`** | 上游停在 RC 期，小版本漂移会咬人。实际落地：`cordis@4.0.0-rc.10`、`@cordisjs/plugin-loader@1.0.0-rc.7` |
+| D4 | 插件来源与安装 | ~~npm 包 + profile 目录 + `plugin add`（转发 pnpm）~~ —— **已随 D19 删除**（现状见 D14/D16） | 对齐 dsh 的初版设计；profile 退役后没有"安装"这一步了 |
 | D5 | 前端装载机制 | **导入映射（import map）共享 Vue** | 宿主构建期固定输出 import map，插件 `external` 掉 `vue` / `vue-router`；宿主完全不需要知道插件是谁 |
-| D6 | 元数据归属 | **包级静态事实在 `package.json`，部署事实在 `plugins.yml`** | 见 §4.2 / §6：随包发布的东西与随部署变化的东西必须分开 |
+| D6 | 元数据归属 | **包级静态事实在 `package.json`，部署事实在 `data/`** | 见 §4.2 / §6：随包发布的东西与随部署变化的东西必须分开（"部署事实在 `plugins.yml`"那半已随 D19 删除） |
 | D7 | 清单唯一真源 | **后端 Loader**，前端启动拉 `GET /api/plugins` | 避免前后端两份清单漂移（v1 已踩过 `VITE_API_TARGET` 双真源的坑） |
 | D8 | 数据库（**已被 D12 取代**） | ~~共享一个 SQLite + 框架强制表前缀~~ | 原裁定；后被 D12 取代 —— 既然不存在跨插件库操作，共享库剩下的只有耦合 |
 | D9 | 能力归属 | `weilin` / `comfy` / `jobs` / `quota` 全是**能力插件**，框架不含业务 | 用户裁定「高度隔离，让 weilin 成为插件依赖而不是项目」 |
 | D10 | 设置渲染 | **插件 `package.json` 的 `plugin.settings[]` 自描述 JSON**，宿主按它渲染表单（**偏离**原计划） | 原计划用 schemastery 推断，但那要**执行插件代码**才能拿到 schema —— 插件导入失败时设置页就瞎了，而坏插件恰恰最需要改配置。JSON 元数据在导入失败时依然可读 |
 | D11 | 交付顺序 | ① 框架本体（tab 栏 + 后端挂载点 + 设置）→ ② 极简工作流插件化安装验证 → ③ 改造 txt2img → anima-plus 插件 | 用户裁定 |
 | D12 | 存储归属 | **核不提供数据库句柄**：只按**包名**在 `data/plugins/<包名>/` 下分一块唯一空间；建库、写 JSON、版本迁移、清理全是插件自己的事 | 用户裁定「不存在跨插件库操作」；落地见 §5、§9。代价：核里不再有迁移账本可查；改包名＝换空间 |
-| D13 | 清单的入库形态 | **`plugins.yml` 不入库**（本机部署状态），入库 `plugins.example.yml` 模板 + profile 的 `package.json` 依赖；宿主启动时清单缺失就从模板复制（`pnpm plugin snapshot` 刷新模板） | `.gitignore` 只能整个文件忽略，而清单里的 `config` 必然含本机值（§5.7 连"跟随统一设置"也存解析后的地址），提交它 = 每次改设置都产生待提交 diff + secret（T3 明文）泄漏面。见 §6 |
-| D14 | 第二个插件来源（PoC） | **`/tabs/<id>/` 目录即插件**：扫描 + 指纹轮询（配 `fs.watch` 快路径）热重扫，目录名即 id，服务端入口按绝对路径交给 Loader；**改代码也热**（重挂时说明符带 `?v=` 绕开 ESM 缓存）；自包含 bundle、配置自持 `data/plugins/<包名>/`，与 profile **共用同一套 manifest 契约与生命周期** | 让"加一类工作流插件"退化成丢一个目录（零安装、零清单、零 `node_modules`）。代价：能写 `tabs/` = 能在宿主进程执行代码；重挂 = 新 fiber，插件必须用 `ctx.effect` 收尾且只能把状态放 `ctx.space`；宿主的 `PUT config` 对它拒绝（状态归插件）。见 §6.2 |
-| D15 | 目录型 tab 的配置归属 | **配置与设置界面都归插件自己**：值住在 `ctx.space`（如 `settings.json`），读写走插件自己的端点，界面在插件自己的页面里；宿主只提供 `POST /api/tabs/:id/reload`（强制重挂）让新值生效，清单行按 `configOwner` 标出归属，设置页对 `plugin` 的行只读 | 目录型 tab 没有"行配置"可写（D14 已定 `PUT config` 返回 400），而"宿主收下但只在内存里改"会造出假的生效 —— tab 重挂一次就丢（`tabs.ts` 装载时恒传 `config: {}`），设置页却还显示统一值。字段**形状**仍留在 `package.json` 的 `plugin.settings[]`（D10）由清单端点下发，插件不抄第二份。代价：每个插件要出一次自己的设置界面；`fallback`（跟随统一地址）对这类 tab 不适用，manifest 里别写 |
-| D16 | 配置的落点与 profile 的去留 | **宿主唯一配置文件 = `data/host.json`**（部署段 + 偏好段同处一个文件；不存在就写默认 —— 挂空 `data/` 卷即可启动；坏文件不覆盖）；**退役 profile**：`plugins/*` 的 npm 包形态、Include 装配、清单落盘一起删，插件只剩一种形态 —— `tabs/<id>/` 里**编译完的产物**，源码与构建留在 `plugins/*`；**不存在库形态插件**（没有被别的插件 import 的能力包），共享代码只在构建时 bundle 进产物 | 非 tab 插件没有规划，profile 的依赖解析 / 清单落盘 / 契约 patch 层全被 tabs 覆盖（tabs 自己的闸门就在 `scanTabs()`）；统一地址的 `fallback`/`following` 只对"宿主持有行配置"的 profile 行成立，随它一起退役 —— 统一地址只剩"作默认值只读下发"一条语义。见 §6.2、§14.5 |
-| D17 | 产物的入库形态 | **`tabs/` 不入库**：它是 `plugins/*` 的构建产物（可复现：重建 16/16 文件字节一致），仓库只留 `tabs/README.md` 与手写示例 `tabs/hello/`（`.gitignore`: `/tabs/*/` + `!/tabs/hello/`）；`pnpm verify` 的 `tabs-sync` 步只做结构性检查（每个带 `scripts/pack.mjs` 的源码工程都有可装载的产物） | D16 之后 `plugins/*` 是唯一真源，产物入库换来的只有 788KB diff / 冲突 / 过期产物静默，而 `dist/`（宿主产物）本来就不入库；一致性由"构建可复现 + `tabs-sync`"保证。见 §4.1、§14.5 |
-| D18 | 交付物的形状 | **`dist/` 是完整可跑的一包**：`app/`（`server.mjs` + `web/`）+ `tabs/`（构建好的插件**拷贝**，不含手写示例 `hello/`）+ `data/`（空目录，首次启动写 `host.json`）；产物态 `repoRoot = dist/`（不再往上看 `pnpm-workspace.yaml`）；入口 `server.mjs`、**不出 sourcemap**；`docker-compose.yml` 只挂 `./dist` 一个可写卷 | 既然 `tabs/` 不入库（D17），交付物里必须有它，「把 `dist/` 拷到机器上就能跑」才成立；软链会让 dist 不可搬，所以用拷贝。副作用：仓库里跑产物与部署跑产物语义一致（都看 `dist/{tabs,data}`） |
+| D13 | 清单的入库形态 | ~~`plugins.yml` 不入库、入库模板 + profile 依赖~~ —— **已随 D19 删除**（没有清单了；本机状态只剩 `data/plugins/<包名>/`，本来就既不入库也不分发） | 当时的理由：清单里的 `config` 必然含本机值，提交它 = 待提交 diff + secret 泄漏面。见 §6.1 |
+| D14 | 插件来源（唯一） | **`/tabs/<id>/` 目录即插件**：扫描 + 指纹轮询（配 `fs.watch` 快路径）热重扫，目录名即 id，服务端入口按绝对路径交给 Loader；**改代码也热**（重挂时说明符带 `?v=` 绕开 ESM 缓存）；自包含 bundle、配置自持 `data/plugins/<包名>/`， | 让"加一类工作流插件"退化成丢一个目录（零安装、零清单、零 `node_modules`）。代价：能写 `tabs/` = 能在宿主进程执行代码；重挂 = 新 fiber，插件必须用 `ctx.effect` 收尾且只能把状态放 `ctx.space`；宿主没有写它配置的端点（状态归插件）。见 §6.2 |
+| D15 | tab 的配置归属 | **配置与设置界面都归插件自己**：值住在 `ctx.space`（如 `settings.json`），读写走插件自己的端点，界面在插件自己的页面里；宿主只提供 `POST /api/tabs/:id/reload`（强制重挂）让新值生效，清单行按 `configOwner` 标出归属，设置页对 `plugin` 的行只读 | 目录型 tab 没有"行配置"可写（D14 已定 `PUT config` 返回 400），而"宿主收下但只在内存里改"会造出假的生效 —— tab 重挂一次就丢（`tabs.ts` 装载时恒传 `config: {}`），设置页却还显示统一值。字段**形状**仍留在 `package.json` 的 `plugin.settings[]`（D10）由清单端点下发，插件不抄第二份。代价：每个插件要出一次自己的设置界面；|
+| D16 | 配置的落点与 profile 的去留 | **宿主唯一配置文件 = `data/host.json`**（部署段 + 偏好段同处一个文件；不存在就写默认 —— 挂空 `data/` 卷即可启动；坏文件不覆盖）；**退役 profile**：npm 包形态、Include 装配、清单落盘一起删，插件只剩一种形态 —— `tabs/<id>/` 里**编译完的产物**，源码与构建留在 `plugins/*`；**不存在库形态插件**（没有被别的插件 import 的能力包），共享代码只在构建时 bundle 进产物 | 非 tab 插件没有规划，profile 的依赖解析 / 清单落盘 / 契约 patch 层全被 tabs 覆盖（tabs 自己的契约检查就在 `scanTabs()`）；统一地址只剩"作默认值只读下发"一条语义。见 §6.2、§14.5 |
+| D17 | 产物的入库形态 | **`tabs/` 不入库**：它是 `plugins/*` 的构建产物（可复现：重建 16/16 文件字节一致），仓库只留 `tabs/README.md`（`.gitignore`: `/tabs/*/`）；`pnpm verify` 的 `tabs-sync` 步只做结构性检查（每个带 `scripts/pack.mjs` 的源码工程都有可装载的产物） | D16 之后 `plugins/*` 是唯一真源，产物入库换来的只有 788KB diff / 冲突 / 过期产物静默，而 `dist/`（宿主产物）本来就不入库；一致性由"构建可复现 + `tabs-sync`"保证。见 §4.1、§14.5 |
+| D18 | 交付物的形状 | **`dist/` 是完整可跑的一包**：`app/`（`server.mjs` + `web/`）+ `tabs/`（`tabs/` 下每个子目录的**拷贝**）+ `data/`（空目录，首次启动写 `host.json`）；产物态 `repoRoot = dist/`（不再往上看 `pnpm-workspace.yaml`）；入口 `server.mjs`、**不出 sourcemap**；`docker-compose.yml` 把 `dist/` 的三段挂进容器（`app`/`tabs` 只读、`data` 可写） | 既然 `tabs/` 不入库（D17），交付物里必须有它，「把 `dist/` 拷到机器上就能跑」才成立；软链会让 dist 不可搬，所以用拷贝。副作用：仓库里跑产物与部署跑产物语义一致（都看 `dist/{tabs,data}`） |
+| D19 | profile 机制与示例 tab 的删除 | **`profiles/`、Include 装配、`apps/server/scripts/plugin.mjs`、清单落盘、契约 patch 层、`fallback`/`following` 全删**：插件唯一来源是 `tabs/<id>/`；统一地址只剩"只读默认值"（宿主不写进任何插件）；`tabs/hello/` 不再作为示例（写法见 `tabs/README.md`） | D16 已把落点定死（`data/host.json` + `tabs/`），留着 profile 只会多一条没人走的装配路径与一份"两个真源"的歧义；示例 tab 的内容已经并进 `tabs/README.md` 的三文件骨架。见 §6/§6.1/§14.5 |
 
 ```
 ┌─────────────────────────── 浏览器 ───────────────────────────┐
@@ -79,14 +80,14 @@
 ┌───────────────────────────────▼──────────────────────────────┐
 │  宿主后端（Node 24 + cordis Loader，构建一次冻结）             │
 │                                                              │
-│  Loader + Include ◀── plugins.yml（清单，读写回文件）          │
+│  Loader ◀── tabs/<id>/（目录即插件，D14/D16：唯一的插件来源）   │
 │       │                                                      │
 │       ├─ 句柄服务：ctx.space（按包名的文件空间）/ ctx.routes   │
 │       ├─ 清单端点：GET /api/plugins（= loader.entries() ⊕ 包 manifest）│
-│       └─ 静态托管：/plugins/<id>/*（从 profile node_modules 真实路径送）│
+│       └─ 静态托管：/plugins/<id>/*（从 tab 目录受控送出）      │
 │                                                              │
-│  插件（各自独立构建，各自 npm 包）                              │
-│    @comfyui-web/anima-plus   @comfyui-web/weilin   @comfyui-web/comfy   @comfyui-web/jobs …       │
+│  交付物（各自独立构建、自包含）                                 │
+│    tabs/anima-plus   tabs/anima-example   tabs/<你自己的> …    │
 │                                                              │
 │  插件私有空间：data/plugins/<包名>/（放 SQLite、JSON、图片…核不解释）      │
 └──────────────────────────────────────────────────────────────┘
@@ -125,11 +126,11 @@ tabs/<id>/                   # 交付物 = 宿主唯一装载的东西（目录�
 ```
 
 - 入口名固定 `server.js` / `client.js`，就在 tab 根；插件里 `new URL('./x', import.meta.url)` 按此写。
-- `tabs/` **不入库**（构建产物、可复现）：仓库只留 `tabs/README.md` 与手写示例 `tabs/hello/`
-  （`.gitignore`：`/tabs/*/` + `!/tabs/hello/`）。`pnpm verify` 的 `tabs-sync` 步
-  （`scripts/check-tabs-sync.mjs`）只做结构性检查：每个带 `scripts/pack.mjs` 的 `plugins/<id>/`
-  都必须有能装载的 `tabs/<id>/`（`main` / `plugin.client` 对得上、无 `node_modules`）。
-- **手写 tab 不设源码目录**：`tabs/hello/` 里源码与产物是同一份（纯 ESM、无工具链，见 `tabs/README.md`）。
+- `tabs/` **不入库**（构建产物、可复现）：仓库里只留 `tabs/README.md`（`.gitignore`：`/tabs/*/`）。
+  `pnpm verify` 的 `tabs-sync` 步（`scripts/check-tabs-sync.mjs`）只做结构性检查：每个带
+  `scripts/pack.mjs` 的 `plugins/<id>/` 都必须有能装载的 `tabs/<id>/`（`main` / `plugin.client`
+  对得上、无 `node_modules`）。
+- **手写 tab 不设源码目录**：直接把目录丢进 `tabs/`（纯 ESM、无工具链，骨架见 `tabs/README.md`）。
 - **没有库形态插件**：插件之间不互相 import，共享代码只在构建时 bundle 进各自的产物。
 
 ### 4.2 包 manifest（`package.json` 的 `plugin` 段）
@@ -265,7 +266,7 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
 ### 5.3 `ctx.routes` + 静态托管
 
 - `ctx.routes.mount(router)` → 框架统一加前缀 `/api/p/<pluginId>`，插件内部只写相对路径（避免打架，也便于卸载）。
-- 插件前端产物由宿主托管在 `/plugins/<id>/*`，**从 profile 的 `node_modules` 解析真实路径后受控送出，不复制进 `dist/`**。
+- 插件前端产物由宿主托管在 `/plugins/<id>/*`，**从 tab 目录（`tabs/<id>/`）受控送出**：宿主只发它自己的那几个文件，插件目录不进宿主的 bundle。
 
 > ⚠️ **这条是「加插件不重编宿主」的后端那一半。**
 > 如果做成「构建时把插件产物拷进 dist」，整个方案就退化成混合编译了。
@@ -283,10 +284,9 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
 
 `phase` 暴露 Loader 的 fiber 状态（`pending` / `active` / `failed` …），失败的插件要在清单里能看见原因——照抄 dsh `plugin-inventory` 的「只读投影」思路：**每次调用现场读 Loader，不缓存**。
 
-`settings` 是包 manifest 的 `plugin.settings[]` 原样带出（设置页据此渲染表单）；`config` 是该行
-在 `plugins.yml` 里的配置，但**跟随统一设置的项回传成空串**（见 §5.7）；声明了 `fallback` 的字段
-另外带一个 `sources`，说清这一项的值从哪来：`plugin`（插件自定）/ `host`（跟随统一设置）/
-`unset`（两边都没填，用插件内置默认）。
+`settings` 是包 manifest 的 `plugin.settings[]` 原样带出 —— **只是字段形状**，给设置页做只读说明用；
+行的**值**不住在宿主里（配置归插件自己，D15/D19）：设置页不渲染表单，也不再有任何 `config` /
+`sources` 回传。错误原因分两类字段：`error`（装载或激活失败）与 `phase: "rejected"`（目录检查没过）。
 
 ### 5.5 外壳偏好：标签栏顺序 + 默认首页
 
@@ -318,151 +318,76 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
   限长限条数。测试口径见 §14.1e。
 
 ### 5.6 设置
+### 5.6 设置（归插件自己，D15/D19）
 
-**已落地**（见 §14.1e 与 `plugins/anima-plus/README.md` 的「配置」一节）：
+- 插件在 `package.json` 的 `plugin.settings[]` 里声明字段（`type`/`label`/`default`/`options`…），
+  宿主读包元数据后由 `GET /api/plugins` 原样带出。**这只是形状**：设置页不渲染表单、不写值，
+  只把它当作「这个插件有哪些设置项」的只读说明（D15：目录型 tab 没有行配置可写）。
+- 值由插件自己存：`ctx.space` 下自己的文件（`data/plugins/<包名>/`），读写走插件自己的端点，
+  界面在插件自己的页面里；存完请求 `POST /api/tabs/<id>/reload` 让运行中的实例读到新值。
+- **解析原则是「填错不许炸」**：非法值回默认、越界收敛进范围，并把结论（这次的值从哪儿来）
+  由插件自己的端点露出来（`anima-plus` 的 `/config` 就是范例）。
 
-- 插件在 `package.json` 的 `plugin.settings[]` 里声明字段（`type/label/default/min/max/options/secret`），
-  宿主读包元数据后由 `GET /api/plugins` 原样带出，设置页用 `SchemaForm.vue` 渲染；
-- 保存走 `PUT /api/plugins/:id/config`，值写进 **`plugins.yml` 该行的 `config`**（不是用户覆盖层），
-  宿主随即**就地重载**该插件（改地址不用重启宿主）；
-- `plugin.settings[].default` 只是**表单默认值**，运行期默认值在插件自己的 `config.ts` —— 两处都要改，
-  否则「设置页显示 8188、实际连别处」；
-- 解析原则是**填错不许炸**：非法值回默认、越界收敛进范围，并把结论记进 `configFiles`，
-  由插件自己的 `/config` 端点露出来（排障时一眼看到这次的值是从哪儿来的）。
-
-**还没做**：插件注册自定义设置组件替换某段渲染（框架目前只有 schema 表单这一条路）。
-**不做**：把插件设置写进用户覆盖层 —— 插件设置是**每台部署一份**（地址、并发、缓存），
-用户偏好（tab 排序、默认首页）才是每人一份，走 `data/host.json`（§5.5）。
-
-### 5.7 宿主全局设置：统一 ComfyUI 地址（插件可选跟随）
+**没有的**：宿主侧的 schema 表单渲染（`SchemaForm.vue` 随 D19 删除）、`PUT /api/plugins/:id/config`。
+**不做**：插件设置进宿主配置 —— 插件设置是**每台部署一份**（地址、并发、缓存），用户偏好
+（tab 排序、默认首页、统一地址）才走 `data/host.json`（§5.5）。
 
 一台装置上多个插件连的往往是同一个 ComfyUI。与其在每张插件卡片里各填一遍，不如让设置页提供
 **一个统一地址**，每个插件自己决定"跟随统一 / 自定"：
 
+### 5.7 宿主全局设置：统一 ComfyUI 地址（只读默认值，D16/D19）
+
+一台装置上多个插件连的往往是同一个 ComfyUI。设置页提供一个统一地址，写在 `data/host.json` 的偏好段：
+
 ```jsonc
-// <dataDir>/host.json 的偏好段（D16 后与部署段同处一个文件）
 {
   "tabOrder": ["anima-example", "anima-plus"],
   "home": "anima-plus",
-  "globals": { "comfyuiBaseUrl": "http://10.2.3.22:8188" },
-  "following": ["anima-plus"]      // 谁在跟随（宿主维护；设置页里它们显示成留空）
+  "globals": { "comfyuiBaseUrl": "http://10.2.3.22:8188" }
 }
 ```
 
-插件只要在 manifest 里声明"哪一项可以被兜底"：
+**它是「默认值」，不是「下发值」**：宿主**不会**把它写进任何插件 —— 插件自己的设置里留空时，插件可以来 `GET /api/ui` 取它当兜底（只读），要采用就存在自己的空间里。
+D19 删掉的正是「宿主写进插件行配置 + `following` 名单 + `fallback` 声明」那套机制：备份与生效
+都要落盘到别人的文件里，而「谁在跟随」是一个只有宿主知道的状态，两处很容易对不上。
 
-```jsonc
-{ "key": "comfyuiBaseUrl", "type": "string", "fallback": "comfyuiBaseUrl" }
-```
+- 语义只有一条：**设置页改它 = 改一个可读的全局默认值**；插件用不用、什么时候用，是插件的事。
+- 核不认识 ComfyUI：`globals` 就是一个字符串字典（键随意），宿主不解释。
+- 用户偏好（tab 排序 / 默认首页 / 统一地址）都在 `data/host.json` 的偏好段；`PUT /api/ui` 只认这三个键。
 
-- **设置页的语义：留空 = 跟随，填了 = 自定**（两边都留空 = 用插件自己的内置默认值）。
-  这三个状态由 `GET /api/plugins` 的 `sources` 如实报出来（`host` / `plugin` / `unset`），
-  设置页在每个插件卡片上写明当前是哪一个。
-- **核不认识 ComfyUI**：核只实现"这一项留空时用宿主全局 `<键>`"这一条通用规则；全局项住在
-  可写的 `data/host.json`（§5.5 同一个文件，理由也一样）。以后要加"统一输出目录"之类的
-  全局项，插件照这样声明即可 —— **插件代码一行都不用改**（它照旧只读自己的 config）。
-- **跟随者对前端显示为留空**：宿主把统一值写进它的行配置（`plugins.yml` 里因此是解析后的地址），
-  但 `GET /api/plugins` 对跟随者把这一项回传成空串。否则用户会以为是自己填的，一保存就把它
-  固化成"自定"。
-- **清空统一地址**：跟随名单一起清空，各行写回空值 → 插件退回内置默认值。
-
-**为什么没用 Loader 的补丁层**（第一版就是这么做的，实测后换掉了）：cordis 的 `include` 支持
-`{ id, config }` 补丁，而补丁只活在内存里、不会写进 `plugins.yml` —— "留空 = 跟随"本来可以原样
-留在文件里。但实测两件事：
-
-1. **改已有补丁是慢路径**：补丁内容一变（统一地址改了值），include 会重排整棵子树，这段时间
-   它对别的请求也不响应；实测一次 `PUT /api/ui` 超过 25 秒（第一次加补丁只要 1.6 秒）。
-2. **补丁盖着的键写不进文件**：用户给这一项填自定值时，写入会被吃进补丁层 —— 运行时看着变了，
-   `plugins.yml` 里什么都没留下。而"先撤补丁 → 写用户值 → 重算补丁"依赖 include 的异步应用任务
-   （`ctx.loader.await()` **不等**它），实测会被"中途态"骗过：看起来已经撤了，写下去照样被吃掉。
-
-换成"写行配置 + `following` 名单"之后，走的是插件设置本来就在用的那条路：落盘 + 就地重载，
-每次 `PUT /api/ui` 都在 2 秒内返回（插件重载放后台）。**代价**：跟随者的文件里存的是解析后的
-地址，不再是空的 —— "谁在跟随"由 `data/host.json` 的 `following` 名单负责，设置页对跟随者照旧
-显示留空（两种做法的实测记录见 §14.1h）。
-
-**保存时序**：`PUT /api/ui` 先把偏好落盘（含 `following`），再**后台**把新值写进跟随者的行
-（写一行会重载一个插件；anima-plus 激活要枚举模型/查依赖，不能阻塞响应）；
-`PUT /api/plugins/:id/config` 则当场写完并重载那一个插件。客户端不带 `following` 时沿用现值 ——
-只传 `tabOrder/home/globals` 的调用方不该把跟随名单清空。
-
----
-
-## 6. 清单与配置分层
+## 6. 配置分层（D16/D19 之后）
 
 ```
-插件包 plugin.settings[].default（表单提示，不改运行期行为）    ← 随包发布
-  → plugins.yml 的该行 config（传给 apply(ctx, config)）    ← 部署层，也是设置页写入的地方
+插件包 plugin.settings[].default           ← 随包发布：字段形状 + 表单默认值（不改运行期行为）
+  → data/plugins/<包名>/settings.json      ← 随机器：插件自己持有、自己读写（D12/D15）
+  → data/host.json 的偏好段                ← 随用户：tab 排序 / 默认首页 / 统一地址
 ```
 
-```yaml
-# profiles/default/plugins.yml
-- id: anima-plus
-  name: '@comfyui-web/anima-plus'
-  config:            # 传给插件 apply 的配置（可省）
-    steps: 30
-- id: weilin
-  name: '@comfyui-web/weilin'
-```
+- **随包发布**的东西在 `plugins/<id>/package.json`：`plugin.contract/title/order/client/settings`，
+  构建时**原样派生**到 `tabs/<id>/package.json`（宿主只读派生后的那份）。
+- **随机器**的东西在 `data/plugins/<包名>/`：插件自己的空间，宿主不代管、不迁移、不清理（D12）。
+- **随用户**的东西在 `data/host.json` 的偏好段：`tabOrder` / `home` / `globals`。
+- **没有「部署层」配置了**：`plugins.yml` 的 `config` 段、`profiles/`、`pnpm plugin` 全随 D19 删除 ——
+  需要配置的插件自己给端点、自己存（§5.6），宿主不再替任何插件持有一份「它的配置」。
 
-**这里偏离了原计划的「用户覆盖层 `data/settings.json`」**，理由：
+### 6.1 为什么不再有清单文件（D13 的结局）
 
-- `plugins.yml` 由 Include 托管，宿主对它调 `loader.update` 会**写回文件**，天然就是
-  「设置页的持久化落点」。再叠一层用户覆盖层，就要自己实现「合并 → 写回 → 路由到正确的层」，
-  而 Include 的 patch 层只解决「谁拥有这个 key」，不负责把用户改动落盘。
-- 单层让**唯一真源**成立：文件里看到的就是插件拿到的，没有隐式合并，排障不用猜。
-- 插件升级不丢配置：`plugins.yml` 是独立文件，插件包升级/重装都不动它。
+清单（`plugins.yml`）当年承担三件事：插件集、每行的配置、启停状态。三件事的归宿：
 
-代价与约束（必须写进文档）：
+| 当年 | 现在 |
+|---|---|
+| 插件集（`id` / `name`） | `tabs/` 目录本身就是插件集（D14/D16），源码在 `plugins/*` |
+| 每行的配置 | 插件自己持有（D15），宿主没有写它配置的端点 |
+| 启停状态 | 只在本次运行期生效（未决，见 §14.5） |
 
-- **`plugins.yml` 里不要写注释**，Include 重写文件会丢注释；说明放 `profiles/<name>/README.md`。
-- 运行期默认值以**插件代码**为准（`config.steps ?? 30`）；`plugin.settings[].default` 只是表单占位提示。
-
-### 6.1 清单本身也不入库（D13）
-
-上面那套分层把"随包发布"和"随部署变化"分开了，但**没解决"随机器变化"**：`config` 段就是每台机器
-一份的部署值（地址、并发、缓存），设置页写它，§5.7 的"跟随统一设置"还写**解析后的地址**。
-也就是说 `plugins.yml` 天然长着一张"这批部署的事实"的脸，而不是可以跟别人合并的源码。
-
-落地的形态：
-
-```
-profiles/<name>/plugins.example.yml   入库：基线（id/name），`pnpm plugin snapshot` 生成
-profiles/<name>/package.json          入库：插件集（依赖 + link:）
-profiles/<name>/plugins.yml           不入库：本机部署状态（Include 托管，设置页写）
-```
-
-- `.gitignore` 忽略 `/profiles/*/plugins.yml`；宿主启动时清单缺失就从模板复制一份
-  （`apps/server/src/index.ts`，profile 目录本来就在那里 `mkdirSync`）。
-  **bootstrap 是必需的**：Include 拿到不存在的文件会抛 `ConfigFileError` 让宿主起不来，
-  所以"只写 ignore"会让新克隆起不来。
-- 模板的刷新是显式动作：`pnpm plugin snapshot` 读 live 清单、剥掉 `config` / `disabled`
-  （`disabled` 也是这批部署的启停状态）写回模板。**不自动同步**，因为"这个插件从今天起是基线的一部分"
-  是个需要人确认的判断。
-
-**为什么不只忽略 `config` 段**：`.gitignore` 只能按文件/目录匹配，忽略不了 YAML 的某个字段。
-要么整文件不入库，要么把值挪进第二个文件 —— 后者就是把 T2 砍掉的覆盖层再请回来（§5.7 已实测
-补丁层的两个问题：改一次 >25s、且写不进文件）。
-
-**为什么不继续提交 `plugins.yml`**：它是唯一真源（D7），而真源里必然有本机值。提交它意味着
-每次在设置页改地址都留下一个待提交 diff，且行里一旦出现 secret（T3 是明文落盘）就是泄漏。
-
-**代价**：某台机器上 enable/disable、额外装的插件不再进 git。补偿：插件集有 `package.json` 的依赖
-这半份基线，行基线有 `plugins.example.yml`，而"这批部署怎么配的"本来就该在本机看。
-
-**止血选项**（不想动结构时）：`git update-index --skip-worktree profiles/default/plugins.yml`。
-纯本机技巧：上游改这个文件时 `git pull` 会报 "local changes would be overwritten"，且新克隆没有这层保护。
-
-其余规则不变：
-
-- 按 **row id** 定位；保存时**替换整段 config、不深合并**（cordis patch 语义，与 dsh 一致）。
+代价是明确的：**宿主侧看不到一份「这批部署装了什么、怎么配的」清单**。补偿：`tabs/` 目录就是
+那份清单（它是构建产物、可复现），而「怎么配的」本来就该在本机的 `data/` 里看。
 - 保存配置会**就地重载**该插件（`loader.update` → fiber 重建 → 立即生效，不用重启）。
 - `disable` / `enable` 走 `loader.update`，**运行期即生效，不用重启**；`add` / `remove` 需要重启后端 + 刷新浏览器。这层差别在 CLI 与设置页里都写明了。
 
-### 6.2 目录型 tab：`/tabs` 作为第二个插件来源（PoC）
+### 6.2 目录型 tab：`tabs/<id>/`（唯一的插件来源）
 
-profile 那条链路是"插件 = npm 包（或路径说明符），靠 profile 的 `node_modules` 解析"。
-PoC 加了第二个来源：**`tabs/<id>/` 目录即插件**，用来承载"一类特殊的工作流插件"——
+D14 引入的 `/tabs` 来源在 D16/D19 之后成了**唯一**来源：插件 = `tabs/<id>/` 目录。
 目标是让"加一类工作流插件"退化成**丢一个目录**（零安装、零清单、零 `node_modules`）。
 
 机制上没有任何新生命周期，全部是已有零件的另一种用法：
@@ -473,11 +398,11 @@ PoC 加了第二个来源：**`tabs/<id>/` 目录即插件**，用来承载"一�
 | 挂载 | `ctx.loader.create({ id: 目录名, name: 入口绝对路径, config: {} })` —— Loader 的 `import()` 直接吃绝对路径 |
 | 改代码 | 目录指纹（相对路径 + size + mtime）一变就**卸载重挂**，说明符改成 `<入口>?v=<token>` —— 不同 URL = 新模块实例（`plugin-package.ts` 解析时会剥掉 query）。重挂 = 新 fiber，所以收尾要写 `ctx.effect`，状态要放 `ctx.space` |
 | id | **目录名即 id**。平铺 entry 的 id 不能带 `:`（那是 Loader 的 group 分隔符，会让 `resolve`/`remove` 找不到它）；它同时决定 `/api/p/<id>` 与 `/plugins/<id>/` |
-| manifest | 同一份 `package.json` 的 `plugin` 段（`contract` / `title` / `order` / `client` / `settings`）→ 契约闸门、`GET /api/plugins`、设置页表单、前端装载全部照旧 |
-| 失败 | 坏目录**不消失**：以 `disabled` 挂一行、原因写进契约闸门那张表 → 设置页显示原因（与 profile 行被闸门拦下是同一种处理） |
-| 状态 | 宿主**不持有**它们的配置：插件用 `ctx.space` 自持在 `data/plugins/<包名>/`；`PUT /api/plugins/:id/config` 对它们返回 400 |
-| 配置 | 值 + 设置界面都归插件自己（D15）：字段形状照旧在 `package.json` 的 `plugin.settings[]`（由 `GET /api/plugins` 下发），值写在插件自己的空间里；存完由插件的前端调 `POST /api/tabs/:id/reload` **强制重挂**，`apply()` 重新读一遍设置。宿主设置页对这类行只读（行上是 `configOwner: 'plugin'`） |
-| 统一地址 | 不适用：`fallback` 是"宿主持有行配置并跟随 `data/host.json`"那套机制，宿主已不再往 tab 的行配置里写值；目录型 tab 的 manifest 里**别声明 fallback** |
+| manifest | 同一份 `package.json` 的 `plugin` 段（`contract` / `title` / `order` / `client` / `settings`）→ `GET /api/plugins`、设置页说明、前端装载全用它 |
+| 失败 | 坏目录**不消失**：以 `disabled` 挂一行、原因记在 `problem` 上 → `GET /api/plugins` 里 `phase: "rejected"` + 原因，设置页照样列出来 |
+| 状态 | 宿主**不持有**它们的配置：插件用 `ctx.space` 自持在 `data/plugins/<包名>/`；宿主**没有**写它配置的端点（D15/D19） |
+| 配置 | 值 + 设置界面都归插件自己（D15）：字段形状照旧在 `package.json` 的 `plugin.settings[]`（由 `GET /api/plugins` 下发，只是形状），值写在插件自己的空间里；存完由插件的前端调 `POST /api/tabs/:id/reload` **强制重挂**，`apply()` 重新读一遍设置 |
+| 统一地址 | 只读默认值（§5.7）：插件要就自己 `GET /api/ui` 取 `globals.comfyuiBaseUrl` 当兜底；宿主不往任何插件里写值 |
 
 **为什么要求自包含**：插件产物本来就自带依赖（`plugins/anima-plus` 的 `dependencies` 是空的，
 deps 全在 `devDependencies`、由 esbuild inline 进 `lib/server.js`），所以 tabs 目录下不需要
@@ -488,8 +413,7 @@ deps 全在 `devDependencies`、由 esbuild inline 进 `lib/server.js`），所�
 把收尾做干净，要活下来的状态必须写进 `ctx.space`，内存状态一律归零。
 前端产物不用动：`/plugins/<id>/*` 不缓存，刷新浏览器就是新的。
 
-**profile 现在是可选的**：`plugins.yml` 不存在时宿主跳过 Include 挂载，只加载 `/tabs`
-（`apps/server/src/index.ts` 仍会在清单缺失时从模板 bootstrap 一份，所以正常部署走不到这里）。
+**profile 已经没了**（D19）：宿主只扫 `tabsDir`，没有清单、没有 Include、没有模板 bootstrap。
 
 未决（PoC 之后要拍的）：① 唯一真源怎么分权 —— 配置归属已由 D15 定死（归插件），
 但**启停 / 顺序落哪儿**仍未决；② 目录型插件的启停是否落盘（现在只在本次运行期生效）；
@@ -616,26 +540,19 @@ comfyui-web/
 │   ├── server/              宿主后端（cordis Loader + 句柄 + 清单端点）
 │   │   ├── src/
 │   │   │   ├── index.ts         进程入口：装配、信号、静态产物托管
-│   │   │   ├── kernel.ts        Loader 引导、Include 装配、契约闸门、tab 扫描
+│   │   │   ├── kernel.ts        Loader 引导、句柄、tab 扫描与热重挂装配
 │   │   │   ├── core-plugin.ts   内置 core 插件（/api/plugins、/api/ui、/api/host、/plugins/* 托管）
 │   │   │   ├── config.ts        data/host.json + 环境变量（dataDir 走 env/内置默认）
 │   │   │   ├── host-settings.ts 唯一配置文件：部署段 + 偏好段（D16，读侧永不抛 / 坏文件不重写）
 │   │   │   ├── plugin-package.ts 插件包 manifest 解析（含说明符 `?query` 剥离）
 │   │   │   ├── tabs.ts          目录型插件扫描 / 热重挂（D14）
 │   │   │   └── handles/{space,routes}.ts   两个句柄
-│   │   └── scripts/{build,plugin}.mjs      构建与插件 CLI
+│   │   └── scripts/build.mjs               打包后端（esbuild → dist/app/server.mjs）
 │   └── web/                 宿主前端（Vue 壳 + tab 栏 + 设置页 + import map）
 ├── packages/shared/         前后端共享的类型与常量
-├── profiles/default/        profile：插件集基线（D13）
-│   ├── package.json         插件依赖（pnpm 管理）
-│   ├── pnpm-workspace.yaml  独立 workspace，含 storeDir（防 HOME 只读，见下）
-│   ├── plugins.example.yml  清单模板（入库；`pnpm plugin snapshot` 生成）
-│   ├── plugins.yml          清单（Include 托管；**不入库**，本机部署状态）
-│   └── README.md            这个 profile 是给谁用的
 ├── plugins/                 插件**源码工程**（vite / esbuild / tsconfig；构建成 tabs/<id>/，D16）
-├── tabs/                    插件**交付物**（D16）：一个子目录一个插件，目录名即 id、自包含无依赖
-│                            （**不入库**：`.gitignore` 只留 hello/；构建可复现，见 §4.1）
-│   └── hello/               示例：package.json（manifest）+ server.js + client.js
+├── tabs/                    插件**交付物**（D16/D19）：一个子目录一个插件，目录名即 id、自包含无依赖
+│                            （**不入库**：`.gitignore` 只留 `README.md`；写法见 tabs/README.md）
 ├── data/                    运行时状态（**全部不入库**）
 │   ├── host.json            宿主唯一配置文件：部署段 + 偏好段（不存在时自动生成，D16）
 │   └── plugins/<包名>/      核按包名给每个插件的空间（D12）
@@ -643,7 +560,7 @@ comfyui-web/
 │       └── @comfyui-web+anima-plus/{anima-plus.sqlite,cache/loras-thumbs/}
 ├── dist/                    构建产物（**不入库**，D17/D18）：整包可搬的交付物
 │   ├── app/                 宿主：server.mjs（单文件后端，无 sourcemap）+ web/（前端外壳，**不含任何插件**）
-│   ├── tabs/                plugins/* 构建出的插件交付物（宿主唯一装载来源；不含手写示例 hello/）
+│   ├── tabs/                plugins/* 构建出的插件交付物（宿主唯一装载来源）
 │   └── data/                空目录：首次启动在这里写 host.json（部署时可写的那个卷）
 ├── docs/                    现行文档：README.md（索引）· architecture.md · config.md
 │   └── archive/             历史文档（v1 时代 + v2 落地过程），只作来龙去脉参考
@@ -654,7 +571,7 @@ comfyui-web/
   预设迁进了插件空间，模板成了插件资产，其余没有读者。v1 文档在 docs/archive/。）
 ```
 
-> **环境坑（提前记下）**：仓库 `pnpm-workspace.yaml` 已有 `storeDir: .pnpm-store`，原因是本环境 HOME 只读。**profile 目录里跑 pnpm 会用到默认 store，同样会炸**——profile 侧也必须显式指 `storeDir`。
+> **环境坑（提前记下）**：仓库 `pnpm-workspace.yaml` 已有 `storeDir: .pnpm-store`，原因是本环境 HOME 只读。所有跑 pnpm 的地方都得显式指 store，别指望默认路径。
 
 ---
 
@@ -662,9 +579,8 @@ comfyui-web/
 
 三步走，都已走完：
 
-1. **框架本体（零业务插件）**：宿主 Loader + Include 吃 `plugins.yml`、两个句柄、core 插件端点、
-   前端壳 + tab 栏 + 设置页、插件 CLI（`plugin add / remove / list / enable / disable`）。
-   验收标准是"装一个插件后宿主产物一个字节都不变"。
+1. **框架本体（零业务插件）**：宿主 Loader、两个句柄、core 插件端点、前端壳 + tab 栏 + 设置页
+   （当年的清单 + `plugin` CLI 已随 D19 删除）。验收标准是"装一个插件后宿主产物一个字节都不变"。
 2. **极简工作流插件化**：`plugins/anima-example` —— 插件自己提交 ComfyUI、收 WS 进度、写自己的表，
    不反代任何旧服务。
 3. **v1 整体搬迁**：`plugins/anima-plus` —— v1 的模板/渲染/显存护栏/任务编排/LoRA/标签/预设逐字搬进 `server/`，
@@ -679,11 +595,11 @@ comfyui-web/
 
 | # | 项 | 结论 / 现状 |
 |---|---|---|
-| T1 | profile 位置 | **`profiles/`**（与 `data/` 并列）；profile 是独立 pnpm workspace，`storeDir: ../../.pnpm-store`（D16 后随 profile 一起退役） |
-| T2 | 用户覆盖层存储 | **取消独立用户层**，设置页直接写 `plugins.yml`（理由与代价见 §6） |
+| T1 | ~~profile 位置~~ | **已随 D19 删除**：没有 `profiles/` 了，插件来源只有 `tabs/`（D14/D16） |
+| T2 | ~~用户覆盖层存储~~ | **已随 D19 删除**：当时取消独立用户层、设置页直接写清单；现在没有清单，用户偏好写 `data/host.json` 的偏好段（§5.5） |
 | T3 | secret 落盘形式 | **明文 + 文件权限 + API 脱敏 + 保存时占位符语义**；不做加密 |
-| T4 | 卸载语义 | **询问用户是否删数据**（`plugin remove` 交互询问；`--drop-data` / `--keep-data` 可显式指定，非 TTY 默认保留）。D12 之后"删数据"就是删 `data/plugins/<包名>/` 这一个目录 |
-| T5 | 契约版本演进策略 | **拒绝加载**：挂载前做契约闸门，用 Include 的 patch 层把不匹配的行 `disabled`，**不改文件** |
+| T4 | 卸载语义 | **已随 D19 删除**（`plugin remove` 没了）：删插件 = 删 `tabs/<id>/` 目录；数据在 `data/plugins/<包名>/`，宿主动都不动（要删自己删） |
+| T5 | 契约版本演进策略 | **拒绝加载**：`tabs.ts` 扫描时比对 `plugin.contract`，不匹配的 tab 挂成 `disabled` 并在 `GET /api/plugins` 里标 `phase: "rejected"` + 原因（D19 后不再有 Include patch 层） |
 | T6 | jobs 的前端进度协议 | 保持「不做统一协议」；tab 栏不显示全局任务状态 |
 | R1 | cordis 上游是 RC | 已锁死版本（D3）；暂不 vendor |
 | R2 | 前端装载的调试链路 | 已落地：坏插件**占一个 tab 并显示原因**（`error` 字段贯穿 `/api/plugins` → tab 栏 → `/w/<id>` 兜底页） |
@@ -704,7 +620,7 @@ comfyui-web/
 | `apps/server/src/templates/` | 进各插件（模板是插件私有资产，不再是全局数据目录） |
 | `apps/server/src/http/routes.ts` | 拆到各插件；宿主只留清单端点与托管 |
 | `apps/web/src/components/` | 进各插件；宿主只留壳 + tab 栏 + 设置页 |
-| `config.json` | 拆成：宿主段（端口/路径/日志）+ `plugins.yml`（部署）+ 用户覆盖层 |
+| `config.json` | 拆成：宿主段（端口/路径/日志，`data/host.json`）+ 用户偏好段（同文件）+ 插件自己的空间（D16/D19） |
 
 ---
 
@@ -714,10 +630,9 @@ comfyui-web/
 
 | 位置 | 内容 |
 |---|---|
-| `apps/server/` | 宿主后端：`config.ts` 配置、`kernel.ts` 装配、`core-plugin.ts` 宿主端点、`host-settings.ts` 唯一配置文件（D16）、`handles/{space,routes}.ts` 两个句柄、`plugin-package.ts` 包清单解析、`scripts/{build,plugin}.mjs` |
-| `apps/web/` | 宿主前端：`index.html`（import map 是核心）、`src/main.ts` 插件装载器、`App.vue` tab 栏壳、`views/SettingsView.vue` + `components/SchemaForm.vue` |
-| `profiles/default/` | profile：`plugins.yml`（不入库）+ `plugins.example.yml` 模板 + 独立 pnpm workspace + README（D13） |
-| `tabs/` | 目录型工作流插件（D14/D15）：一个子目录一个插件、目录名即 id、自包含；`hello/` 是最小示例 |
+| `apps/server/` | 宿主后端：`config.ts` 配置、`kernel.ts` 装配（Loader + tabs）、`core-plugin.ts` 宿主端点、`host-settings.ts` 唯一配置文件（D16）、`handles/{space,routes}.ts` 两个句柄、`plugin-package.ts` 包清单解析、`scripts/build.mjs` |
+| `apps/web/` | 宿主前端：`index.html`（import map 是核心）、`src/main.ts` 插件装载器、`App.vue` tab 栏壳、`views/SettingsView.vue`（设置页只读展示插件设置，D15） |
+| `tabs/` | 工作流插件交付物（D14/D15/D16）：一个子目录一个插件、目录名即 id、自包含 |
 | `plugins/anima-plus/` | **v1 整体搬完**：前端是 v1 的 `App.vue` + 8 个组件，后端是 v1 那 14 个模块逐字搬进 `server/`（模板/渲染/显存护栏/任务编排/LoRA/标签/预设），反代已删；另加依赖检查（`server/deps.ts`，见 §14.1f）。见 §13 与 `plugins/anima-plus/README.md` |
 | `data/host.json` | 宿主唯一配置文件（部署段 + 偏好段）；不存在时宿主写默认值，挂空 data 卷即可启动（D16） |
 
@@ -725,7 +640,7 @@ comfyui-web/
 
 1. **设置渲染不用 schemastery，改用 `plugin.settings[]` 静态 JSON**（D10）。
    原方案要执行插件代码才能拿到 schema；插件导入失败时设置页会瞎，而坏插件恰恰最需要改配置。
-2. **取消独立的用户设置层**，设置页直接写 `plugins.yml`（T2，理由见 §6）。
+2. **取消独立的用户设置层**：设置页只写 `data/host.json` 的偏好段（`plugins.yml` 那套已随 D19 删除，见 §6.1）。
 3. **路由挂载点不是 fastify 的 `register`，而是可逆的分发表**。
    fastify 路由表在 `ready()` 之后冻结：既不能撤销也不能重复注册同一前缀。而本方案要求
    「改配置就地重载」和「运行期停用立即断流」，所以宿主只在启动时向 fastify 注册**一条**
@@ -735,8 +650,8 @@ comfyui-web/
 
 ### 14.2 装配期的两个关键机制
 
-- **契约闸门用 patch 层实现**：宿主在建树**之前**读一遍 `plugins.yml`，把 `contract` 不匹配的行
-  用 Include 的 `patches: [{ id, disabled: true }]` 盖掉 —— 插件不会被导入，而**文件本身不动**（T5）。
+- **契约闸门在扫描时判定**（D19 后没有 patch 层）：`tabs.ts` 比对 `plugin.contract`，不匹配的目录
+  **不会进 Loader**，而是以 `disabled` 挂一行并把原因记在 `problem` 上 —— 文件本身自然不动（T5）。
 - **单插件失败隔离 + 可见**：模块导入失败/激活失败不会让宿主退出，而是记进日志并在
   `/api/plugins` 的 `error` 字段里露出，前端给它一个带 `!` 的 tab。装配期信息比"安静地少一个 tab"重要得多。
 
@@ -744,40 +659,41 @@ comfyui-web/
 
 - 插件前端入口**运行时动态 import**，不使用打包器的静态分析：插件 bundle 要自己保证是自包含的 ESM
   （只 external `vue` / `vue-router`）。
-- `plugins.yml` 会被 Include 重写，**注释会丢**；说明写 `profiles/<name>/README.md`。
+- 插件前端入口**运行时动态 import**（不经打包器改写），所以坏插件的报错只到"加载失败 + 原因"这一层；`tabs/` 里没有构建脚本可用，产物必须是编译完的。
 - 前端 `import(...)` 的调试栈跨包，坏插件的报错目前只到"加载失败 + 原因"这一层。
 - 本仓库的开发沙箱里，跨 `bash` 调用启动的后台进程无法回收（PID namespace 限制），
   所以验证时统一用「同一次调用内启动 + kill」，或换空闲端口。
 
-### 14.4 D15 的落点（目录型 tab 的配置归插件自己）
+### 14.4 D15 的落点（tab 的配置归插件自己）
 
-- **宿主侧**：清单行多了 `configOwner`（目录型 tab → `plugin`）；`reconcileFollowers()` **跳过**它们
-  （不再把统一地址写进它们的行配置 —— 那种写法只在内存里活，tab 重挂一次就丢）；
-  新增 `POST /api/tabs/:id/reload`（`tabs.ts` 的 `reload()`：指纹没变也卸载重挂，运行期停用状态保留）。
-- **外壳侧**：`SettingsView.vue` 对 `configOwner === 'plugin'` 的行只显示说明，不渲染表单、不给保存按钮。
+- **宿主侧**：`POST /api/tabs/:id/reload`（`tabs.ts` 的 `reload()`：指纹没变也卸载重挂，运行期停用状态保留）；
+  没有写插件配置的端点（D19 把 `PUT /api/plugins/:id/config` 与 `fallback`/`following` 一起去掉了）。
+- **外壳侧**：`SettingsView.vue` 对插件行只显示说明与只读的 `plugin.settings[]`，不渲染表单、不给保存按钮。
 - **插件侧**：`anima-plus` / `anima-example` 各自把设置写进 `ctx.space` 的 `settings.json`，
   提供 `GET/PUT /api/settings`，并在自己的页面里出一个设置面板（存完调 `reload` 让新值生效）。
 
 ### 14.5 D16 的落点（配置收进 data/，profile 退役）
 
-- **`data/host.json`**：新模块 `apps/server/src/host-settings.ts`（读侧永不抛 / 坏文件不重写 /
-  写侧原子）+ `config.ts` 的"先定 dataDir 再读文件"。宿主启动即初始化：建 `data/plugins/`、
-  没有 `host.json` 就写默认（端口 / 日志级别 / `tabsDir` / 偏好段），旧的
-  `data/ui-prefs.json` 会被一次性搬进来（旧文件保留，由用户自己删）。
-- **已删**：根目录 `host.config.json`、`ui-prefs.ts`、`host-globals.ts`；
-  `PUT /api/ui` 只认偏好段的四个键（`tabOrder` / `home` / `following` / `globals`），
+- **`data/host.json`**：`apps/server/src/host-settings.ts`（读侧永不抛 / 坏文件不重写 / 写侧原子）
+  + `config.ts` 的"先定 dataDir 再读文件"。宿主启动即初始化：建 `data/plugins/`、没有 `host.json`
+  就写默认（端口 / 日志级别 / `tabsDir` / 偏好段），旧的 `data/ui-prefs.json` 会被一次性搬进来。
+- **已删**（D16）：根目录 `host.config.json`、`ui-prefs.ts`、`host-globals.ts`；
+  `PUT /api/ui` 只认偏好段的 `tabOrder` / `home` / `globals`（D19 后 `following` 也删了），
   设置页不会连带改掉端口等部署段。
 - **已落地（Step 2）**：`tabs/<id>/` 放**编译完的产物**（源码与构建留在 `plugins/*`，
   `scripts/pack-tab.mjs` 直接输出到 `tabs/<id>/`）；`tabs/` **不入库**（D17），`verify` 补了
-  `tabs-sync` 步（结构性检查，见 §4.1）；宿主 `dev` 改用 `tsx watch` 并
-  `--exclude profiles/data/dist/tabs/web`（cordis 每次启动会重写 profile 的 resolve.mjs，不排除就是活锁）。
+  `tabs-sync` 步（结构性检查，见 §4.1）。
 - **已落地（打包，D18）**：`dist/` 收成完整结构 —— `app/server.mjs`（去 sourcemap）+ `app/web/` +
-  `tabs/`（`scripts/build-dist.mjs` 拷贝，不含 `hello/`）+ `data/`（空）；产物态 `repoRoot = dist/`；
-  `docker-compose.yml` 只挂 `./dist` 一个可写卷。实测 `node dist/app/server.mjs` 直接起
-  （tabs: 2、`GET /` 200、`GET /plugins/<id>/client.js` 200、无 level-50 日志）。
-- **待办（Step 3）**：删 `profiles/`、Include 装配、`plugin.mjs`、契约闸门的 patch 层，以及只在
-  profile 行上成立的 `fallback` / `following` 一套（`dist/` 刻意不带 `profiles/`；现在跑交付物时
-  宿主会顺手建一个空的 `dist/profiles/default/`，Step 3 一起消失）。
+  `tabs/`（`scripts/build-dist.mjs` 拷贝）+ `data/`（空）；产物态 `repoRoot = dist/`。
+  `docker-compose.yml` **平铺挂载**（`./app`→`/app:ro`、`./tabs`→`/tabs:ro`、`./data`→`/data` 可写，
+  `REPO_ROOT=/`），所以 `/data` 是唯一的写入点。
+- **已落地（Step 3，D19）**：`profiles/`、Include 装配、`apps/server/scripts/plugin.mjs`、清单落盘、
+  契约 patch 层、`fallback`/`following`、`SchemaForm.vue`、`PUT /api/plugins/:id/config` 全删；
+  示例 `tabs/hello/` 也删了（骨架并进 `tabs/README.md`）；`plugins/README.md` 是新的插件编写入口；
+  宿主 `dev` 的 `--exclude` 改成 `.cordis/data/dist/tabs/web`（loader 现在把 `resolve.mjs` 写在
+  **仓库根**的 `.cordis/` 下，不排除还是活锁）。
+- **未决**：插件启停（`PUT /api/plugins/:id/enabled`）只在本次运行期生效；要落盘就得给宿主一个
+  自己的启停文件（`data/host.json` 里的 `disabled: []` 是最省事的一条路），暂未做。
 
 其余实施细节（每条功能的落地过程、验收证据）见
 [`docs/archive/v2-implementation-notes.md`](./archive/v2-implementation-notes.md)。
@@ -791,7 +707,7 @@ comfyui-web/
 | cordis 五概念 / 分发模式 / waterfall 语义 | `/app/deepseek-harness/docs/cordis-primer.zh.md` |
 | Loader EntryTree API | `/app/deepseek-harness/vendor/loader/README.md` |
 | Include：YAML ↔ Loader entries（含写回） | `/app/deepseek-harness/vendor/include/README.md` |
-| 插件包 / profile / `dsh plugin add` / 层序 | `/app/deepseek-harness/docs/user/develop/basic/publish.zh.md` |
+| 插件包 / `dsh plugin add` / 层序 | `/app/deepseek-harness/docs/user/develop/basic/publish.zh.md` |
 | 上游包名与版本对照表 | `/app/deepseek-harness/vendor/README.md` |
 | `inject` 只有必需依赖（无 optional） | `/app/deepseek-harness/vendor/cordis/src/registry.ts` |
 | 全栈插件契约（slots / capabilities / config / db 角色） | `/workspace/bbs/core/src/plugin.ts` |

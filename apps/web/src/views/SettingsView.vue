@@ -14,20 +14,11 @@ import {
   uiPrefs,
 } from '../store';
 import type { PluginInfo } from '../types';
-import SchemaForm from '../components/SchemaForm.vue';
 
-const drafts = ref<Record<string, Record<string, unknown>>>({});
 const busy = ref<Record<string, string>>({});
 const notice = ref<Record<string, string>>({});
 /** 展开的插件：默认只展开"没跑起来"的那些（那是真需要动手的） */
 const expanded = ref<Record<string, boolean>>({});
-
-function draftOf(plugin: PluginInfo): Record<string, unknown> {
-  if (drafts.value[plugin.id] === undefined) {
-    drafts.value[plugin.id] = { ...(plugin.config ?? {}) };
-  }
-  return drafts.value[plugin.id] as Record<string, unknown>;
-}
 
 function isOpen(plugin: PluginInfo): boolean {
   return expanded.value[plugin.id] ?? plugin.phase !== 'active';
@@ -53,51 +44,27 @@ function syncGlobalDraft(): void {
   globalDraft.value = uiPrefs.value.globals.comfyuiBaseUrl;
 }
 
-/**
- * 保存统一地址。后端会立刻重算「兜底补丁」，**只有跟随它的插件**就地重载，
- * 并把那批插件的 id 回报回来（following）—— 这里如实转述给用户。
- */
+/** 保存统一地址（宿主给的只读默认值，不写进任何插件） */
 async function saveGlobal(): Promise<void> {
   globalBusy.value = true;
   globalNotice.value = '';
   try {
-    const { following, warning } = await saveUiPrefs({
+    await saveUiPrefs({
       tabOrder: uiPrefs.value.tabOrder,
       home: uiPrefs.value.home,
       globals: { comfyuiBaseUrl: globalDraft.value },
-      following: uiPrefs.value.following,
     });
     syncGlobalDraft();
     await fetchPlugins();
-    if (warning !== undefined) {
-      globalNotice.value = warning;
-    } else if (uiPrefs.value.globals.comfyuiBaseUrl === '') {
-      globalNotice.value = '已清空：插件里留空的地址回到各自的内置默认值';
-    } else if (following.length > 0) {
-      globalNotice.value = `已保存；宿主正在把新地址写进跟随它的 ${following.length} 个插件（写进去会就地重载它们）：${following.join('、')}`;
-    } else {
-      globalNotice.value = '已保存；当前没有插件留空跟随它（都在自定）';
-    }
+    globalNotice.value =
+      uiPrefs.value.globals.comfyuiBaseUrl === ''
+        ? '已清空：插件可以回落到自己的内置默认值'
+        : '已保存（宿主给的只读默认值，不会写进任何插件）';
   } catch (err) {
     globalNotice.value = `保存失败：${err instanceof Error ? err.message : String(err)}`;
   } finally {
     globalBusy.value = false;
   }
-}
-
-/** 「留空项到底用的哪个地址」的提示语（来源由后端算好，这里只负责说话） */
-function fallbackHint(plugin: PluginInfo): string {
-  const entries = Object.entries(plugin.sources ?? {});
-  if (entries.length === 0) return '';
-  return entries
-    .map(([key, source]) => {
-      if (source === 'host') {
-        return `${key}：跟随统一地址（${uiPrefs.value.globals.comfyuiBaseUrl}）`;
-      }
-      if (source === 'unset') return `${key}：留空，统一地址也没填 → 用插件自己的默认值`;
-      return `${key}：由插件自定`;
-    })
-    .join('；');
 }
 
 /** 设置页里的顺序：以**清单**为准（含没跑起来的那些），用偏好重排 */
@@ -117,12 +84,7 @@ async function persist(tabOrder: string[], home: string | null, note: string): P
   uiNotice.value = '';
   try {
     // 必须带上 globals：后端按这次提交重写整个偏好文件，少传就等于把统一地址清空
-    await saveUiPrefs({
-      tabOrder,
-      home,
-      globals: uiPrefs.value.globals,
-      following: uiPrefs.value.following,
-    });
+    await saveUiPrefs({ tabOrder, home, globals: uiPrefs.value.globals });
     uiNotice.value = note;
   } catch (err) {
     uiNotice.value = `保存失败：${err instanceof Error ? err.message : String(err)}`;
@@ -156,25 +118,10 @@ async function resetUi(): Promise<void> {
 }
 
 async function refresh(): Promise<void> {
-  drafts.value = {};
   await fetchHostInfo();
   await fetchUiPrefs();
   syncGlobalDraft();
   await fetchPlugins();
-}
-
-async function save(plugin: PluginInfo): Promise<void> {
-  busy.value[plugin.id] = '保存中…';
-  notice.value[plugin.id] = '';
-  try {
-    await putJSON(`/api/plugins/${plugin.id}/config`, { config: draftOf(plugin) });
-    await refresh();
-    notice.value[plugin.id] = '已保存，宿主已重载该插件';
-  } catch (err) {
-    notice.value[plugin.id] = `保存失败：${err instanceof Error ? err.message : String(err)}`;
-  } finally {
-    delete busy.value[plugin.id];
-  }
 }
 
 async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
@@ -200,12 +147,11 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
     </header>
 
     <p class="muted">
-      保存会把配置写回 profile 的清单文件
-      <code>{{ hostInfo?.manifestFile ?? 'plugins.yml' }}</code>
-      ，并让宿主**就地重载**该插件（不必重启）。
-      因此<strong>不要在 plugins.yml 里写注释</strong>：重写会丢掉注释。
-      增删插件要走命令行 + 重启宿主。
-      目录型 tab 不适用：它的配置由插件自己持有（<code>data/plugins/…</code>），宿主既不读也不写。
+      插件 = <code>tabs/&lt;id&gt;/</code>（目录即插件），<strong>配置由插件自己持有</strong>
+      （存在它自己的 <code>data/plugins/&lt;包名&gt;/</code> 里）：宿主既不读也不写，
+      这一页不改任何文件。
+      增删 tab 就是把目录放进 / 移出 <code>{{ hostInfo?.tabsDir ?? 'tabs' }}</code>，
+      宿主会热重扫，不必重启。
     </p>
 
     <!--
@@ -214,8 +160,8 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
       任何一处不可用都不会让界面出错：顺序是"过滤+补齐"，首页有回退链。
     -->
     <!--
-      宿主全局设置：统一 ComfyUI 地址。插件在 manifest 里给某项声明 fallback: 'comfyuiBaseUrl'，
-      留空就跟随这里；插件自己填了值就是自定，宿主不再插手。
+      宿主全局设置：统一 ComfyUI 地址。它只是宿主给的一个只读默认值：
+      插件可以拿它当兜底，也可以自己配，宿主不把它写进任何插件（D16）。
     -->
     <section class="card host-globals">
       <header class="page-head">
@@ -226,8 +172,8 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
       </header>
 
       <p class="hint">
-        插件里<strong>留空</strong>的 ComfyUI 地址跟随这里；插件自己填了值就以它为准（自定）。
-        两边都留空时用插件内置的默认地址。留空 = 不统一。
+        插件可以把这里当成<strong>默认地址</strong>（自己的设置留空时用它）；插件自己配了就听它的。
+        宿主只保存这个值，不会把它写进任何插件。留空 = 不统一。
       </p>
 
       <input
@@ -294,7 +240,7 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
         </div>
         <div class="plugin-meta">
           <span class="badge" :class="plugin.phase">{{ plugin.phase }}</span>
-          <span v-if="plugin.phase === 'rejected'" class="badge rejected">契约不符</span>
+          <span v-if="plugin.phase === 'rejected'" class="badge rejected">未通过检查</span>
           <span class="chevron">{{ isOpen(plugin) ? '▾' : '▸' }}</span>
         </div>
       </header>
@@ -303,8 +249,7 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
         <p v-if="plugin.error" class="error">未运行：{{ plugin.error }}</p>
 
         <div class="card">
-          <div class="kv"><span>模块</span><code>{{ plugin.specifier }}</code></div>
-          <div class="kv"><span>清单行</span><code>{{ plugin.rowId }}</code></div>
+          <div class="kv"><span>服务端入口</span><code>{{ plugin.entry }}</code></div>
           <div class="kv"><span>前端入口</span><code>{{ plugin.clientUrl ?? '（无）' }}</code></div>
         </div>
 
@@ -315,35 +260,14 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
             :disabled="busy[plugin.id] !== undefined || plugin.phase === 'rejected'"
             @change="setEnabled(plugin, ($event.target as HTMLInputElement).checked)"
           />
-          {{
-            plugin.configOwner === 'plugin'
-              ? '启用（仅本次运行期；目录型 tab 的启停不落盘）'
-              : '启用（进程内；重启后以 plugins.yml 为准）'
-          }}
+          启用（仅本次运行期；tab 的启停不落盘）
         </label>
 
-        <p v-if="plugin.configOwner === 'plugin'" class="hint">
-          目录型 tab：配置由插件自己持有（存在它自己的
-          <code>data/plugins/&lt;包名&gt;/</code> 里），宿主不写清单，这一页对它只读。
-          要改就到这个插件自己的页面里改 —— 存完由它请求宿主就地重挂，不必重启。
+        <p class="hint">
+          配置由插件自己持有（存在它自己的 <code>data/plugins/&lt;包名&gt;/</code> 里），
+          这一页只读。要改就到这个插件自己的页面里改 —— 存完由它请求宿主就地重挂，不必重启。
         </p>
-
-        <template v-else>
-          <p v-if="fallbackHint(plugin)" class="hint">{{ fallbackHint(plugin) }}</p>
-
-          <SchemaForm
-            :fields="plugin.settings"
-            :model-value="draftOf(plugin)"
-            @update:model-value="drafts[plugin.id] = $event"
-          />
-
-          <div class="actions">
-            <button :disabled="busy[plugin.id] !== undefined" @click="save(plugin)">
-              {{ busy[plugin.id] ?? '保存' }}
-            </button>
-            <span v-if="notice[plugin.id]" class="notice">{{ notice[plugin.id] }}</span>
-          </div>
-        </template>
+        <p v-if="notice[plugin.id]" class="notice">{{ notice[plugin.id] }}</p>
       </div>
     </section>
 

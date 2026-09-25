@@ -9,7 +9,7 @@
  *   dist/data/            空目录，宿主首次启动在这里写 host.json（部署时的可写卷）
  *
  * 为什么是拷贝不是软链：dist/ 要能单独打包搬走，软链会指回仓库。
- * 为什么 hello/ 不进去：它是仓库里的手写示例（见 tabs/README.md），不是交付物。
+ * tabs/ 下每个子目录都是插件，**全部**进交付物（D16/D19）。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,7 +20,6 @@ const srcTabs = path.join(root, 'tabs');
 const distDir = path.join(root, 'dist');
 const distTabs = path.join(distDir, 'tabs');
 const distData = path.join(distDir, 'data');
-const EXCLUDE = new Set(['hello']);
 
 if (!fs.existsSync(path.join(distDir, 'app', 'server.mjs'))) {
   console.error('[pack:dist] 找不到 dist/app/server.mjs：先跑 pnpm build:host');
@@ -29,7 +28,7 @@ if (!fs.existsSync(path.join(distDir, 'app', 'server.mjs'))) {
 
 const ids = fs
   .readdirSync(srcTabs, { withFileTypes: true })
-  .filter((e) => e.isDirectory() && !EXCLUDE.has(e.name))
+  .filter((e) => e.isDirectory())
   .map((e) => e.name)
   .sort();
 
