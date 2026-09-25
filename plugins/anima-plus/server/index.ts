@@ -14,7 +14,7 @@
  *    HTTP 状态码；插件做不到（那是宿主级的），所以改在适配层按 handler 包一层。
  * 3. **没有静态托管 / CORS / 优雅退出**：宿主已经在做，插件只管自己的路由与生命周期。
  *
- * `import.meta.url` 指向打包产物 `lib/server.js`，所以资产路径是 `../assets/`。
+ * `import.meta.url` 指向打包产物 `server.js`（tab 根），所以资产路径是 `./assets/`。
  */
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +23,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { buildConfig, type PluginSettings } from './config.js';
 import { AppError } from './errors.js';
+import { pickSettings, readSettings, seedSettings, settingsFile, writeSettings } from './settings.js';
 import { RealComfyClient } from './comfy/real.js';
 import { TemplateRegistry } from './templates/loader.js';
 import { JobManager } from './jobs/manager.js';
@@ -43,8 +44,8 @@ const ID = 'anima-plus';
 /** 空间按包名分配，所以这里必须写本插件的包名 */
 const PACKAGE = '@comfyui-web/anima-plus';
 
-/** 打包产物在 lib/ 下，资产在包根的 assets/ */
-const ASSETS_DIR = fileURLToPath(new URL('../assets/', import.meta.url));
+/** 产物在 tab 根（tabs/<id>/server.js），资产与它同级（scripts/pack.mjs 拷过去的 assets/） */
+const ASSETS_DIR = fileURLToPath(new URL('./assets/', import.meta.url));
 
 // ---------------------------------------------------------------------------
 // 宿主句柄的最小类型（插件不 import cordis，也不 import 宿主源码）
@@ -160,12 +161,20 @@ function sendError(reply: FastifyReply, err: unknown, log: PluginLogger): unknow
 // 组装（对应旧服务 main() 的第 1~6 步）
 // ---------------------------------------------------------------------------
 
-export async function apply(ctx: PluginContext, settings: PluginSettings): Promise<void> {
+export async function apply(ctx: PluginContext, legacySettings?: PluginSettings): Promise<void> {
   const space = ctx.space.for(PACKAGE);
   const log = (msg: string) => ctx.logger?.info?.(`[${ID}] ${msg}`);
   const warn = (msg: string) => ctx.logger?.warn?.(`[${ID}] ${msg}`);
 
-  const config = buildConfig(settings, {
+  // 设置归插件自己（D15）：值在 `<space>/settings.json`，由本插件的 /api/settings 读写。
+  // 清单行的 config 只在**首次**装载时被采信一次（那时它还是本插件唯一的配置来源），采信即落盘。
+  if (seedSettings(space, legacySettings)) {
+    log(`已把清单里的配置落成 ${settingsFile(space)}（一次性迁移）`);
+  }
+  const stored = readSettings(space);
+  if (stored.error !== undefined) warn(`设置文件读不出来，改用内置默认值：${stored.error}`);
+
+  const config = buildConfig(stored.values, {
     templatesDir: path.join(ASSETS_DIR, 'templates'),
     dbFile: space.resolve('anima-plus.sqlite'),
     cacheDir: space.resolve('cache'),
@@ -255,6 +264,37 @@ export async function apply(ctx: PluginContext, settings: PluginSettings): Promi
     thumbs,
     presets,
     deps,
+  });
+
+  // 设置端点：设置归插件自己（D15）。字段的**形状**写在 package.json 的 plugin.settings 里，
+  // 值住在这里 —— 存完由前端请求宿主的 `POST /api/tabs/:id/reload`，让本插件重新 apply()。
+  routes.get('/api/settings', async () => ({
+    values: stored.values,
+    effective: {
+      comfyuiBaseUrl: config.comfyBaseUrl,
+      maxQueueDepth: config.maxQueueDepth,
+      maxJobsRetained: config.maxJobsRetained,
+      depsWarmupOnStart: config.depsWarmupOnStart,
+      depsCacheTtlMinutes: config.depsCacheTtlMs / 60_000,
+    },
+    file: stored.file,
+    ...(stored.error !== undefined ? { error: stored.error } : {}),
+  }));
+
+  routes.put('/api/settings', async (request: any) => {
+    const body = request?.body;
+    const incoming =
+      body !== null && typeof body === 'object' && !Array.isArray(body)
+        ? (body as { values?: unknown }).values
+        : undefined;
+    if (incoming === null || typeof incoming !== 'object' || Array.isArray(incoming)) {
+      throw AppError.badRequest('请求体必须是 { values: {…} }：键与 package.json 的 plugin.settings 同名');
+    }
+    // 值原样落盘、**不在这里收敛**：范围与回落在 buildConfig 里一处决定（/config 会露出结论）
+    const next = pickSettings(incoming as Record<string, unknown>);
+    const file = writeSettings(space, next);
+    log(`设置已更新 ${file}（重新挂载后生效）`);
+    return { values: next, file, reloadRequired: true };
   });
 
   // 自检端点：设置页/排障时一眼看到生效的地址与空间

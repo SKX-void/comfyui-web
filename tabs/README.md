@@ -9,7 +9,20 @@ tabs/hello/
   client.js       ESM 前端入口：export default { tabs, routes }
 ```
 
-宿主启动时扫一遍 `tabsDir`（默认 `tabs/`，`host.config.json` 可改），每个子目录挂成一条
+## 源码在哪（D16）
+
+`tabs/<id>/` 是**交付物**，不是源码工程 —— 宿主只装载这里，所以要求「目录里全是编译完的文件」。
+
+| 情况 | 源码 | 产物 |
+|---|---|---|
+| 有工具链的插件（现在的 anima-plus / anima-example） | `plugins/<id>/`：`server/`、`client/`、`scripts/pack.mjs`、vite/tsconfig | `pnpm build:plugins` → `tabs/<id>/`（**不入库**；`pnpm verify` 的 `tabs-sync` 步只查它能不能装载） |
+| 手写 tab（`tabs/hello/`） | 就是 `tabs/<id>/` 自身 | 同上，但没有构建这一步；它是 `.gitignore` 里唯一的例外（`!/tabs/hello/`） |
+
+于是「改插件」分两种：改 `plugins/*` 的源码 → `pnpm build:plugins`（或常驻 `pnpm dev:plugins`，pack.mjs 的 watch 模式边写边出产物）；
+改 `tabs/<id>/` 里的文件 → 宿主下一次指纹轮询（约 2s）就热重挂，见下面「热的边界」。
+新克隆 / 产物被删之后先跑一次 `pnpm dev`（它先 `build:plugins`）或 `pnpm build:plugins`，否则库里没有 tab。
+
+宿主启动时扫一遍 `tabsDir`（默认 `tabs/`，`data/host.json` 的 `tabsDir` 可改），每个子目录挂成一条
 Loader entry —— 用的还是 profile 那套东西：同一份 `package.json` 里的 `plugin` 契约、
 同一个契约闸门、同一个 `GET /api/plugins`、同一套前端 tab 装载。**没有第二套生命周期。**
 
@@ -35,7 +48,7 @@ cp -r tabs/hello tabs/mine
 
 **必须自包含**：`tabs/` 下没有 `node_modules`，插件只 import node 内置模块和宿主句柄。
 要第三方库就先 bundle 进产物（前端本来就这么干；服务端可照 `plugins/anima-plus/scripts/build-server.mjs`）。
-`comfyui-web` 里已经有 npm 包形态的插件，这条线只是多一种"零安装"的来源。
+`plugins/*` 那类有工具链的插件构建完也是同一个形态（D16），这条线只是多一种"零安装"的来源。
 
 **状态归插件自己**：宿主不持有 tab 的配置——
 `PUT /api/plugins/:id/config` 对目录型插件返回 400，`PUT .../enabled` 只在本次运行期生效。
@@ -71,10 +84,9 @@ export function apply(ctx) {
 谁能写 `tabs/`，谁就能让**宿主进程执行代码**（同进程、同权限、无沙箱）。
 这正是"丢进去就能用"的代价 —— 容器 / 文件权限是唯一边界。
 
-## PoC 之后要拍的三件事
+## 决策状态（D16 之后）
 
-1. **唯一真源怎么分权**：现在 profile 清单管"有哪些 + 什么配置"，`tabs/` 是"目录即真源"。
-   目录型插件的启停 / 顺序要不要落盘？落在哪（`data/` 还是某个清单）？
-2. **要不要退役 profile**：目录型插件自包含，profile 的"依赖解析"职能对它们用不上；
-   但只要还有 npm 包形态的插件（`pnpm plugin add`），profile 就仍是它们的落点。
-3. **安全模型**：现在只有"能写文件 = 能执行代码"这一条；要不要引入显式启用清单 / 签名。
+1. **启停 / 顺序要不要落盘**：✋ 没做 —— 目录型插件的启停目前只在本次运行期生效
+   （计划：`data/host.json` 里加 `disabled: []`，宿主扫完按它过滤）。
+2. **退役 profile**：✅ 已定（D16）—— `tabs/` 是宿主唯一装载来源，`profiles/` 与 `pnpm plugin` 一起删。
+3. **安全模型**：✋ 仍是「能写文件 = 能执行代码」，容器 / 文件权限是唯一边界。

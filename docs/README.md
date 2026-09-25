@@ -28,12 +28,13 @@ scripts/dev-stack.sh 8087 5173
 #   cordis 的 loader 每次启动都会重写 profiles/<name>/.cordis/resolve.mjs（内容其实恒定），
 #   tsx watch 盯整个仓库 → 写文件又触发重启 → 无限重启循环，服务只在 1 秒的窗口里可达。
 #   `--watch-path` 只盯源码目录，从根上避开这类"自己写自己看"的坑。
-pnpm dev:host                # 后端宿主，8087（node --watch-path，改 src/ 自动重启）
+pnpm dev:host                # 后端宿主，8087（tsx watch，改 src/ 自动重启）
 pnpm dev:web                # 前端外壳（vite :5173，把 /api 与 /plugins 代理到后端）
+pnpm dev:plugins            # 插件产物 watcher（改 plugins/* 源码边写边出 tabs/）
 
-# 生产态：构建 + 单进程
-pnpm build                   # → dist/host/host.mjs + dist/host/web/
-node dist/host/host.mjs      # 一个进程同时提供 API 与前端
+# 生产态：构建出完整可搬的 dist/
+pnpm build                   # → dist/app/server.mjs + dist/app/web/ + dist/tabs/ + dist/data/
+node dist/app/server.mjs     # 一个进程同时提供 API 与前端（dist/ 自成一体）
 ```
 
 打开 <http://127.0.0.1:8087>（或开发态的 <http://127.0.0.1:5173>）。宿主**自己不含任何业务功能**：
@@ -62,7 +63,7 @@ pnpm plugin snapshot                      # 把当前清单剥掉本机部署值
 装完插件想让基线跟上就跑一次 `pnpm plugin snapshot`。详见 `profiles/default/README.md`。
 
 **装插件不需要重新构建宿主。** 这是本方案的核心主张，验收口径是
-`sha256(dist/host/**)` 在装插件前后逐字节一致 —— 宿主产物里既没有插件代码，
+`sha256(dist/app/**)` 在装插件前后逐字节一致 —— 宿主产物里既没有插件代码，
 也没有 Vue 本体（Vue 由 `index.html` 的 import map 提供，插件 bundle 里 `external` 掉它）。
 
 ### 现有插件
@@ -127,16 +128,15 @@ export default {
 ```
 apps/server/          宿主后端（cordis 微内核 + 文件空间/路由两个句柄 + 宿主端点）
 apps/web/             宿主前端（壳 + tab 栏 + 设置页：插件开关/配置 + 标签页排序 + 默认首页；Vue 经 import map 提供）
-plugins/*             插件源码（宿主不 import 它们）
-tabs/<id>/            目录型工作流插件（**目录名即 id**，自包含无依赖；见 docs/config.md §6）
+plugins/*             插件**源码工程**（宿主不 import 它们；构建成 tabs/<id>/，D16）
+tabs/<id>/            插件**交付物**（**目录名即 id**，自包含无依赖，**不入库**；见 docs/config.md §6）
 profiles/<name>/      profile：插件清单 + 自己的 node_modules
   plugins.yml           清单唯一真源（**不入库**，本机部署状态）；设置页会重写它，所以别写注释
   plugins.example.yml   入库的基线模板（pnpm plugin snapshot）；清单缺失时宿主从它复制
   README.md             说明写这里
-data/                 运行期数据：ui-prefs.json（标签栏顺序/默认首页/统一地址）+ plugins/<包名>/（每插件自己的空间）
-dist/host/            宿主产物：host.mjs + web/
-host.config.json      宿主配置（端口/profile/路径）
-docker-compose.yml    部署单元（挂 dist/host.config.json/profiles/plugins/data）
+data/                 开发态的运行时数据：host.json（唯一配置文件，不存在时自动生成）+ plugins/<包名>/
+dist/                 交付物（**不入库**）：app/{server.mjs,web/} + tabs/（插件拷贝）+ data/（空，运行时写入）
+docker-compose.yml    部署单元（只挂 ./dist 一个可写卷 + REPO_ROOT=/app/dist）
 nginx.conf            反向代理（conf.d 片段，只有 server 块）
 ```
 

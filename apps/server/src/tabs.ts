@@ -15,34 +15,29 @@ import {
  * 每个子目录就是一个插件，**目录名即 id**：
  *
  * ```
- * tabs/hello/package.json   { "name": "@comfyui-web/tab-hello", "main": "server.js",
- *                             "plugin": { "contract": 1, "title": "…", "client": "client.js" } }
- * tabs/hello/server.js      cordis 插件（export name / inject / apply）
- * tabs/hello/client.js      ESM 前端入口（export default { tabs, routes }）；vue 走页面 import map
+ * tabs/<id>/package.json   { "name": "@comfyui-web/tab-<id>", "main": "server.js",
+ *                            "plugin": { "contract": 1, "title": "…", "client": "client.js" } }
+ * tabs/<id>/server.js      cordis 插件（export name / inject / apply）
+ * tabs/<id>/client.js      ESM 前端入口（export default { tabs, routes }）；vue 走页面 import map
  * ```
  *
- * ## 与 profile 的关系
- *
- * 两者是**同一个 manifest 契约的两个来源**：profile 的行写模块说明符（裸包名 / 相对路径），
- * tab 的行写**服务端入口的绝对路径**（loader 的 `import()` 直接吃绝对路径）。
- * 契约闸门、失败隔离、`GET /api/plugins`、设置页 schema、前端 tab 装载全部复用，
- * 不新增第二套生命周期。
+ * 它是宿主**唯一**的插件来源（D16/D19）：契约检查、失败隔离、`GET /api/plugins`、
+ * 设置页 schema、前端 tab 装载全部走这一条路，不新增第二套生命周期。
  *
  * ## 为什么要求"自包含"
  *
- * 插件产物本来就自带依赖（esbuild 把 deps inline 进 `lib/server.js`），所以 tabs 目录下
+ * 插件产物本来就自带依赖（esbuild 把 deps inline 进 `server.js`），所以 tabs 目录下
  * **没有** node_modules：插件只 import node 内置模块 + 宿主给的句柄。要第三方库就先 bundle。
  * 只有这样，"丢一个目录进去就是一个 tab"才成立（也免掉 N 份 node_modules 与不可复现的安装）。
  *
  * ## 状态归插件自己
  *
  * `/tabs` 只回答"有哪几个 tab"，**不持有它们的配置**：插件用 `ctx.space` 在自己的
- * `data/plugins/<包名>/` 里自持数据库 / 配置文件。所以宿主对目录型插件的
- * `PUT /api/plugins/:id/config` 是**拒绝**的（见 core-plugin.ts），
- * 免得出现"改完没落盘、重启就丢"的假象。
+ * `data/plugins/<包名>/` 里自持数据库 / 配置文件（决策 D15）。宿主只提供
+ * `POST /api/tabs/:id/reload` 让它把新设置生效，免得出现"改完没落盘、重启就丢"的假象。
  */
 
-/** 目录名即 id：规则与 profile 行 id 一致（它决定路由前缀与前端资源前缀） */
+/** 目录名即 id：它同时决定路由前缀（/api/p/<id>）与前端资源前缀（/plugins/<id>/） */
 const TAB_ID_RE = /^[a-z][a-z0-9_-]*$/;
 
 export interface ScannedTab {
@@ -63,8 +58,8 @@ export interface ScannedTab {
 /**
  * 扫 `<tabsDir>` 下的子目录。
  *
- * 坏目录不抛异常、也不消失，而是带着 `problem` 回来 —— 与 profile 清单里
- * "契约不符的行仍占一个位置"是同一种处理，运维看得见才有得修。
+ * 坏目录不抛异常、也不消失，而是带着 `problem` 回来：它仍会以 disabled 挂上，
+ * 清单页把原因显示出来，运维看得见才有得修。
  */
 export function scanTabs(tabsDir: string, logger?: Logger): ScannedTab[] {
   if (!fs.existsSync(tabsDir)) return [];
@@ -111,8 +106,8 @@ export function scanTabs(tabsDir: string, logger?: Logger): ScannedTab[] {
       continue;
     }
 
-    // 与 profile 行同一套解析：path-like 说明符 → 读入口所在包的 manifest
-    const pkg = resolvePluginPackage(entry, tabsDir);
+    // 解析基准是这一格 tab 目录本身（入口是绝对路径，baseDir 只兜相对路径/裸包名）
+    const pkg = resolvePluginPackage(entry, dir);
     if (pkg === undefined) {
       bad('解析不到 manifest（package.json 缺 plugin 段？）', entry);
       continue;
@@ -190,8 +185,14 @@ function fingerprintDir(dir: string): string {
  * - **内存状态会随重挂丢失** —— 要活下来的状态请写进 `ctx.space`（`data/plugins/<包名>/`）。
  */
 export class TabsService {
-  /** 已挂上的 tab：`ok` = 正常挂载，`bad` = 因 problem 以 disabled 挂着；值里带挂载时的目录指纹 */
-  private readonly mounted = new Map<string, { state: 'ok' | 'bad'; fingerprint: string }>();
+  /**
+   * 已挂上的 tab：`ok` = 正常挂载，`bad` = 因 problem 以 disabled 挂着；值里带挂载时的目录指纹。
+   * `problem` 也留在这儿 —— 它是"原因没变就别重挂坏目录"的比对依据。
+   */
+  private readonly mounted = new Map<
+    string,
+    { state: 'ok' | 'bad'; fingerprint: string; problem?: string }
+  >();
   private queue: Promise<unknown> = Promise.resolve();
   private watcher?: fs.FSWatcher;
   private timer?: NodeJS.Timeout;
@@ -214,11 +215,9 @@ export class TabsService {
     private readonly ctx: Context,
     private readonly tabsDir: string,
     private readonly logger: Logger,
-    /** 与契约闸门共用同一张表：坏 tab 的原因也走这里，清单页照旧能显示 */
-    private readonly gate: Map<string, string>,
   ) {}
 
-  /** 这个 id 是不是目录型 tab（core 据此决定配置能不能写） */
+  /** 这个 id 是不是目录型 tab（core 据此决定启停/重挂走哪条路） */
   owns(id: string): boolean {
     return this.mounted.has(id);
   }
@@ -231,6 +230,11 @@ export class TabsService {
     const tabs = scanTabs(this.tabsDir, this.firstScan ? this.logger : undefined);
     this.firstScan = false;
     return tabs;
+  }
+
+  /** 按 id 取当前扫描结果（core 用它拿入口路径与包元数据） */
+  get(id: string): ScannedTab | undefined {
+    return this.list().find((tab) => tab.id === id);
   }
 
   /** 重扫并让 Loader 跟上；并发调用排队（两次重扫叠在一起没有意义） */
@@ -252,40 +256,18 @@ export class TabsService {
       result.removed.push(id);
     }
 
-    // profile 清单已占用的 id 不许覆盖：清单是唯一真源，不能有两个
-    const taken = new Set<string>();
-    for (const entry of this.ctx.loader.entries()) {
-      if (entry.options.name === 'cordis:include') continue;
-      const short = shortId(entry.id);
-      if (!this.mounted.has(short)) taken.add(short);
-    }
-
     for (const tab of scanned) {
       const current = this.mounted.get(tab.id);
 
       if (tab.problem !== undefined) {
-        // 状态没变就不动它（避免每次重扫都卸载重挂）
-        if (current?.state === 'bad' && this.gate.get(tab.id) === tab.problem) {
-          this.mounted.set(tab.id, { state: 'bad', fingerprint: tab.fingerprint });
+        // 原因没变就不动它（避免每次重扫都卸载重挂）
+        if (current?.state === 'bad' && current.problem === tab.problem) {
+          this.mounted.set(tab.id, { state: 'bad', fingerprint: tab.fingerprint, problem: tab.problem });
           continue;
         }
         if (current !== undefined) this.remove(tab.id);
-        this.gate.set(tab.id, tab.problem);
-        await this.create(tab.id, tab.entry, true, tab.fingerprint);
+        await this.create(tab.id, tab.entry, true, tab.fingerprint, false, tab.problem);
         result.failed.push({ id: tab.id, reason: tab.problem });
-        continue;
-      }
-
-      if (taken.has(tab.id)) {
-        const reason = 'id 与 profile 清单里的插件重名：目录型 tab 与 profile 行不能同名';
-        if (current?.state === 'bad' && this.gate.get(tab.id) === reason) {
-          this.mounted.set(tab.id, { state: 'bad', fingerprint: tab.fingerprint });
-          continue;
-        }
-        if (current !== undefined) this.remove(tab.id);
-        this.gate.set(tab.id, reason);
-        await this.create(tab.id, tab.entry, true, tab.fingerprint);
-        result.failed.push({ id: tab.id, reason });
         continue;
       }
 
@@ -295,21 +277,47 @@ export class TabsService {
       const reload = current?.state === 'ok';
       const wasDisabled = reload ? (this.findEntry(tab.id)?.disabled ?? false) : false;
       if (current !== undefined) this.remove(tab.id);
-      this.gate.delete(tab.id);
       try {
         // 代码变了才带 cache-buster：初次挂载用干净路径，`/api/plugins` 里的说明符更好读
         await this.create(tab.id, tab.entry, wasDisabled, tab.fingerprint, reload);
         if (reload) result.reloaded.push(tab.id);
         else result.added.push(tab.id);
       } catch (err) {
-        const reason = `挂载失败：${message(err)}`;
-        this.gate.set(tab.id, reason);
-        result.failed.push({ id: tab.id, reason });
+        result.failed.push({ id: tab.id, reason: `挂载失败：${message(err)}` });
       }
     }
 
     await this.ctx.loader.await();
     return result;
+  }
+
+  /**
+   * 强制重挂一个 tab（不管指纹有没有变）。
+   *
+   * 目录型插件的配置归它自己：插件把设置写进 `ctx.space` 之后，要重新走一遍 `apply()`
+   * 才生效。宿主不碰它的配置，只提供这一个动作（决策 D15）。
+   */
+  async reload(id: string): Promise<boolean> {
+    const run = this.queue.then(() => this.reloadNow(id));
+    this.queue = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  private async reloadNow(id: string): Promise<boolean> {
+    const tab = this.list().find((item) => item.id === id);
+    if (tab === undefined || tab.problem !== undefined || !this.mounted.has(id)) return false;
+
+    // 运行期停用过的 tab 重挂后仍然是停用的：启停是运行期状态，不该被一次重挂抹掉
+    const wasDisabled = this.findEntry(id)?.disabled ?? false;
+    this.remove(id);
+    try {
+      await this.create(id, tab.entry, wasDisabled, tab.fingerprint, true);
+    } catch {
+      // 原因已经由调用方（core 的重挂端点）在响应里说明
+      return false;
+    }
+    await this.ctx.loader.await();
+    return true;
   }
 
   private findEntry(id: string) {
@@ -325,11 +333,12 @@ export class TabsService {
     disabled: boolean,
     fingerprint: string,
     bustCache = false,
+    problem?: string,
   ): Promise<void> {
     // id **不带 `:`**：`:` 是 loader 的 group 路径分隔符，带它会让 resolve/remove 找不到这一行。
     //
-    // 类型签名把 `id` 排除了（默认由 loader 随机分配），但运行期 `ensureId()` **认调用方给的 id**
-    // —— Include 给子行定 id 也是这么做的。这里必须显式给：**目录名即 id** 是这套东西的全部意义
+    // 类型签名把 `id` 排除了（默认由 loader 随机分配），但运行期 `ensureId()` **认调用方给的 id**。
+    // 这里必须显式给：**目录名即 id** 是这套东西的全部意义
     // （它同时是路由前缀 `/api/p/<id>` 与前端资源前缀 `/plugins/<id>/`）。
     const options = {
       id,
@@ -338,7 +347,11 @@ export class TabsService {
       ...(disabled ? { disabled: true } : {}),
     } as unknown as Parameters<typeof this.ctx.loader.create>[0];
     await this.ctx.loader.create(options);
-    this.mounted.set(id, { state: disabled ? 'bad' : 'ok', fingerprint });
+    this.mounted.set(id, {
+      state: disabled ? 'bad' : 'ok',
+      fingerprint,
+      ...(problem !== undefined ? { problem } : {}),
+    });
   }
 
   /** 重挂用的 cache-buster：不同 URL = 不同模块实例（`plugin-package.ts` 会剥掉它做文件解析） */
@@ -360,7 +373,6 @@ export class TabsService {
       // routes 服务还没就绪（启动早期）时忽略
     }
     this.mounted.delete(id);
-    this.gate.delete(id);
   }
 
   /**

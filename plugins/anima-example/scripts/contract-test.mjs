@@ -14,6 +14,9 @@
  * 用法：node plugins/anima-example/scripts/contract-test.mjs
  */
 import { readFile } from 'node:fs/promises';
+import { register } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
@@ -25,7 +28,38 @@ globalThis.document = {
   head: { appendChild: (el) => links.push(el) },
 };
 
-const mod = await import(new URL('../lib/client.js', import.meta.url).href);
+// 前端产物住在 tab 目录（D16：tabs/<id>/ 里全是编译完的文件）；TAB_OUT_DIR 由 pack.mjs 传
+const tabDir =
+  process.env.TAB_OUT_DIR ?? fileURLToPath(new URL('../../../tabs/anima-example/', import.meta.url));
+const artifact = (name) => pathToFileURL(path.join(tabDir, name));
+
+// tabs/<id>/ 里没有 node_modules（D16），产物里的 import 'vue' 在浏览器侧由页面 import map 解析；
+// Node 侧（本测试）没人解析，所以自己挂一个 resolve 钩子把裸说明符指回本插件的 node_modules。
+{
+  // 插件目录里没有的（比如 vue-router 只有外壳装了），退到 apps/web 解析
+  const parents = [import.meta.url, new URL('../../../apps/web/package.json', import.meta.url).href];
+  const MAP = {};
+  for (const spec of ['vue', 'vue-router']) {
+    for (const from of parents) {
+      try {
+        MAP[spec] = import.meta.resolve(spec, from);
+        break;
+      } catch {
+        /* 两处都没有就算了：产物里没 import 它 */
+      }
+    }
+  }
+  const source =
+    'const MAP = ' + JSON.stringify(MAP) + ';\n' +
+    'export async function resolve(specifier, context, next) {\n' +
+    '  if (Object.prototype.hasOwnProperty.call(MAP, specifier)) {\n' +
+    '    return { url: MAP[specifier], shortCircuit: true };\n' +
+    '  }\n' +
+    '  return next(specifier, context);\n' +
+    '}\n';
+  register('data:text/javascript,' + encodeURIComponent(source));
+}
+const mod = await import(artifact('client.js').href);
 const plugin = mod.default;
 
 let failed = 0;
@@ -50,7 +84,7 @@ check('route.component 是组件', route.component !== null && typeof route.comp
 check('样式表已注入 <link>', links.length === 1, links.map((l) => l.href).join(','));
 check(
   '样式 URL 指向本插件产物',
-  links.length === 1 && links[0].href.endsWith('/plugins/anima-example/lib/client.css'),
+  links.length === 1 && links[0].href.endsWith('/anima-example/client.css'),
   links[0]?.href,
 );
 
@@ -76,7 +110,7 @@ check('空提示词时不显示拼接预览', !html.includes('拼给 ComfyUI'));
 
 // 滑条上限只能在产物里查：SSR 首屏 options 还没加载，LoRA 那一块是 v-if 关掉的。
 // 产物里模板渲染函数没被压紧（`type: "range"` 带空格），所以正则要容忍空白。
-const bundle = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
+const bundle = await readFile(artifact('client.js'), 'utf8');
 const rangeAt = bundle.search(/type:\s*"range"/);
 const rangeAttrs = rangeAt === -1 ? '' : bundle.slice(rangeAt, rangeAt + 120);
 check('LoRA 强度滑条 max = 1', /max:\s*"1"/.test(rangeAttrs), rangeAttrs.replace(/\s+/g, ' ').slice(0, 70));

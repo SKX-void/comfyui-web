@@ -11,7 +11,8 @@
  *   - `inject = ['routes','space']` —— 核只给一个句柄：文件空间
  *   - 存储**完全自管**：`node:sqlite` 开在自己的空间里，版本用 `PRAGMA user_version`
  *   - 产出图落进自己的空间（谁都不许自动清）
- *   - 设置项来自 `package.json` 的 `plugin.settings[]`，值由 plugins.yml 的行传进来
+ *   - 设置项来自 `package.json` 的 `plugin.settings[]`，值由**本插件自己持有**
+ *     （空间里的 `settings.json`，见 §2.5）：它现在是目录型 tab，宿主不代管配置
  *
  * 只 import node 内置模块和类型，**不 import cordis**：宿主已经把 cordis 打进自己的产物，
  * 插件再引一份就是两个实例。
@@ -433,10 +434,73 @@ function migrate(db) {
   }
 }
 
-export function apply(ctx, config) {
+// ===========================================================================
+// 2.5 设置：由插件自己持有（决策 D15）
+// ===========================================================================
+//
+// 目录型 tab 没有"行配置"这回事（宿主对它的 PUT config 返回 400，plugins.yml 里也没有它），
+// 所以设置住在自己的空间里（`data/plugins/<包名>/settings.json`），由本插件的 /api/settings
+// 读写。字段的**形状**仍写在 package.json 的 plugin.settings 里（界面从宿主清单端点取）。
+
+const SETTINGS_FILE_NAME = 'settings.json';
+
+/** 认识的设置项：写文件时只收这些键，UI 送来的杂物不住进空间 */
+const SETTING_KEYS = [
+  'comfyuiBaseUrl',
+  'negativePrompt',
+  'defaultSteps',
+  'defaultCfg',
+  'defaultWidth',
+  'defaultHeight',
+  'historyLimit',
+];
+
+/** 读设置；文件不存在 = 还没配过（各字段回落到工作流/内置默认值） */
+function readStoredSettings(space) {
+  const file = space.resolve(SETTINGS_FILE_NAME);
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      return { file, values: {}, error: '设置文件不是一个 JSON 对象' };
+    }
+    return { file, values: raw };
+  } catch (err) {
+    // 没配过和读坏了必须分开说：前者是正常状态，后者要让用户看见
+    if (err && err.code === 'ENOENT') return { file, values: {} };
+    return { file, values: {}, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+function writeStoredSettings(space, values) {
+  const clean = {};
+  for (const key of SETTING_KEYS) {
+    if (values?.[key] !== undefined) clean[key] = values[key];
+  }
+  const file = space.resolve(SETTINGS_FILE_NAME);
+  fs.writeFileSync(file, `${JSON.stringify(clean, null, 2)}\n`, 'utf8');
+  return file;
+}
+
+/** 一次性迁移：清单行的 config 只在**首次**装载时被采信（那时它还是唯一的配置来源） */
+function seedStoredSettings(space, legacy) {
+  if (legacy === null || typeof legacy !== 'object' || Object.keys(legacy).length === 0) return false;
+  if (fs.existsSync(space.resolve(SETTINGS_FILE_NAME))) return false;
+  writeStoredSettings(space, legacy);
+  return true;
+}
+
+export function apply(ctx, legacySettings) {
   const routes = ctx.routes.for(ID);
   const space = ctx.space.for(PACKAGE);
   const log = (msg) => ctx.logger?.info?.(`[${ID}] ${msg}`);
+
+  // 设置归插件自己（D15）：值在 <space>/settings.json；清单行的 config 只在首次装载时被采信一次
+  if (seedStoredSettings(space, legacySettings)) {
+    log(`已把清单里的配置落成 ${space.resolve(SETTINGS_FILE_NAME)}（一次性迁移）`);
+  }
+  const stored = readStoredSettings(space);
+  if (stored.error !== undefined) log(`设置文件读不出来，改用内置默认值：${stored.error}`);
+  const config = stored.values;
 
   // ---- 3.1 存储：全在插件自己的空间里，核不参与 ----
   //   库文件与产出图都在 space.root 下。这两张表是插件自己的，所以可以用
@@ -461,7 +525,7 @@ export function apply(ctx, config) {
   }
   log(`工作流已载入：${Object.keys(workflow).length} 个节点，绑定 ${JSON.stringify(Object.keys(bindings.current))}`);
 
-  // ---- 3.3 设置：值来自 plugins.yml 里该行的 config ----
+  // ---- 3.3 设置：值由插件自己持有（空间里的 settings.json，见 §2.5）----
   const num = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
   const str = (v, fallback) => (typeof v === 'string' && v.trim() !== '' ? v : fallback);
   const settings = {
@@ -909,6 +973,33 @@ export function apply(ctx, config) {
   }
 
   // ---- 3.7 路由：框架统一加前缀 → /api/p/anima-example/* ----
+
+  // 设置端点：设置归插件自己（D15）。字段的**形状**在 package.json 的 plugin.settings 里，
+  // 值在这里 —— 存完由前端请求宿主的 `POST /api/tabs/:id/reload`，让本插件重新 apply()。
+  routes.get('/settings', async () => ({
+    values: stored.values,
+    effective: { ...settings },
+    file: stored.file,
+    ...(stored.error !== undefined ? { error: stored.error } : {}),
+  }));
+
+  routes.put('/settings', async (request, reply) => {
+    const body = request?.body;
+    const incoming =
+      body !== null && typeof body === 'object' && !Array.isArray(body) ? body.values : undefined;
+    if (incoming === null || typeof incoming !== 'object' || Array.isArray(incoming)) {
+      return reply.code(400).send({
+        error: {
+          code: 'BAD_REQUEST',
+          message: '请求体必须是 { values: {…} }：键与 package.json 的 plugin.settings 同名',
+        },
+      });
+    }
+    // 值原样落盘、**不在这里收敛**：范围与回落在 §3.3 一处决定（越界会记日志）
+    const file = writeStoredSettings(space, incoming);
+    log(`设置已更新 ${file}（重新挂载后生效）`);
+    return { values: incoming, file, reloadRequired: true };
+  });
 
   routes.get('/options', async () => {
     const o = await options();

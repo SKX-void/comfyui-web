@@ -6,6 +6,7 @@ import { defaultValues, normalizeValues, type FieldModel } from '@/form';
 import TemplateForm from '@/components/TemplateForm.vue';
 import DependencyNotice from '@/components/DependencyNotice.vue';
 import HelpPanel from '@/components/HelpPanel.vue';
+import SettingsPanel from '@/components/SettingsPanel.vue';
 
 const health = ref<HealthResponse | null>(null);
 /** 依赖检查结果；null = 还没查过 */
@@ -15,6 +16,8 @@ const depsChecking = ref(false);
 const depsOpen = ref(false);
 /** 帮助面板（显式展示包内 readme.md） */
 const helpOpen = ref(false);
+/** 设置面板：本插件的设置由自己持有（目录型 tab 的宿主设置页对它只读，见 components/SettingsPanel.vue） */
+const settingsOpen = ref(false);
 const templates = ref<Array<{ id: string; name: string }>>([]);
 const template = ref<TemplateDetail | null>(null);
 const values = ref<FieldModel>({});
@@ -351,6 +354,20 @@ onMounted(() => {
         </svg>
         <span>帮助</span>
       </button>
+      <!-- 设置：本插件自己持有配置（存进自己的 ctx.space，宿主不代管） -->
+      <button
+        class="help-btn"
+        type="button"
+        title="插件设置（保存在插件自己的空间里）"
+        aria-label="插件设置"
+        @click="settingsOpen = true"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 3v2.2M12 18.8V21M4.2 7.5l1.9 1.1M17.9 15.4l1.9 1.1M4.2 16.5l1.9-1.1M17.9 8.6l1.9-1.1" />
+        </svg>
+        <span>设置</span>
+      </button>
     </header>
 
     <div v-if="fatalError" class="banner">
@@ -371,6 +388,8 @@ onMounted(() => {
     />
 
     <HelpPanel v-if="helpOpen" :deps="deps" @close="helpOpen = false" />
+
+    <SettingsPanel v-if="settingsOpen" @close="settingsOpen = false" />
 
     <main class="layout">
       <section class="card">

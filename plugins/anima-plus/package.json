@@ -4,41 +4,29 @@
   "private": true,
   "description": "Anima Plus 文生图工作流插件：前后端都在本包内（模板/渲染/显存护栏/任务编排/LoRA/标签/预设），不依赖任何外部服务",
   "type": "module",
-  "main": "./lib/server.js",
-  "exports": {
-    ".": "./lib/server.js",
-    "./package.json": "./package.json"
-  },
   "scripts": {
-    "build": "node scripts/build-server.mjs && vite build",
+    "build": "node scripts/pack.mjs",
     "build:server": "node scripts/build-server.mjs",
-    "dev": "node scripts/build-server.mjs --watch & vite build --watch",
+    "dev": "node scripts/pack.mjs --watch",
     "deps:sync": "node scripts/gen-deps.mjs",
     "deps:check": "node scripts/gen-deps.mjs --check",
     "typecheck": "vue-tsc --noEmit",
     "smoke": "tsx scripts/smoke.ts",
     "test:contract": "node scripts/contract-test.mjs"
   },
-  "files": [
-    "lib",
-    "assets",
-    "package.json",
-    "readme.md"
-  ],
   "plugin": {
     "contract": 1,
     "title": "Anima Plus",
     "icon": "brush",
     "order": 1,
-    "client": "lib/client.js",
+    "client": "client.js",
     "settings": [
       {
         "key": "comfyuiBaseUrl",
         "type": "string",
         "label": "ComfyUI 地址",
         "default": "http://localhost:8188",
-        "description": "出图、模型枚举、LoRA/标签都在这个地址上（WeiLin 的 /weilin/* 路由也注册在同一个 ComfyUI）。留空 = 跟随设置页里的「统一 ComfyUI 地址」（那边也没填就用内置默认）；填了 = 只有这个插件用它。只写 host:port 会自动补 http://；宿主跑在容器里时 localhost 是容器自己，要填局域网地址。",
-        "fallback": "comfyuiBaseUrl"
+        "description": "出图、模型枚举、LoRA/标签都在这个地址上（WeiLin 的 /weilin/* 路由也注册在同一个 ComfyUI）。只写 host:port 会自动补 http://；宿主跑在容器里时 localhost 是容器自己，要填局域网地址。本插件是目录型 tab：这一项由插件自己持有（data/plugins/<包名>/settings.json），宿主设置页的「统一 ComfyUI 地址」对这里不生效。"
       },
       {
         "key": "maxQueueDepth",

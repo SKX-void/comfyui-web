@@ -7,7 +7,7 @@ import { webpCodec } from 'purejsimage/codecs/webp';
  * 缩略图编解码：**纯 JS**，没有原生模块。
  *
  * 历史：这里原本是"惰性 `import('sharp')`，拿不到就原图直出"。sharp 是原生模块，
- * 和"esbuild 打成单文件 `lib/server.js`"的目标冲突（`.node` 二进制没法内联），
+ * 和"esbuild 打成单文件 `server.js`"的目标冲突（`.node` 二进制没法内联），
  * 所以一直没装；替代方案是在 ComfyUI 主机上跑离线脚本
  * `scripts/resize-lora-previews.py` 把预览图预先缩小。
  *

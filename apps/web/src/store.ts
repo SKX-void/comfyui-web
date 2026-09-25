@@ -19,7 +19,7 @@ export const manifestError = ref<string | null>(null);
 
 // ---- 外壳偏好：标签栏顺序 + 默认首页 ------------------------------------
 
-/** 后端 `<dataDir>/ui-prefs.json` 的镜像；读不到时保持默认值 */
+/** 后端 `<dataDir>/host.json` 偏好段的镜像；读不到时保持默认值 */
 export const uiPrefs = ref<UiPrefs>({
   tabOrder: [],
   home: null,

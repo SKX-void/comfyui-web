@@ -121,6 +121,17 @@ export interface PluginStatus {
     | { reachable: false; error: string };
 }
 
+/** 设置端点的响应（字段的**形状**问宿主清单：package.json 的 plugin.settings） */
+export interface PluginSettingsResponse {
+  /** 存下来的值（原样，没做范围收敛） */
+  values: Record<string, unknown>;
+  /** 本次装载真正生效的值（越界已收敛，见 server.js §3.3） */
+  effective: Record<string, unknown>;
+  /** 设置文件的位置，排障用 */
+  file: string;
+  error?: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // 无 body 的请求绝不能带 Content-Type：fastify 会拒绝空 JSON body
   const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
@@ -146,6 +157,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   status: () => request<PluginStatus>('/status'),
   options: () => request<PluginOptions>('/options'),
+
+  // --- 设置：设置归插件自己（server.js §2.5），宿主既不读也不写 ---
+  settings: () => request<PluginSettingsResponse>('/settings'),
+  /** 存下来的只是值；生效要宿主重挂本插件（`POST /api/tabs/<id>/reload`，见 SettingsPanel.vue） */
+  saveSettings: (values: Record<string, unknown>) =>
+    request<{ values: Record<string, unknown>; file: string; reloadRequired: boolean }>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ values }),
+    }),
   createJob: (body: Partial<JobValues>) =>
     request<{ jobId: string; promptId: string; status: JobStatus }>('/jobs', {
       method: 'POST',

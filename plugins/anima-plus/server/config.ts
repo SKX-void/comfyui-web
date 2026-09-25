@@ -13,7 +13,7 @@
 
 import { MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from './safety/quota.js';
 
-/** 与 `plugins.yml` 的 `config` 段对应（都是 `unknown`：来自 YAML，信不过） */
+/** 与 `<空间>/settings.json` 对应（都是 `unknown`：来自文件与界面，信不过） */
 export interface PluginSettings {
   comfyuiBaseUrl?: unknown;
   /** 在途任务上限：同一台 ComfyUI 上同时跑几个任务 */
@@ -84,14 +84,14 @@ function numberSetting(
   const parsed = typeof raw === 'number' ? raw : Number(raw.trim());
   if (!Number.isFinite(parsed)) return fallback;
   const value = Math.min(range.max, Math.max(range.min, Math.round(parsed)));
-  notes.push(value === parsed ? `plugins.yml: ${key}` : `plugins.yml: ${key}（越界已收敛到 ${value}）`);
+  notes.push(value === parsed ? `settings.json: ${key}` : `settings.json: ${key}（越界已收敛到 ${value}）`);
   return value;
 }
 
 /** 布尔设置：只认真正的布尔与 true/false（含 1/0、yes/no、on/off），其余回默认值 */
 function booleanSetting(raw: unknown, fallback: boolean, key: string, notes: string[]): boolean {
   if (typeof raw === 'boolean') {
-    notes.push(`plugins.yml: ${key}`);
+    notes.push(`settings.json: ${key}`);
     return raw;
   }
   if (typeof raw === 'string') {
@@ -149,7 +149,7 @@ export function buildConfig(
     // 0 = 不缓存：每次检查都拉一遍上游，只在装包调参时用（object_info 很贵，缓存策略见 server/deps.ts）
     depsCacheTtlMs: depsCacheTtlMinutes * 60_000,
     configFiles: [
-      configured === '' ? '内置默认值' : 'plugins.yml: anima-plus 行的 config.comfyuiBaseUrl',
+      configured === '' ? '内置默认值' : 'settings.json: comfyuiBaseUrl',
       ...notes,
     ],
     ...paths,

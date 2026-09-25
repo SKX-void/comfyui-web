@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * 后端打包：把 `plugins/anima-plus/server/` 打成**一个** ESM 文件 `lib/server.js`。
+ * 后端打包：把 `plugins/anima-plus/server/` 打成**一个** ESM 文件 `server.js`
+ * （写进 tab 目录，见 scripts/pack.mjs —— tab 里必须全是编译完的文件）。
  *
  *   pnpm --filter @comfyui-web/anima-plus build:server
- *   → plugins/anima-plus/lib/server.js    （宿主按 package.json 的 main 加载它）
+ *   → tabs/anima-plus/server.js    （宿主按 tab 的 package.json 的 main 加载它）
  *
  * ## 为什么本插件要打包（anima-example 就没有这一步）
  *
@@ -17,7 +18,7 @@
  *    CJS 输出下 esbuild 会把 `import.meta` 抹成 `{}`，路径立刻全乱。
  * 2. **ws 的可选原生加速件必须标 external**：没装时 esbuild 会因为解析不到直接构建失败。
  * 3. **图像编解码是纯 JS 依赖**（`purejsimage`，见 `weilin/thumb-codec.ts`）：它会被完整打进
- *    产物（`lib/server.js` 因此从 232KB 涨到 785KB）。**不要再引入原生模块**（sharp 之类）——
+ *    产物（`server.js` 因此从 232KB 涨到 785KB）。**不要再引入原生模块**（sharp 之类）——
  *    `.node` 没法内联，单文件交付这条就断了。
  * 4. **运行期资产不打进包**：`assets/templates/` 由 `import.meta.url` 在运行时定位，
  *    所以换模板不需要重新打包。
@@ -32,7 +33,8 @@ const watch = process.argv.includes('--watch');
 
 const options = {
   entryPoints: [path.join(pkgDir, 'server', 'index.ts')],
-  outfile: path.join(pkgDir, 'lib', 'server.js'),
+  // TAB_OUT_DIR 由 scripts/pack.mjs 指到 tabs/anima-plus/；不经 pack 单独跑时退回本包 lib/
+  outfile: path.join(process.env.TAB_OUT_DIR ?? path.join(pkgDir, 'lib'), 'server.js'),
   bundle: true,
   platform: 'node',
   // node:sqlite 需要 Node >= 22.5；产物按 Node 24 对齐（与宿主一致）

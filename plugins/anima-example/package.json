@@ -4,36 +4,24 @@
   "private": true,
   "description": "第一个「真」插件：自带 workflow.json 做成一个 tab，插件自己提交 ComfyUI、收进度、落图、建自己的表",
   "type": "module",
-  "main": "./server.js",
-  "exports": {
-    ".": "./server.js",
-    "./package.json": "./package.json"
-  },
   "scripts": {
-    "build": "vite build",
-    "dev": "vite build --watch",
+    "build": "node scripts/pack.mjs",
+    "dev": "node scripts/pack.mjs --watch",
     "typecheck": "vue-tsc --noEmit",
     "test:contract": "node scripts/contract-test.mjs"
   },
-  "files": [
-    "server.js",
-    "workflow.json",
-    "lib",
-    "package.json"
-  ],
   "plugin": {
     "contract": 1,
     "title": "默认Anima",
     "order": 2,
-    "client": "lib/client.js",
+    "client": "client.js",
     "settings": [
       {
         "key": "comfyuiBaseUrl",
         "type": "string",
         "label": "ComfyUI 地址",
         "default": "http://localhost:8188",
-        "description": "插件直接向这个地址提交 /prompt 并订阅 /ws 收进度。留空 = 跟随设置页里的「统一 ComfyUI 地址」（那边也没填就用内置默认）；填了 = 只有这个插件用它。",
-        "fallback": "comfyuiBaseUrl"
+        "description": "插件直接向这个地址提交 /prompt 并订阅 /ws 收进度。只写 host:port 会自动补 http://。本插件是目录型 tab：这一项由插件自己持有（data/plugins/<包名>/settings.json），宿主设置页的「统一 ComfyUI 地址」对这里不生效。"
       },
       {
         "key": "negativePrompt",

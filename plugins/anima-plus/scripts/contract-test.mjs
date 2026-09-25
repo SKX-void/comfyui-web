@@ -2,7 +2,7 @@
  * 插件前端产物的契约测试 —— 没有浏览器时的替代验证。
  *
  * 它按宿主外壳消费插件的方式走一遍：
- *   1. 注入样式需要一个最小 document 桩，然后 `import(lib/client.js)`
+ *   1. 注入样式需要一个最小 document 桩，然后 `import(tabs/<id>/client.js)`
  *   2. 校验 default.tabs / default.routes 的形状（宿主就是照这个挂 tab 的）
  *   3. 校验「看得见的改动」真的进了**产物**（不是只改了源码）：
  *      LoRA 权重滑动条、历史记录去掉「模板」列、堵住固有最小宽度的 CSS 兜底
@@ -14,6 +14,10 @@
  * 用法：node plugins/anima-plus/scripts/contract-test.mjs
  */
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { register } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // 产物顶层代码会注入 <link>，给个最小 document 桩（与 anima-example 的契约测试同款）
 const links = [];
@@ -23,9 +27,12 @@ globalThis.document = {
   head: { appendChild: (el) => links.push(el) },
 };
 
-const clientUrl = new URL('../lib/client.js', import.meta.url);
+// 前端产物住在 tab 目录（D16：tabs/<id>/ 里全是编译完的文件）；模板是源码资产，位置不变
+const tabDir =
+  process.env.TAB_OUT_DIR ?? fileURLToPath(new URL('../../../tabs/anima-plus/', import.meta.url));
+const clientUrl = pathToFileURL(path.join(tabDir, 'client.js'));
 const js = await readFile(clientUrl, 'utf8');
-const css = await readFile(new URL('../lib/client.css', import.meta.url), 'utf8');
+const css = await readFile(path.join(tabDir, 'client.css'), 'utf8');
 const template = JSON.parse(
   await readFile(new URL('../assets/templates/txt2img-basic/template.json', import.meta.url), 'utf8'),
 );
@@ -39,6 +46,32 @@ function section(title) {
   console.log('\n' + title);
 }
 
+// tabs/<id>/ 里没有 node_modules（D16），产物里的 import 'vue' 在浏览器侧由页面 import map 解析；
+// Node 侧（本测试）没人解析，所以自己挂一个 resolve 钩子把裸说明符指回本插件的 node_modules。
+{
+  // 插件目录里没有的（比如 vue-router 只有外壳装了），退到 apps/web 解析
+  const parents = [import.meta.url, new URL('../../../apps/web/package.json', import.meta.url).href];
+  const MAP = {};
+  for (const spec of ['vue', 'vue-router']) {
+    for (const from of parents) {
+      try {
+        MAP[spec] = import.meta.resolve(spec, from);
+        break;
+      } catch {
+        /* 两处都没有就算了：产物里没 import 它 */
+      }
+    }
+  }
+  const source =
+    'const MAP = ' + JSON.stringify(MAP) + ';\n' +
+    'export async function resolve(specifier, context, next) {\n' +
+    '  if (Object.prototype.hasOwnProperty.call(MAP, specifier)) {\n' +
+    '    return { url: MAP[specifier], shortCircuit: true };\n' +
+    '  }\n' +
+    '  return next(specifier, context);\n' +
+    '}\n';
+  register('data:text/javascript,' + encodeURIComponent(source));
+}
 section('产物可被外壳加载');
 const { default: plugin, renderMarkdown } = await import(clientUrl.href);
 check('默认导出是对象', plugin !== null && typeof plugin === 'object');
@@ -129,7 +162,7 @@ for (const doc of compareDocs()) {
 }
 
 section('依赖检查：前后端都接上了');
-const serverJs = await readFile(new URL('../lib/server.js', import.meta.url), 'utf8');
+const serverJs = await readFile(path.join(tabDir, 'server.js'), 'utf8');
 const depsSrc = await readFile(new URL('../server/deps.ts', import.meta.url), 'utf8');
 const managerSrc = await readFile(new URL('../server/jobs/manager.ts', import.meta.url), 'utf8');
 check('产物里有 GET /api/deps 路由', /\/api\/deps/.test(serverJs));
@@ -166,9 +199,9 @@ check(
 section('帮助面板：md 是运行期真源');
 const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 check(
-  'readme.md 进了发布清单（安装态才读得到）',
-  (pkg.files ?? []).includes('readme.md'),
-  (pkg.files ?? []).join('、'),
+  'readme.md 被搬进 tab 目录（服务端按 import.meta.url 找它）',
+  existsSync(path.join(tabDir, 'readme.md')),
+  tabDir,
 );
 check('服务端提供 /api/help', /\/api\/help/.test(serverJs));
 check('客户端调用 /api/help', /\/api\/help/.test(js));

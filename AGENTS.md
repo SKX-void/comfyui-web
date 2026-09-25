@@ -4,40 +4,45 @@ ComfyUI 的**轻前端 + 工作流插件宿主**。三个概念：
 
 - **宿主** `apps/server/`（:8087）：只做框架 —— 装载插件、分发路由、托管前端、设置页。**不含业务功能**
 - **外壳** `apps/web/`：tab 栏 + 插件页面 + 设置页；Vue 由 `index.html` 的 import map 提供
-- **插件**（业务全在这里）：`plugins/*`（npm 包形态，profile 管清单）+ `tabs/<id>/`（**目录即插件**，热重载）
+- **插件**（业务全在这里）：`tabs/<id>/`（**目录即插件**，宿主唯一装载的东西，热重载）
+  源码工程在 `plugins/<id>/`，构建把它写进 `tabs/`（D16，见 `docs/architecture.md` §4.1/§14.5）
 
 ## 先看哪份文档（**不要通读 `docs/`**）
 
 | 要改什么 | 先看 |
 |---|---|
 | 跑起来 / 装插件 / 写插件 / 目录约定 | `docs/README.md` |
-| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D14 | `docs/architecture.md` §4 / §5 / §2 |
+| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D18 | `docs/architecture.md` §4 / §5 / §2 |
 | 某个配置该写进哪个文件、入不入库 | `docs/config.md`（五层表） |
-| profile 清单字段、`plugins.yml` 为什么不入库 | `profiles/default/README.md` |
+| 插件源码放哪、产物怎么来（`plugins/*` → `tabs/*`） | `docs/architecture.md` §4.1 + `tabs/README.md` |
 | 目录型插件（`tabs/`）怎么写、热到什么程度 | `tabs/README.md` |
 | 历史（v1 单体、v2 落地过程） | `docs/archive/` —— **只作来龙去脉参考，别照着实现** |
 
 ## 命令
 
 ```bash
-pnpm dev:host                          # 宿主 :8087（node --watch-path=src）
+pnpm dev:host                          # 宿主 :8087（tsx watch，排除 profiles/data/dist/tabs/web）
 pnpm dev:web                           # 外壳（vite :5173，代理 /api 与 /plugins）
-pnpm build                             # 插件 + 宿主 → dist/host/host.mjs + dist/host/web/
-pnpm verify                            # typecheck → smoke → build → contract（日志 .cache/verify/）
+pnpm dev:plugins                       # 插件产物 watcher（pack.mjs --watch → tabs/）：改源码边写边出产物
+pnpm dev                               # 先 build:plugins 垫一次产物，再 apps/* dev（新克隆用这个）
+pnpm build                             # → dist/app/{server.mjs,web/} + dist/tabs/ + dist/data/（完整可搬，不入库）
+pnpm verify                            # typecheck → smoke → build → tabs-sync → contract（日志 .cache/verify/）
 pnpm -r typecheck
-pnpm plugin list | add | remove | enable | disable | snapshot
+pnpm plugin list | add | remove | enable | disable | snapshot   # profile 工具，D16 后随 profiles/ 一起删
 ```
 
 ## 这个环境的坑（都踩过）
 
 - **bash 输出会被吞**：可能产生大量输出的命令（build/typecheck/curl 循环）必须
   `setsid nohup <cmd> > /tmp/x.log 2>&1 < /dev/null &`，然后读 `/tmp/x.log`。
-- **后端 dev 不是 `tsx watch`**：cordis 每次启动会重写 `profiles/<name>/.cordis/resolve.mjs`，
-  tsx 盯整仓 → 自己写自己看 → 无限重启。用 `node --watch-path=src`（`pnpm dev:host` 已经这么配了）。
+- **`tsx watch` 会盯整仓，必须带 `--exclude`**：实测 cordis 启动时重写 `profiles/<name>/.cordis/resolve.mjs`，
+  不排除就是每 2s 重启一次的活锁；改 `tabs/`、`data/` 也会连带重启宿主。
+  `pnpm dev:host` 已经排除 `profiles/data/dist/tabs/web`：改 `src/` 才重启，改 tab 走宿主自己的热重扫。
 - **跨 bash 调用起的后台进程杀不掉**（PID namespace 限制）：验证请"同一次调用内起进程 + kill"，
   或换个空闲端口再起，别指望后面 `kill` 掉它。
 - 端口：宿主 `8087`，外壳 vite dev **固定 5173**（`strictPort`，被占就直接失败；换端口用 `COMFYUI_WEB_DEV_PORT`），`/api`、`/plugins` 由它代理到宿主。
-- 生产态宿主**自己就能送前端**（`dist/host/web`），不需要 vite；但改了 `apps/web` 要重新 `pnpm build:web`。
+- 生产态宿主**自己就能送前端**（`dist/app/web`），不需要 vite；但改了 `apps/web` 要重新 `pnpm build:web`。
+  交付物是 `dist/` 整包（D18）：`node dist/app/server.mjs` 就能跑，`repoRoot` = `dist/`。
 
 ## 硬规矩
 
@@ -45,13 +50,16 @@ pnpm plugin list | add | remove | enable | disable | snapshot
   插件前端**不要**把 `vue` / `vue-router` 打进 bundle（import map 提供，与宿主同一份）。
 - 插件只拿 `ctx.routes` / `ctx.space`（按需 `inject`），**存储形态自管**（SQLite？JSON？随便），
   数据写进 `ctx.space`（→ `data/plugins/<包名>/`），宿主不代管、不迁移、不清理。
-- 目录型 tab（`tabs/<id>/`）：**自包含 bundle、无 `node_modules`**、目录名即 id、配置自己持有
+- 目录型 tab（`tabs/<id>/`）：**交付物**（编译完、自包含、无 `node_modules`）、目录名即 id、配置自己持有
   —— 宿主的 `PUT /api/plugins/:id/config` 对它返回 400，`PUT enabled` 只在本次运行期生效。
+  它的源码在 `plugins/<id>/`，改完要 `pnpm build:plugins`（或常驻 `pnpm dev:plugins`）。`tabs/` **不入库**，
+  库里只有手写示例 `tabs/hello/`（`.gitignore`：`/tabs/*/` + `!/tabs/hello/`）；`tabs-sync` 只查「产物能不能装载」。
 - **改代码即热重挂**（说明符带 `?v=` 换 URL）：收尾写在 `ctx.effect(() => () => 收尾)`，
   内存状态一律归零，要活下来的写 `ctx.space`。
 - `profiles/<name>/plugins.yml` **不入库**（本机部署状态，设置页会重写、注释会丢）；
-  要更新基线跑 `pnpm plugin snapshot`，说明写 `profiles/<name>/README.md`。
-- 装插件 / 加 tab **不需要重新构建宿主**（`sha256(dist/host/**)` 前后逐字节一致）；这条是方案的核心主张，
+  要更新基线跑 `pnpm plugin snapshot`。**整套 profile 机制正在退役**（D16）：改完 `tabs/` 是唯一来源，
+  `profiles/` + `pnpm plugin` + Include 装配一起删，别在这上面加新东西。
+- 装插件 / 加 tab **不需要重新构建宿主**（`sha256(dist/app/**)` 前后逐字节一致）；这条是方案的核心主张，
   别用"构建期拷贝插件"之类的做法破坏它。
 - 前端共享代码放 `packages/shared`（纯类型/常量）。
 

@@ -52,6 +52,17 @@ function withAssetUrls<T extends { assets?: AssetLike[] }>(job: T): T {
   return { ...job, assets: job.assets.map((a) => ({ ...a, url: assetUrl(a.url) })) };
 }
 
+/** 设置端点的响应（字段的**形状**问宿主清单：`package.json` 的 `plugin.settings`） */
+export interface PluginSettingsPayload {
+  /** 存下来的值（原样，没做范围收敛） */
+  values: Record<string, unknown>;
+  /** 本次装载真正生效的值（越界已收敛，见 server/config.ts） */
+  effective: Record<string, unknown>;
+  /** 设置文件的位置，排障用 */
+  file: string;
+  error?: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // ⚠️ 只在有 body 时才带 Content-Type。
   // DELETE 这类无 body 的请求若声明 application/json，Fastify 会直接拒绝：
@@ -179,6 +190,17 @@ export const api = {
     request<{ items: Array<{ original: string; translated: string; color: string }> }>(
       '/api/tags/translate',
       { method: 'POST', body: JSON.stringify({ texts }) },
+    ),
+
+  // --- 设置：设置归插件自己（server/settings.ts），宿主既不读也不写 ---
+
+  getSettings: () => request<PluginSettingsPayload>('/api/settings'),
+
+  /** 存下来的只是值；生效要宿主重挂本插件（`POST /api/tabs/<id>/reload`，见 SettingsPanel.vue） */
+  saveSettings: (values: Record<string, unknown>) =>
+    request<{ values: Record<string, unknown>; file: string; reloadRequired: boolean }>(
+      '/api/settings',
+      { method: 'PUT', body: JSON.stringify({ values }) },
     ),
 };
 

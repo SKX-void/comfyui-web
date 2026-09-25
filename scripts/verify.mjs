@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 统一验证入口：一条命令跑完 typecheck / smoke / build / contract，每步只输出一行结论。
+ * 统一验证入口：一条命令跑完 typecheck / smoke / build / tabs-sync / contract，每步只输出一行结论。
  *
  * 为什么要有它：单独跑这几条命令，光 smoke 一次就 190+ 行、近 10 KB，
  * 全量日志灌进上下文/终端既慢又难看出到底哪步挂了。这里把各步完整输出
@@ -8,7 +8,7 @@
  * 失败行回显，需要细节再去看日志文件。
  *
  * 用法：
- *   pnpm verify                     # typecheck → smoke → build → contract
+ *   pnpm verify                     # typecheck → smoke → build → tabs-sync → contract
  *   pnpm verify typecheck smoke     # 只跑指定步骤
  *   pnpm verify --no-build          # 跳过构建
  *   pnpm verify --verbose           # 额外把各步完整输出回显到终端
@@ -51,7 +51,16 @@ const STEPS = [
     failLimit: 12,
   },
   {
-    // 构建**之后**：契约测试要 import 插件的前端产物（lib/client.js）
+    // 构建**之后**：tabs/ 是刚构建出来的，检查它确实能被宿主装载（tabs 不入库，没法和 git 比）
+    id: 'tabs-sync',
+    cmd: 'node',
+    args: ['scripts/check-tabs-sync.mjs'],
+    env: {},
+    failRe: /✘/,
+    failLimit: 12,
+  },
+  {
+    // 构建**之后**：契约测试要 import tab 里的前端产物（tabs/<id>/client.js）
     id: 'contract',
     cmd: 'pnpm',
     args: ['contract'],

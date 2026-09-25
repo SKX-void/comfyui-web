@@ -4,7 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { pino } from 'pino';
 
-import { loadHostConfig, profileDir, profileManifest, profileManifestTemplate } from './config.js';
+import { loadHostConfig } from './config.js';
 import { bootHost } from './kernel.js';
 
 /**
@@ -22,13 +22,35 @@ function prettyTransport(): { target: string; options: Record<string, unknown> }
 }
 
 async function main(): Promise<void> {
-  const config = loadHostConfig();
+  // 配置先于日志：logLevel 就住在 data/host.json 里。这条调用还会**初始化空 data 卷**
+  // （建 data/plugins/、写默认 host.json），所以宿主起来不需要任何"先跑个脚本"的前置。
+  const loaded = loadHostConfig();
+  const config = loaded.config;
   const transport = prettyTransport();
 
   const logger = pino({
     level: config.logLevel,
     ...(transport !== undefined ? { transport } : {}),
   });
+
+  if (loaded.dataDirCreated) {
+    logger.info({ dataDir: config.dataDir }, '数据目录不存在，已创建（插件空间 data/plugins/）');
+  }
+  if (loaded.settingsCreated) {
+    logger.info({ settingsFile: config.settingsFile }, '配置文件不存在，已写入默认值');
+  } else if (loaded.settingsProblem !== undefined) {
+    // 读不出来就用默认值跑，但**不动原文件** —— 用户手写的错误不该被静默重置
+    logger.warn(
+      { settingsFile: config.settingsFile, problem: loaded.settingsProblem },
+      '配置文件读不出来，本次用内置默认值（原文件未改动）',
+    );
+  }
+  if (loaded.migratedLegacyPrefs !== undefined) {
+    logger.info(
+      { from: loaded.migratedLegacyPrefs, to: config.settingsFile },
+      '已把旧的 ui-prefs.json 搬进 host.json（旧文件保留，确认无误后自己删）',
+    );
+  }
 
   // 传 pino 实例会让 FastifyInstance 带上具体 logger 泛型，与句柄里用的默认
   // FastifyInstance 不兼容；宿主的日志实例与框架类型解耦，这里统一收敛到默认类型。
@@ -37,32 +59,8 @@ async function main(): Promise<void> {
     bodyLimit: 4 * 1024 * 1024,
   }) as unknown as FastifyInstance;
 
-  const dir = profileDir(config);
-  const manifest = profileManifest(config);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.mkdirSync(config.dataDir, { recursive: true });
-
-  // 清单是**本机部署状态**（不入库），入库的是剥掉部署值的模板。清单缺失就从模板复制一份：
-  // Include 拿到不存在的文件会抛 ConfigFileError 直接让宿主起不来，所以这一步必须在这里兜住
-  // （新克隆、新 profile、或换了台机器只搬了仓库文件时都会走到）。
-  const template = profileManifestTemplate(config);
-  if (!fs.existsSync(manifest)) {
-    if (fs.existsSync(template)) {
-      fs.copyFileSync(template, manifest);
-      logger.info({ manifest, template }, '清单不存在，已从模板复制（本机部署状态，不入库）');
-    } else {
-      logger.error(
-        { manifest, template },
-        '既没有清单也没有模板：插件树挂载会失败。跑 `pnpm plugin add <包>` 或 `pnpm plugin snapshot` 生成一个',
-      );
-    }
-  }
-
   const host = await bootHost({
     app,
-    profile: config.profile,
-    profileDir: dir,
-    manifestFile: manifest,
     dataDir: config.dataDir,
     tabsDir: config.tabsDir,
     logger,

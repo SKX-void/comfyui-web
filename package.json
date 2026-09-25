@@ -8,13 +8,15 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel --filter \"./apps/*\" dev",
+    "dev": "pnpm run build:plugins && pnpm -r --parallel --filter \"./apps/*\" dev",
+    "dev:plugins": "pnpm -r --parallel --filter \"./plugins/*\" dev",
     "dev:web": "pnpm --filter @comfyui-web/web dev",
     "dev:host": "pnpm --filter @comfyui-web/server dev",
-    "build": "pnpm run build:plugins && pnpm run build:host",
+    "build": "pnpm run build:plugins && pnpm run build:host && pnpm run pack:dist",
     "build:host": "pnpm --filter @comfyui-web/web build && pnpm --filter @comfyui-web/server build",
     "build:plugins": "pnpm -r --filter \"./plugins/*\" build",
     "build:web": "pnpm --filter @comfyui-web/web build",
+    "pack:dist": "node scripts/build-dist.mjs",
     "bundle:host": "pnpm --filter @comfyui-web/server bundle",
     "plugin": "node apps/server/scripts/plugin.mjs",
     "typecheck": "pnpm -r typecheck",

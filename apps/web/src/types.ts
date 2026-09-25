@@ -48,6 +48,11 @@ export interface PluginInfo {
   config: Record<string, unknown> | null;
   /** 声明了 fallback 的字段：值从哪来 */
   sources?: Record<string, SettingSource>;
+  /**
+   * 配置归谁：`host` = 宿主写清单（这一页可编辑）；`plugin` = 目录型 tab，
+   * 配置在插件自己的空间里（这一页只读，去插件页面改）。
+   */
+  configOwner: 'host' | 'plugin';
   error?: string;
 }
 
@@ -59,7 +64,7 @@ export interface HostInfo {
 }
 
 /**
- * 外壳偏好（后端 `/api/ui` ↔ `<dataDir>/ui-prefs.json`）。
+ * 外壳偏好（后端 `/api/ui` ↔ `<dataDir>/host.json` 的偏好段）。
  *
  * 只是一份"意愿"：里面可能存着已经卸载的插件 id，也可能指向一个当前跑不起来的插件。
  * 前端负责过滤与回退，所以这里不需要任何"保证有效"的约束。

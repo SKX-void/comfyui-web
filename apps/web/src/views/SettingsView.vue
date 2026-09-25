@@ -205,10 +205,11 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
       ，并让宿主**就地重载**该插件（不必重启）。
       因此<strong>不要在 plugins.yml 里写注释</strong>：重写会丢掉注释。
       增删插件要走命令行 + 重启宿主。
+      目录型 tab 不适用：它的配置由插件自己持有（<code>data/plugins/…</code>），宿主既不读也不写。
     </p>
 
     <!--
-      标签栏顺序 + 默认首页。偏好存在后端的 <dataDir>/ui-prefs.json；
+      标签栏顺序 + 默认首页。偏好存在后端的 <dataDir>/host.json（与部署段同处一个文件）；
       这里列的是**清单**（含没跑起来的），顺序按偏好重排。
       任何一处不可用都不会让界面出错：顺序是"过滤+补齐"，首页有回退链。
     -->
@@ -314,23 +315,35 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
             :disabled="busy[plugin.id] !== undefined || plugin.phase === 'rejected'"
             @change="setEnabled(plugin, ($event.target as HTMLInputElement).checked)"
           />
-          启用（进程内；重启后以 plugins.yml 为准）
+          {{
+            plugin.configOwner === 'plugin'
+              ? '启用（仅本次运行期；目录型 tab 的启停不落盘）'
+              : '启用（进程内；重启后以 plugins.yml 为准）'
+          }}
         </label>
 
-        <p v-if="fallbackHint(plugin)" class="hint">{{ fallbackHint(plugin) }}</p>
+        <p v-if="plugin.configOwner === 'plugin'" class="hint">
+          目录型 tab：配置由插件自己持有（存在它自己的
+          <code>data/plugins/&lt;包名&gt;/</code> 里），宿主不写清单，这一页对它只读。
+          要改就到这个插件自己的页面里改 —— 存完由它请求宿主就地重挂，不必重启。
+        </p>
 
-        <SchemaForm
-          :fields="plugin.settings"
-          :model-value="draftOf(plugin)"
-          @update:model-value="drafts[plugin.id] = $event"
-        />
+        <template v-else>
+          <p v-if="fallbackHint(plugin)" class="hint">{{ fallbackHint(plugin) }}</p>
 
-        <div class="actions">
-          <button :disabled="busy[plugin.id] !== undefined" @click="save(plugin)">
-            {{ busy[plugin.id] ?? '保存' }}
-          </button>
-          <span v-if="notice[plugin.id]" class="notice">{{ notice[plugin.id] }}</span>
-        </div>
+          <SchemaForm
+            :fields="plugin.settings"
+            :model-value="draftOf(plugin)"
+            @update:model-value="drafts[plugin.id] = $event"
+          />
+
+          <div class="actions">
+            <button :disabled="busy[plugin.id] !== undefined" @click="save(plugin)">
+              {{ busy[plugin.id] ?? '保存' }}
+            </button>
+            <span v-if="notice[plugin.id]" class="notice">{{ notice[plugin.id] }}</span>
+          </div>
+        </template>
       </div>
     </section>
 

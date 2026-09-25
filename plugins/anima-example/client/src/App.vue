@@ -16,10 +16,13 @@ import {
   type PluginOptions,
   type PluginStatus,
 } from './api';
+import SettingsPanel from './SettingsPanel.vue';
 
 const options = ref<PluginOptions | null>(null);
 const status = ref<PluginStatus | null>(null);
 const loadError = ref('');
+/** 设置面板：本插件的设置由自己持有（见 SettingsPanel.vue），宿主设置页对它只读 */
+const settingsOpen = ref(false);
 
 /**
  * 护栏上下限的兜底值：`/options` 还没回来时就用它渲染输入框的 min/max。
@@ -290,7 +293,19 @@ onUnmounted(() => {
       <header class="panel-head">
         <h2>默认Anima</h2>
         <span v-if="options" class="badge">工作流 {{ options.workflow.nodes }} 节点 · {{ options.workflow.file }}</span>
+        <!-- 设置：本插件自己持有配置（存进自己的 ctx.space，宿主不代管） -->
+        <button
+          class="mini"
+          type="button"
+          style="margin-left: auto"
+          title="插件设置（保存在插件自己的空间里）"
+          @click="settingsOpen = true"
+        >
+          设置
+        </button>
       </header>
+
+      <SettingsPanel v-if="settingsOpen" @close="settingsOpen = false" />
 
       <label class="field">
         <span>描述提示词</span>

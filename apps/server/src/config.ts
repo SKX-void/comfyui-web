@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { loadHostSettings, writeHostSettings, type HostSettings } from './host-settings.js';
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** 是否运行在打包产物里（esbuild 注入，见 src/globals.d.ts） */
@@ -10,109 +12,130 @@ const BUNDLED = typeof __BUNDLED__ !== 'undefined' && __BUNDLED__;
 const ROOT_MARKER = 'pnpm-workspace.yaml';
 
 /**
- * 仓库根目录：源码态从 `apps/server/src` 往上找
- * `pnpm-workspace.yaml`，打包态则把产物所在目录当根（`dist/host/` 被整包搬走也成立）。
+ * 仓库根目录：源码态从 apps/server/src 往上找 pnpm-workspace.yaml；打包态**不往上看** ——
+ * 产物是 dist/app/server.mjs，它的上级就是 dist/，而 dist/ 自成一体（app/ + tabs/ + data/）。
+ * 否则在仓库里 `node dist/app/server.mjs` 会命中仓库根，和"整包搬走"跑出两套语义。
  */
 export const repoRoot = (() => {
   const explicit = process.env.REPO_ROOT;
   if (explicit) return path.resolve(explicit);
+  // 产物态：dist/ 就是根（REPO_ROOT 可显式覆盖，测试用）
+  if (BUNDLED) return path.resolve(here, '..');
 
   for (let dir = here; ; dir = path.dirname(dir)) {
     if (fs.existsSync(path.join(dir, ROOT_MARKER))) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
   }
-  return BUNDLED ? here : path.resolve(here, '..', '..', '..');
+  return path.resolve(here, '..', '..', '..');
 })();
+
+/**
+ * 数据目录：**唯一一个不能写在 data/host.json 里的值**（它管着那个文件在哪儿）。
+ * 内置默认 <repoRoot>/data，COMFYUI_WEB_DATA_DIR 可临时覆盖（换卷跑第二份实例）。
+ *
+ * 这也是"挂一个空 data 卷就能起来"的起点：目录不存在就建，配置文件不存在就写默认
+ * （见 host-settings.ts 的 loadHostSettings）。
+ */
+export function resolveDataDir(): string {
+  const env = process.env.COMFYUI_WEB_DATA_DIR;
+  if (env !== undefined && env.trim() !== '') {
+    return path.isAbsolute(env) ? env : path.join(repoRoot, env);
+  }
+  return path.join(repoRoot, 'data');
+}
 
 export interface HostConfig {
   /** 监听地址与端口（宿主唯一的端口，默认 8087） */
   host: string;
   port: number;
-  /** 宿主数据目录：插件文件空间（data/plugins/<包名>/）与其它运行期数据 */
+  logLevel: string;
+  /** 数据目录（绝对）：宿主配置、插件文件空间，都在这个卷里 */
   dataDir: string;
-  /** profile 根目录（每个 profile 一个目录，内含 plugins.yml 与 node_modules） */
-  profilesDir: string;
-  /** 默认启用的 profile 名 */
-  profile: string;
+  /** 宿主配置文件：<dataDir>/host.json（不存在时由宿主写出默认值） */
+  settingsFile: string;
+  /** 插件空间根：<dataDir>/plugins/<包名>/ */
+  pluginsDir: string;
   /**
-   * tab 插件目录：每个子目录 = 一个**自包含**的工作流插件（目录名即 id，见 src/tabs.ts）。
-   * 它和 profile 是两种来源，但走**同一套** manifest 契约与 Loader 生命周期。
+   * 插件目录：每个子目录 = 一个**编译完的**工作流插件（目录名即 id，见 src/tabs.ts）。
+   * 相对路径按仓库根解析。
    */
   tabsDir: string;
   /** 宿主前端产物目录（仅打包/生产态用于静态托管） */
   webDir: string;
-  logLevel: string;
 }
 
-const DEFAULTS = {
-  host: '0.0.0.0',
-  port: 8087,
-  dataDir: 'data',
-  profilesDir: 'profiles',
-  profile: 'default',
-  tabsDir: 'tabs',
-  logLevel: 'info',
-} as const;
-
-/** `host.config.json` 是可选的：不存在时全部走内置默认值 */
-function readOptionalConfigFile(): Partial<HostConfig> {
-  const candidates = BUNDLED
-    ? [path.join(repoRoot, 'host.config.json')]
-    : [path.join(repoRoot, 'host.config.json')];
-
-  for (const file of candidates) {
-    if (!fs.existsSync(file)) continue;
-    // 支持 // 与 /* */ 注释（配置是给人改的，允许写注释）
-    const raw = fs.readFileSync(file, 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/(^|[^:])\/\/.*$/gm, '$1');
-    return JSON.parse(raw) as Partial<HostConfig>;
-  }
-  return {};
-}
-
-export function loadHostConfig(): HostConfig {
-  const raw = readOptionalConfigFile();
-  const abs = (p: string): string => (path.isAbsolute(p) ? p : path.join(repoRoot, p));
-
-  // 环境变量只作**临时覆盖**（换端口起临时实例、跑测试），不是第二份配置来源：
-  // 真源永远是 host.config.json。
-  const envPort = process.env.COMFYUI_WEB_PORT !== undefined ? Number(process.env.COMFYUI_WEB_PORT) : undefined;
-  const dataDir = abs(raw.dataDir ?? DEFAULTS.dataDir);
-  const distHost = BUNDLED ? here : path.join(repoRoot, 'dist', 'host');
-  const profile = process.env.COMFYUI_WEB_PROFILE ?? raw.profile ?? DEFAULTS.profile;
-
-  return {
-    host: raw.host ?? DEFAULTS.host,
-    port: envPort !== undefined && Number.isFinite(envPort) ? envPort : (raw.port ?? DEFAULTS.port),
-    dataDir,
-    profilesDir: abs(raw.profilesDir ?? DEFAULTS.profilesDir),
-    profile,
-    tabsDir: abs(raw.tabsDir ?? DEFAULTS.tabsDir),
-    logLevel: process.env.COMFYUI_WEB_LOG_LEVEL ?? raw.logLevel ?? DEFAULTS.logLevel,
-    // 前端位置固定：产物态是 `<host.mjs 所在目录>/web`，源码态是仓库根的 dist/host/web
-    webDir: raw.webDir ? abs(raw.webDir) : path.join(distHost, 'web'),
-  };
-}
-
-/** profile 目录：`<profilesDir>/<name>` */
-export function profileDir(config: HostConfig): string {
-  return path.join(config.profilesDir, config.profile);
-}
-
-/** profile 的清单文件（Include 托管，读写回文件） */
-export function profileManifest(config: HostConfig): string {
-  return path.join(profileDir(config), 'plugins.yml');
+export interface LoadedHostConfig {
+  config: HostConfig;
+  /** data 目录这次是新建的（首次启动 / 换了空卷） */
+  dataDirCreated: boolean;
+  /** data/host.json 这次是新建的（写进去的是默认值） */
+  settingsCreated: boolean;
+  /** 配置文件在、但读不出来；这次用默认值跑，**原文件没动** */
+  settingsProblem?: string;
+  /** 这次把老的 <dataDir>/ui-prefs.json 搬进了 host.json（旧文件保留在原地） */
+  migratedLegacyPrefs?: string;
 }
 
 /**
- * profile 的清单**模板**（入库的基线）。
- *
- * 清单本身不入库：它是"这批部署的事实"——设置页会把本机 ComfyUI 地址之类写进去，
- * 连"留空 = 跟随统一设置"的项也存解析后的地址（§5.7）。所以入库的是这个剥掉
- * `config`/`disabled` 的模板，宿主启动时清单缺失就从它复制一份。
+ * 读宿主配置。顺序上只有一个硬约束：**先定 dataDir，再读它里面的 host.json**
+ * —— 所以 dataDir 走环境变量/内置默认，其余全在文件里（见 docs/config.md 第 1 节）。
  */
-export function profileManifestTemplate(config: HostConfig): string {
-  return path.join(profileDir(config), 'plugins.example.yml');
+export function loadHostConfig(): LoadedHostConfig {
+  const dataDir = resolveDataDir();
+  const dataDirCreated = !fs.existsSync(dataDir);
+  // 插件空间的家先备好：宿主不替插件写内容，但"这一格存在"是它的责任
+  fs.mkdirSync(path.join(dataDir, 'plugins'), { recursive: true });
+
+  const settingsFile = path.join(dataDir, 'host.json');
+  const loaded = loadHostSettings(settingsFile);
+  let settings: HostSettings = loaded.settings;
+
+  // 一次性搬迁：老版本的 <dataDir>/ui-prefs.json（标签栏顺序 / 默认首页 / 统一地址）。
+  // 只在**新建** host.json 时做；搬完不动旧文件（留给用户自己删，宿主不清理别人的文件）。
+  const legacyPrefs = path.join(dataDir, 'ui-prefs.json');
+  let migratedLegacy: string | undefined;
+  if (loaded.created && fs.existsSync(legacyPrefs)) {
+    try {
+      settings = writeHostSettings(settingsFile, {
+        ...settings,
+        ...(JSON.parse(fs.readFileSync(legacyPrefs, 'utf8')) as object),
+      });
+      migratedLegacy = legacyPrefs;
+    } catch {
+      // 旧文件坏了就当没搬过：host.json 保持刚写进去的默认值
+      settings = loaded.settings;
+    }
+  }
+
+  const abs = (p: string): string => (path.isAbsolute(p) ? p : path.join(repoRoot, p));
+  const distApp = BUNDLED ? here : path.join(repoRoot, 'dist', 'app');
+
+  // 环境变量只作**临时覆盖**（换端口起临时实例、跑测试），不是第二份配置来源：
+  // 真源永远是 data/host.json；覆盖值也不写回文件。
+  const envPortRaw = process.env.COMFYUI_WEB_PORT;
+  const envPort =
+    envPortRaw !== undefined && envPortRaw.trim() !== '' ? Number(envPortRaw) : undefined;
+  const port =
+    envPort !== undefined && Number.isInteger(envPort) && envPort > 0 && envPort <= 65535
+      ? envPort
+      : settings.port;
+
+  return {
+    config: {
+      host: settings.host,
+      port,
+      logLevel: process.env.COMFYUI_WEB_LOG_LEVEL ?? settings.logLevel,
+      dataDir,
+      settingsFile,
+      pluginsDir: path.join(dataDir, 'plugins'),
+      tabsDir: abs(settings.tabsDir),
+      // 前端位置固定：产物态是 server.mjs 同级的 web/，源码态是 <仓库根>/dist/app/web
+      webDir: path.join(distApp, 'web'),
+    },
+    dataDirCreated,
+    settingsCreated: loaded.created,
+    ...(loaded.problem !== undefined ? { settingsProblem: loaded.problem } : {}),
+    ...(migratedLegacy !== undefined ? { migratedLegacyPrefs: migratedLegacy } : {}),
+  };
 }

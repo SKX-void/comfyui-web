@@ -5,10 +5,10 @@
 | 归属层 | 意思 | 谁改 | 在哪 |
 |---|---|---|---|
 | **随包发布** | 插件自带的事实：默认值、合法范围、表单字段 | 插件作者，跟版本走 | `plugins/*/package.json` 的 `plugin.settings[]`、`plugins/*/server/config.ts` |
-| **随部署变化** | 这台装置怎么跑：端口、路径、默认 profile | 部署的人，部署时定 | `host.config.json`、`docker-compose.yml`、`nginx.conf` |
+| **随部署变化** | 这台装置怎么跑：端口、路径、默认 profile | 部署的人；宿主首次启动也会写默认值 | `data/host.json`（部署段，不存在时自动生成）、`docker-compose.yml`、`nginx.conf` |
 | **随机器变化** | 这批部署装了哪些插件、各配了什么（本机状态） | 设置页 / `pnpm plugin` | `profiles/<n>/plugins.yml`（不入库）、`plugins.example.yml`、`package.json` |
-| **随用户变化** | 运行期偏好：tab 顺序、默认首页、统一地址 | 设置页，随时改 | `data/ui-prefs.json`、`data/plugins/<包名>/` |
-| **随目录** | 目录型工作流插件：整个目录就是一个插件（自包含、无 `node_modules`） | 你，往 `tabs/` 丢目录 | `tabs/<id>/`（入库）、状态自持在 `data/plugins/<包名>/` |
+| **随用户变化** | 运行期偏好：tab 顺序、默认首页、统一地址 | 设置页，随时改 | `data/host.json`（偏好段）、`data/plugins/<包名>/` |
+| **随目录** | 目录型工作流插件：整个目录就是一个插件（自包含、无 `node_modules`） | 你，往 `tabs/` 丢目录 | `tabs/<id>/`（**不入库**：编译产物，见 §6）、配置与状态自持在 `data/plugins/<包名>/` |
 
 层与层的边界是锁过的：D6（§4.2 / §6）、D13（§6.1）、§5.5 / §5.7。**不要跨层放值** ——
 比如"某台机器的 ComfyUI 地址"属于随机器/随用户，放不进随包发布的 `package.json`。
@@ -17,7 +17,7 @@
 
 | 文件 | 谁读（代码） | 层 | 能直接手改吗 | 入库 |
 |---|---|---|---|---|
-| `host.config.json` | 宿主启动：`apps/server/src/config.ts` → `loadHostConfig()` | 部署 | ✅ 改完要重启 | ✅ |
+| `data/host.json`（部署段） | 宿主启动：`apps/server/src/config.ts` → `loadHostConfig()` | 部署 | ✅ 改完要重启 | ❌（本机状态；不存在时宿主写默认值） |
 | `docker-compose.yml` | `docker compose` | 部署 | ✅ | ✅ |
 | `nginx.conf` | 外部/容器 nginx（**conf.d 片段**） | 部署 | ✅ | ✅ |
 | `profiles/<n>/package.json` | pnpm + `apps/server/scripts/plugin.mjs` | 机器（插件集基线） | ⚠️ 走 `pnpm plugin add/remove` | ✅ |
@@ -25,36 +25,48 @@
 | `profiles/<n>/plugins.yml` | Include（**唯一真源**）+ 设置页写 | 机器 | ✅ 但**别写注释** | ❌（D13） |
 | `profiles/<n>/pnpm-workspace.yaml` | pnpm | 环境 | ✅ | ✅ |
 | `pnpm-workspace.yaml`（根） | pnpm（workspace + `storeDir`） | 环境 | ✅ | ✅ |
-| `data/ui-prefs.json` | 宿主 core 插件（`apps/server/src/ui-prefs.ts`） | 用户 | ❌ 走设置页 | ❌ |
-| `data/plugins/<包名>/…` | 各插件自己 | 用户 / 运行期 | ❌ | ❌ |
+| `data/host.json`（偏好段：`tabOrder` / `home` / `globals`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui` | 用户 | ❌ 走设置页 | ❌ |
+| `data/plugins/<包名>/…` | 各插件自己（如目录型 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
 | `plugins/<pkg>/package.json` 的 `plugin.settings[]` | 宿主 → `GET /api/plugins` → 设置页表单 | 包 | ✅（改包） | ✅ |
 | `plugins/<pkg>/server/config.ts` | 插件自己（运行期默认值 / 范围） | 包 | ✅（改包） | ✅ |
-| `tabs/<id>/package.json` | 宿主扫描（`apps/server/src/tabs.ts` → `scanTabs()`） | 目录 | ✅ 改完等热重扫（或 `POST /api/tabs/rescan`） | ✅ |
-| `tabs/<id>/server.js`、`client.js` | Loader 直接 `import()` 绝对路径 → 宿主 / 浏览器 | 目录 | ✅ 存盘即**热重挂**（约 0.3~2s，前端刷新浏览器） | ✅ |
+| `tabs/<id>/package.json` | 宿主扫描（`apps/server/src/tabs.ts` → `scanTabs()`） | 目录 | ✅ 改完等热重扫（或 `POST /api/tabs/rescan`） | ❌（产物） |
+| `tabs/<id>/server.js`、`client.js` | Loader 直接 `import()` 绝对路径 → 宿主 / 浏览器 | 目录 | ✅ 存盘即**热重挂**（约 0.3~2s，前端刷新浏览器） | ❌（产物） |
 
 ---
 
-## 1. 宿主进程：`host.config.json`（根目录）
+## 1. 宿主进程：`data/host.json`（唯一配置文件）
 
-宿主启动读一次，之后不再看文件；**文件可以不存在**，全走内置默认。
+宿主启动读一次，之后不再看文件。**文件可以不存在 —— 宿主会写一份默认的出来**，
+所以挂一个空的 `data/` 卷就能起来（首次启动会建 `data/plugins/` 并生成 `host.json`）。
+文件**在、但读不出来**时用内置默认值跑，并且**不覆盖它**（用户手写的错误不该被静默重置）。
+
+唯一的例外是 `dataDir` 自己的位置：它由内置默认 `<仓库根>/data` 与
+`COMFYUI_WEB_DATA_DIR` 决定（鸡生蛋 —— 它管着这个文件在哪儿），不写进文件。
+
+**部署段与偏好段同处一个文件**（D16）：两者都必须能在运行期改，分家只会多出"这个值写哪儿"的
+判断成本，还多一份能写坏的状态。会被程序重写的文件**不写注释**（`plugins.yml` 的教训，§6.1），
+所以这里用纯 JSON，解释写在本文档。
 
 | 字段 | 默认 | 作用 | 环境变量覆盖 |
 |---|---|---|---|
 | `host` | `0.0.0.0` | 监听地址 | — |
 | `port` | `8087` | 监听端口（宿主是唯一后端） | `COMFYUI_WEB_PORT` |
-| `dataDir` | `data` | 运行期状态根：`ui-prefs.json`、`plugins/<包名>/` | — |
+| `dataDir` | `data` | 唯一可写卷：宿主配置 `host.json` + `plugins/<包名>/`（也在文件外 —— 它管着这个文件在哪儿） | `COMFYUI_WEB_DATA_DIR` |
 | `profilesDir` | `profiles` | profile 根（相对路径按仓库根解析） | — |
 | `profile` | `default` | 用哪个 profile → `profiles/<name>/plugins.yml` | `COMFYUI_WEB_PROFILE` |
 | `tabsDir` | `tabs` | 目录型 tab 的根：每个子目录一个插件，**目录名即 id**（见 §6） | — |
 | `logLevel` | `info` | pino 级别 | `COMFYUI_WEB_LOG_LEVEL` |
-| `webDir` | 源码态 `<仓库根>/dist/host/web`；打包态 `<host.mjs 所在目录>/web` | 宿主前端产物目录（存在才托管） | — |
+| `webDir` | 源码态 `<仓库根>/dist/app/web`；打包态 `<server.mjs 所在目录>/web` | 宿主前端产物目录（存在才托管） | — |
 
 另有 `REPO_ROOT`（显式指定仓库根，测试用）与 `NODE_ENV=production`（关掉 `pino-pretty`，退回 JSON 日志）。
 
+**产物态（D18）**：`dist/` 自成一体 —— `repoRoot` = `dist/`，于是 `tabsDir = dist/tabs`、`dataDir = dist/data`、
+`webDir = dist/app/web`。整包搬走后无需任何配置；要外挂卷/端口再给 `REPO_ROOT`、`COMFYUI_WEB_DATA_DIR`。
+
 - **优先级：环境变量 > 文件 > 内置默认**。环境变量只作**临时覆盖**（换个端口起第二个实例），不是第二份配置来源。
-- 支持 `//` 与 `/* */` 注释：`config.ts` 里手写剥离，**不是**标准 JSONC。
-- **它不含任何业务配置**：没有 ComfyUI 地址、没有插件开关。插件地址在 `plugins.yml`（或跟随 `data/ui-prefs.json` 的统一地址）。
-- docker 里它是 `:ro` 只读挂载（见 `docker-compose.yml`）→ 容器内改不了它；运行期能改的值一律走设置页（落 `data/`），这正是 §5.5 把 `ui-prefs.json` 放 `data/` 的理由。
+- **纯 JSON、不带注释**：这个文件会被程序重写（设置页保存），注释必然丢 —— `plugins.yml` 就是这么丢掉注释的（§6.1）。解释写在这里。
+- **它不含任何业务配置**：没有 ComfyUI 地址、没有插件开关。插件地址在 `plugins.yml`（或跟随 `data/host.json` 的统一地址）。
+- 它就在 `data/`（docker 里那唯一可写的卷）里，容器内可改；空卷首次启动时宿主会把它生成出来（D16）。
 
 ## 2. 插件集与清单：`profiles/<name>/`
 
@@ -66,7 +78,7 @@
 
 ## 3. 运行期状态：`data/`
 
-**`data/ui-prefs.json`**（`apps/server/src/ui-prefs.ts`，端点 `GET/PUT /api/ui`）：
+**`data/host.json` 的偏好段**（`apps/server/src/host-settings.ts`，端点 `GET/PUT /api/ui`）：
 
 ```jsonc
 {
@@ -101,8 +113,9 @@
 
 ## 5. 部署
 
-- **`docker-compose.yml`**（单服务）：挂 `dist:ro`、`host.config.json:ro`、`profiles`（**必须可写**：宿主会重写 `profiles/<n>/.cordis/resolve.mjs`）、`plugins:ro`、`data`；`UID`/`GID`/`TZ` 走 env。`profiles` 与 `plugins` 必须保持仓库里那层**相对深度**（`link:` 指向 `../../plugins/x`）。
-- **端口在三处保持一致**：`host.config.json` 的 `port`（容器内）= `docker-compose.yml` healthcheck 里的 URL = `nginx.conf` 的 `set $backend_url http://comfyui-web:8087`。
+- **`docker-compose.yml`**（单服务）：挂 `dist:ro`、`profiles`（**必须可写**：宿主会重写 `profiles/<n>/.cordis/resolve.mjs`）、`plugins:ro`、`data`；`UID`/`GID`/`TZ` 走 env。`profiles` 与 `plugins` 必须保持仓库里那层**相对深度**（`link:` 指向 `../../plugins/x`）。
+  **`data` 是唯一需要可写的卷**（宿主配置就住在它里面）；空卷也能起，宿主自己初始化。
+- **端口在三处保持一致**：`data/host.json` 的 `port`（容器内）= `docker-compose.yml` healthcheck 里的 URL = `nginx.conf` 的 `set $backend_url http://comfyui-web:8087`。
 - **`nginx.conf`**（根目录）：**conf.d 片段**，只有 `server` 块，没有 `events` / `http` 外壳 —— 不能直接 `nginx -c nginx.conf`。
   `cp nginx.conf /etc/nginx/conf.d/comfyui-web.conf && nginx -t && nginx -s reload`。
   SSE 不缓冲 / 插件产物不缓存 / `/assets/` 长缓存这三件事都注释在文件里。
@@ -111,6 +124,11 @@
 
 `tabs/` 是一类**特殊的工作流插件**：一个目录就是一个插件，**目录名即 id**，没有安装步骤，
 也不需要 `profiles/`（那条链路可以整个不用）。
+
+产物形态（D16）：`tabs/` 是**交付物**，不是源码工程 —— 有工具链的插件源码在 `plugins/<id>/`，
+`pnpm build:plugins` 把它编译进 `tabs/<id>/`（入口固定 `server.js` / `client.js`）。`tabs/` **不入库**
+（重建字节稳定，`verify` 的 `tabs-sync` 步只查「每个源码工程都有可装载的产物」，不比对 git）；
+库里只有手写示例 `tabs/hello/`（`.gitignore`：`/tabs/*/` + `!/tabs/hello/`）。
 
 ```
 tabs/hello/package.json   manifest（plugin.contract/title/order/client）+ 服务端入口 main
@@ -125,10 +143,16 @@ tabs/hello/client.js      ESM 前端入口：export default { tabs, routes }（v
 - **必须自包含**：tabs 目录下**没有** `node_modules` —— 插件只 import node 内置模块和宿主句柄
   （`ctx.routes` / `ctx.space`）。要用第三方库就先 bundle 进产物。这是"丢目录就能用"的前提，
   也顺手免掉 N 份不可复现的依赖树。
-- **状态归插件自己**：`/tabs` 只回答"有哪几个 tab"，不持有它们的配置。插件用 `ctx.space`
-  在自己的 `data/plugins/<包名>/` 里写数据库 / JSON。所以宿主对目录型插件的
-  `PUT /api/plugins/:id/config` 是**拒绝**的（避免"改完没落盘、重启就丢"的假象），
-  `PUT .../enabled` 也只在本次运行期生效。
+- **配置归插件自己**（D15）：`/tabs` 只回答"有哪几个 tab"，既不持有它们的配置、也不代写清单。
+  值住在 `<dataDir>/plugins/<包名>/`（格式自定，如 `settings.json`），读写走插件自己的端点，
+  **界面也由插件自己出**（它自己有页面）—— 宿主设置页对这类行只读（清单行上是 `configOwner: 'plugin'`），
+  `PUT /api/plugins/:id/config` 对它**直接拒绝**（免得"改完没落盘、重启就丢"的假象）。
+  字段的**形状**（label / 范围 / 默认值）仍在 `package.json` 的 `plugin.settings[]` 里，由宿主清单端点下发。
+- **配置怎么生效**：宿主不碰它的配置，只提供 `POST /api/tabs/:id/reload`（强制重挂，指纹没变也重挂）。
+  插件存完配置由自己的前端调一次它，装载时读到的新值立刻生效 —— 这比"宿主替它热改字段"可靠：
+  需要重建的东西（客户端、队列上限）本来就只能在 `apply()` 里装。
+  所以 **manifest 里不要给目录型 tab 写 `fallback`**：那是"宿主持有行配置并跟随统一设置"那套，
+  对自持配置的 tab 没有意义（内核也不会去写它的行配置）。
 - **热到什么程度**：
   - 增 / 删 / 改名**目录** → 热（`GET /api/plugins` 立刻反映，浏览器刷新即见）；
   - **改代码** → 也热：宿主发现目录指纹变了就**卸载重挂**，说明符带 `?v=<token>` 绕开 Node 的
@@ -140,20 +164,22 @@ tabs/hello/client.js      ESM 前端入口：export default { tabs, routes }（v
     示例见 `tabs/hello/server.js`（`lifecycle.log` 会留下 load/unload 成对痕迹）。
 - **边界**：谁能写 `tabs/`，谁就能让宿主进程执行代码（同进程、同权限、无沙箱）。这是它
   "丢进去就能用"的代价，容器 / 文件权限是唯一边界。
-- 示例：`tabs/hello/`（3 个文件、零依赖）。根目录用 `host.config.json` 的 `tabsDir` 换。
+- 示例：`tabs/hello/`（3 个文件、零依赖）。`tabsDir` 在 `data/host.json` 里换（默认 `tabs`，相对路径按仓库根解析）。
 
 ## 7. 常见诉求 → 改哪儿
 
 | 想干的事 | 改哪里 |
 |---|---|
-| 换宿主端口 | `host.config.json` 的 `port` + `docker-compose.yml` healthcheck 的 URL + `nginx.conf` 的 upstream，然后重启 |
-| 所有插件共用一个 ComfyUI 地址 | 设置页的"统一 ComfyUI 地址"（写 `data/ui-prefs.json`，并把值灌进跟随者的行） |
+| 换宿主端口 | `data/host.json` 的 `port` + `docker-compose.yml` healthcheck 的 URL + `nginx.conf` 的 upstream，然后重启 |
+| 所有插件共用一个 ComfyUI 地址 | 设置页的"统一 ComfyUI 地址"（写 `data/host.json` 的偏好段，并把值灌进跟随者的行） |
 | 只给某个插件单独地址 | 该插件的地址项填上 = 自定（写 `plugins.yml` 该行）；清空 = 回到跟随 |
 | 加 / 删插件 | `pnpm plugin add <包>` / `pnpm plugin remove <id>` → 重启宿主；想让基线跟上再 `pnpm plugin snapshot` |
 | 加一个自己的 tab | 在 `tabs/` 下建目录（照 `tabs/hello/` 抄）—— **不用装、不用改清单**；增删目录与改代码都热（见 `tabs/README.md`） |
 | tab 的配置 / 数据存哪儿 | tab 插件自己写 `ctx.space`（→ `data/plugins/<包名>/`）：宿主不代管、不迁移、不清理 |
+| 改目录型 tab 的设置项 | 在该插件自己的页面里改（如「设置」面板）—— 它写进自己的空间并请求宿主 `POST /api/tabs/:id/reload`；宿主设置页对这类行只读 |
+| 给目录型 tab 换配置界面 | 改 `package.json` 的 `plugin.settings[]`（形状，宿主清单端点下发）+ 插件自己的表单；运行期默认与范围仍在插件自己的 `config.ts` |
 | 临时换端口起第二个实例 | `COMFYUI_WEB_PORT=18087 pnpm start`（env，不改文件） |
-| 换一套 profile | `host.config.json` 的 `profile`，或 `COMFYUI_WEB_PROFILE=xxx` |
+| 换一套 profile | `COMFYUI_WEB_PROFILE=xxx`（profile 本身随 D16 退役） |
 | 重置某个插件的运行期数据 | 删 `data/plugins/<包名>/`（等价于 `pnpm plugin remove --drop-data`） |
 | 改插件的可配项 / 默认值 | 设置项清单与表单默认在 `plugins/<pkg>/package.json`；运行期默认与范围在 `plugins/<pkg>/server/config.ts` |
 
@@ -161,7 +187,7 @@ tabs/hello/client.js      ESM 前端入口：export default { tabs, routes }（v
 
 `config.json`、`config.local.json`、8086 端口、`dist/server.mjs`、`dist/web/`、`VITE_API_TARGET` 都属于
 **已删除的 v1 单体服务**；v1 的操作手册与规划文档都进了 `docs/archive/`（别照着它们配）。
-现行宿主配置只有 `host.config.json` 这一个文件，入口文档是根 `README.md` + `docs/README.md`。
+现行宿主配置只有 `data/host.json` 这一个文件（D16），入口文档是根 `README.md` + `docs/README.md`。
 
 ---
 

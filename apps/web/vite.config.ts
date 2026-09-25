@@ -8,7 +8,8 @@ const appDir = fileURLToPath(new URL('.', import.meta.url));
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 /**
- * 后端端口**只从 host.config.json 读**，保证与后端永远一致（曾经踩过"两处各写一个端口"的坑）。
+ * 后端端口**只从 data/host.json 读**，保证与后端永远一致（曾经踩过"两处各写一个端口"的坑）。
+ * 文件不存在（空 data 卷 / 还没跑过宿主）就用内置默认 8087 —— 与宿主自己的回退一致。
  *
  * 例外：`COMFYUI_WEB_PORT` 可以临时覆盖 —— 排查时经常会出现"配置端口被别的实例占着，
  * 新实例只能起在别的端口"的情况（本仓就踩过），没有这个开关就只能去改配置文件。
@@ -16,12 +17,13 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 function readHostPort(): number {
   const override = Number(process.env.COMFYUI_WEB_PORT);
   if (Number.isInteger(override) && override > 0) return override;
+  const dataDir = process.env.COMFYUI_WEB_DATA_DIR;
+  const dir = dataDir !== undefined && dataDir.trim() !== '' ? dataDir : 'data';
   try {
-    const raw = fs.readFileSync(path.join(repoRoot, 'host.config.json'), 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/(^|[^:])\/\/.*$/gm, '$1');
-    const parsed = JSON.parse(raw) as { port?: number };
-    return parsed.port ?? 8087;
+    const parsed = JSON.parse(
+      fs.readFileSync(path.resolve(repoRoot, dir, 'host.json'), 'utf8'),
+    ) as { port?: number };
+    return Number.isInteger(parsed.port) && (parsed.port as number) > 0 ? (parsed.port as number) : 8087;
   } catch {
     return 8087;
   }
@@ -102,8 +104,8 @@ export default defineConfig(({ mode, command }) => ({
     entries: [],
   },
   build: {
-    // 产物统一在 dist/host/ 下（与其它 dist 子目录互不干扰）
-    outDir: fileURLToPath(new URL('../../dist/host/web', import.meta.url)),
+    // 产物统一在 dist/app/ 下（与 dist/tabs、dist/data 互不干扰）
+    outDir: fileURLToPath(new URL('../../dist/app/web', import.meta.url)),
     emptyOutDir: true,
     rollupOptions: {
       // 构建期也要保持外部化，否则 import map 形同虚设

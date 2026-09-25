@@ -14,18 +14,19 @@ ComfyUI 的**轻前端 + 工作流插件宿主**：用一个网页表单调用 C
 pnpm install
 
 # 开发态
-pnpm dev:host                             # 宿主 :8087（node --watch-path=src，改 src/ 自动重启）
+pnpm dev                                  # 一条命令：先 build:plugins 垫一次产物，再起宿主 + 外壳
+pnpm dev:host                             # 宿主 :8087（tsx watch，改 src/ 自动重启）
 pnpm dev:web                              # 外壳（vite :5173，把 /api 与 /plugins 代理到后端）
-# 或者一条命令起整套：scripts/dev-stack.sh 8087 5173
+pnpm dev:plugins                          # 插件产物 watcher（改 plugins/* 源码边写边出 tabs/）
 
-# 生产态
-pnpm build                                # → dist/host/host.mjs + dist/host/web/
-node dist/host/host.mjs                   # 一个进程同时提供 API 与前端
+# 生产态：构建出完整可搬的 dist/
+pnpm build                                # → dist/app/server.mjs + dist/app/web/ + dist/tabs/ + dist/data/
+node dist/app/server.mjs                  # 一个进程同时提供 API 与前端
 ```
 
 打开 `http://127.0.0.1:8087`。没装插件时只有一个欢迎页和设置页 —— 这是设计如此。
 
-装插件**不需要重新构建宿主**（验收口径：`sha256(dist/host/**)` 前后逐字节一致）：
+装插件**不需要重新构建宿主**（验收口径：`sha256(dist/app/**)` 前后逐字节一致）：
 
 ```bash
 pnpm plugin list

@@ -1,19 +1,25 @@
 # =============================================================================
-#   docker-compose.yml
-#   host.config.json     # 宿主配置（端口/profile/dataDir）
-#   dist/                # pnpm build 的产物：host/host.mjs + host/web/（前端外壳）
-#   profiles/            # 插件清单（plugins.yml）+ 该 profile 的 node_modules（插件就是从这里解析的）
-#   plugins/             # 插件包本体（lib/server.js + lib/client.js + assets/）
-#   data/                # 运行期数据：插件空间 data/plugins/<包名>/
+#   docker-compose.yml —— 部署单元（本文件与 dist/ 的**内容**同层）
+#
+#   部署机上没有仓库源码，只有从 dist/ 拷出来的这三份：
+#
+#     <部署目录>/
+#     ├── docker-compose.yml   ← 本文件
+#     ├── app/                 ← dist/app  （server.mjs + web/，只读挂载）
+#     ├── tabs/                ← dist/tabs （插件交付物，只读挂载）
+#     └── data/                ← dist/data （空目录；唯一可写：host.json + 插件空间）
+#
+#     cp -r dist/app dist/tabs dist/data <部署目录>/   # dist/data 本来就是空的
+#
+#   容器里的布局是**平的**（不套 /app/dist/*）：
+#     ./app → /app（只读）  ./tabs → /tabs（只读）  ./data → /data（可写）
+#   配套 REPO_ROOT=/：宿主按 repoRoot 解析 tabsDir=/tabs、dataDir=/data，
+#   而 webDir 取 server.mjs 的同级目录 = /app/web（见 apps/server/src/config.ts）。
 #
 #   docker compose up -d
 #
-#   ⚠️ profiles/ 必须可写：宿主启动时会重写 profiles/<name>/.cordis/resolve.mjs。
-#   ⚠️ profiles 与 plugins 是**相对软链接**关系（profiles/default/node_modules/@comfyui-web/x
-#      → ../../plugins/x），所以两者必须保持和仓库里一样的相对深度，不能只挂其中一个。
-#
-# 改了代码：pnpm build && docker compose restart comfyui-web
-# 加插件：在宿主机 pnpm plugin add <包>，重启容器（宿主产物与插件无关，不用重新构建 dist）
+# 更新部署：宿主机 pnpm build → 覆盖部署目录的 app/（与 tabs/）→ docker compose restart
+# 加插件：改 plugins/* 源码 → pnpm build → 覆盖 dist/tabs → restart（宿主产物与插件无关）
 # =============================================================================
 name: comfyui-web
 
@@ -32,24 +38,24 @@ services:
 
     environment:
       TZ: Asia/Shanghai # 日志时间用的时区（系统级，不属于应用配置）
+      NODE_ENV: production # 生产日志走 JSON（关掉 pino-pretty 那条可选路径）
+      REPO_ROOT: / # 三个挂载点都在根上：tabsDir=/tabs、dataDir=/data
 
     volumes:
-      - ./dist:/app/dist:ro
-      - ./host.config.json:/app/host.config.json:ro
-      - ./profiles:/app/profiles
-      - ./plugins:/app/plugins:ro
-      - ./data:/app/data
+      - ./app:/app:ro # 宿主产物：server.mjs + web/
+      - ./tabs:/tabs:ro # 插件交付物（宿主只读，从不写）
+      - ./data:/data # 唯一可写卷：host.json + data/plugins/<包名>/
 
     command: >
-      sh -c 'if [ ! -f /app/dist/host/host.mjs ]; then
-        echo "[comfyui-web] 找不到 /app/dist/host/host.mjs —— 请在宿主机先执行 pnpm build（产物在 ./dist）";
+      sh -c 'if [ ! -f /app/server.mjs ]; then
+        echo "[comfyui-web] 找不到 /app/server.mjs —— 这边要的是 dist/ 里的内容（app/ tabs/ data/），先跑 pnpm build 再拷过来";
         exit 1;
       fi;
-      exec node /app/dist/host/host.mjs'
+      exec node /app/server.mjs'
 
     healthcheck:
-      # 8087 是**容器内**端口（= host.config.json 的 port），改端口时三处一起改：
-      # host.config.json / ports / 这里。busybox wget 在 alpine 镜像里自带。
+      # 8087 是**容器内**端口（= ./data/host.json 的 port）。本服务不发布 ports，只在
+      # server-net 上由 nginx 反代；要直连宿主机就加 ports: ["8087:8087"]。
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8087/api/host >/dev/null || exit 1"]
       interval: 30s
       timeout: 10s

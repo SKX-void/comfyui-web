@@ -8,7 +8,7 @@ dist/
 *.tsbuildinfo
 lib/
 
-# （v1 的 config.local.json 规则已删：v2 宿主只读 host.config.json，
+# （v1 的 config.local.json 规则已删：宿主只读 data/host.json，
 #  本机覆盖只剩环境变量这一条路，见 apps/server/src/config.ts）
 
 # 旧的缩略图缓存目录（现在默认放 <dataDir>/cache，这里只是别让历史文件冒出来）
@@ -27,5 +27,11 @@ lib/
 # 入库的是基线模板 plugins.example.yml（`pnpm plugin snapshot` 生成），
 # 宿主启动时清单缺失会从它复制一份（见 apps/server/src/index.ts）。
 /profiles/*/plugins.yml
+
+# tabs/：宿主装载的**构建产物**（plugins/* → tabs/<id>/，D16）。可复现（重建 16/16 字节一致）
+# 且体积大，不入库；仓库只留目录说明与手写示例。见 docs/architecture.md §4.1
+/tabs/*/
+!/tabs/hello/
+
 # 前端 import map 的 vendor 产物（由 scripts/vendor.mjs 从 node_modules 复制）
 /apps/web/public/vendor/
