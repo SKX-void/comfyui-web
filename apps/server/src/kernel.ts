@@ -1,9 +1,11 @@
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Context } from 'cordis';
 import Loader from '@cordisjs/plugin-loader';
 import type { FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
 
+import { readHostSettings } from './host-settings.js';
 import { SpaceService } from './handles/space.js';
 import { RoutesService } from './handles/routes.js';
 import { TabsService } from './tabs.js';
@@ -52,7 +54,10 @@ export async function bootHost(options: BootOptions): Promise<BootedHost> {
   routes.install();
 
   // 2. 目录型 tab 的注册表（`/tabs/<id>/`）——宿主**唯一**的插件来源（D16/D19）
-  const tabs = new TabsService(ctx, tabsDir, logger);
+  // 启停状态住在 data/host.json 的 disabled 列表里（宿主自己的状态，D21）：
+  // core 端点写它，tabs 装载时读它。
+  const settingsFile = path.join(dataDir, 'host.json');
+  const tabs = new TabsService(ctx, tabsDir, logger, (id) => readHostSettings(settingsFile).disabled.includes(id));
 
   // 3. 宿主内置 core 插件（宿主级端点，不占插件前缀）
   const coreConfig: CorePluginConfig = { app, dataDir, tabsDir, tabs };

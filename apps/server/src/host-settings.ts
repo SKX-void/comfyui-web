@@ -36,6 +36,8 @@ export interface HostSettings {
   tabOrder: string[];
   /** 默认首页（插件 id）；null = 第一个可用标签页 */
   home: string | null;
+  /** 被停用的插件 id（**要落盘**：重启后仍然停用；D21） */
+  disabled: string[];
   globals: HostGlobals;
 }
 
@@ -46,6 +48,7 @@ export const DEFAULT_HOST_SETTINGS: HostSettings = {
   tabsDir: 'tabs',
   tabOrder: [],
   home: null,
+  disabled: [],
   globals: { ...EMPTY_HOST_GLOBALS },
 };
 
@@ -114,6 +117,7 @@ export function sanitizeHostSettings(value: unknown): HostSettings {
     tabsDir: sanitizeText(source.tabsDir, DEFAULT_HOST_SETTINGS.tabsDir, MAX_GLOBAL_TEXT),
     tabOrder: sanitizeIdList(source.tabOrder),
     home,
+    disabled: sanitizeIdList(source.disabled),
     globals: sanitizeHostGlobals(source.globals),
   };
 }
@@ -122,8 +126,8 @@ export function sanitizeHostSettings(value: unknown): HostSettings {
 export function settingsView(
   settings: HostSettings,
 ): Omit<HostSettings, 'host' | 'port' | 'logLevel' | 'tabsDir'> {
-  const { tabOrder, home, globals } = settings;
-  return { tabOrder, home, globals };
+  const { tabOrder, home, disabled, globals } = settings;
+  return { tabOrder, home, disabled, globals };
 }
 
 export interface LoadedHostSettings {

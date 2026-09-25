@@ -210,6 +210,13 @@ export class TabsService {
     private readonly ctx: Context,
     private readonly tabsDir: string,
     private readonly logger: Logger,
+    /**
+     * "这个 tab 现在是不是被停用的"（读的是 `data/host.json` 的 `disabled` 列表）。
+     *
+     * 交给回调而不是直接拿 settings 文件：启停状态**由 core 端点写、由这里读**，
+     * 中间隔着文件；注入判据比让 tabs 自己再解析一遍 JSON 更容易看清谁在改状态（D21）。
+     */
+    private readonly isDisabled: (id: string) => boolean = () => false,
   ) {}
 
   /** 这个 id 是不是目录型 tab（core 据此决定启停/重挂走哪条路） */
@@ -279,11 +286,11 @@ export class TabsService {
       if (current !== undefined && !changedSeen.has(tab.id) && current.state === 'ok') continue;
 
       const reload = current?.state === 'ok';
-      const wasDisabled = reload ? (this.findEntry(tab.id)?.disabled ?? false) : false;
       if (current !== undefined) this.remove(tab.id);
       try {
-        // 代码变了才带 cache-buster：初次挂载用干净路径，`/api/plugins` 里的说明符更好读
-        await this.create(tab.id, tab.entry, wasDisabled, tab.fingerprint, reload);
+        // 代码变了才带 cache-buster：初次挂载用干净路径，`/api/plugins` 里的说明符更好读。
+        // `disabled` 一律传 false：启停由 `create()` 读盘决定（D21），重扫不该自己猜。
+        await this.create(tab.id, tab.entry, false, tab.fingerprint, reload);
         if (reload) result.reloaded.push(tab.id);
         else result.added.push(tab.id);
       } catch (err) {
@@ -313,11 +320,11 @@ export class TabsService {
     const tab = this.list().find((item) => item.id === id);
     if (tab === undefined || tab.problem !== undefined || !this.mounted.has(id)) return false;
 
-    // 运行期停用过的 tab 重挂后仍然是停用的：启停是运行期状态，不该被一次重挂抹掉
-    const wasDisabled = this.findEntry(id)?.disabled ?? false;
+    // 启停**只由盘上的 `disabled` 决定**（D21）：这里绝不能把"这一行当前是停用的"传下去 ——
+    // 那样刚被启用的插件重挂一次又会停用（`create()` 拿到的是过期状态，实测踩过）。
     this.remove(id);
     try {
-      await this.create(id, tab.entry, wasDisabled, tab.fingerprint, true);
+      await this.create(id, tab.entry, false, tab.fingerprint, true);
     } catch {
       // 原因已经由调用方（core 的重挂端点）在响应里说明
       return false;
@@ -346,15 +353,18 @@ export class TabsService {
     // 类型签名把 `id` 排除了（默认由 loader 随机分配），但运行期 `ensureId()` **认调用方给的 id**。
     // 这里必须显式给：**目录名即 id** 是这套东西的全部意义
     // （它同时是路由前缀 `/api/p/<id>` 与前端资源前缀 `/plugins/<id>/`）。
+    // 启停的真源是**盘上的 `disabled`**（D21）；参数 `disabled` 只留给"与盘无关的强制停用"
+    // （今天只有坏目录这一种：它压根不该跑）
+    const off = disabled || this.isDisabled(id);
     const options = {
       id,
       name: bustCache ? `${entry}?v=${this.nextToken()}` : entry,
       config: {},
-      ...(disabled ? { disabled: true } : {}),
+      ...(off ? { disabled: true } : {}),
     } as unknown as Parameters<typeof this.ctx.loader.create>[0];
     await this.ctx.loader.create(options);
     this.mounted.set(id, {
-      state: disabled ? 'bad' : 'ok',
+      state: off ? 'bad' : 'ok',
       fingerprint,
       ...(problem !== undefined ? { problem } : {}),
     });
@@ -389,6 +399,34 @@ export class TabsService {
    */
   scan(): ScannedTab[] {
     return this.list().filter((tab) => this.mounted.has(tab.id));
+  }
+
+  /**
+   * 已装载的 tab + 它们**当前**的启用状态（`GET /api/plugins` 用它报 `enabled`）。
+   *
+   * 启用状态有**两个可能的主人**：宿主（`data/host.json` 的 `disabled`，落盘）与 Loader 行
+   * （`entry.disabled`，运行期）。清单必须报**实际**那个，否则设置页的开关会和真实情况相反 ——
+   * 比如刚启用的插件在 `loader.await()` 落地前后会短暂不一致。
+   */
+  rows(): Array<{ tab: ScannedTab; enabled: boolean }> {
+    return this.scan().map((tab) => ({ tab, enabled: !this.isDisabledByEntry(tab.id) }));
+  }
+
+  /** 这一行**现在**是启用还是停用（清单与启停端点共用这一个判据） */
+  enabledOf(id: string): boolean {
+    return !this.isDisabledByEntry(id);
+  }
+
+  /**
+   * 这一行**现在**是不是停用的：**先信 Loader 行**（它就是当前事实），
+   * 行还没落地时才回落到盘上的 `disabled`。
+   *
+   * 只看 Loader 行会有个刺眼的窗口：刚启用的插件在 `loader.await()` 落地之前仍报 `disabled`，
+   * 界面看起来像"点了没反应"（实测踩过）。只看盘上的值则相反：报的和跑的不是一回事。
+   */
+  private isDisabledByEntry(id: string): boolean {
+    const entry = this.findEntry(id);
+    return entry === undefined ? this.isDisabled(id) : entry.disabled;
   }
 
   /** 目录里有、但还没装载的 id（重扫结果里的 `added`）；坏了且还没挂上的也算 */

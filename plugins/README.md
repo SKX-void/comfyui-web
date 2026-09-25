@@ -112,12 +112,14 @@ export default {
 
 - 产物目录由 `scripts/pack-tab.mjs` 决定（→ `tabs/<id>/`）；插件里所有 `new URL('./x', import.meta.url)` 都按**产物在 tab 根**来写。
 - 在 `extras` 里声明要一起拷过去的资产（模板、图片、帮助文本…）。
-- `--watch` 模式供 `pnpm dev:plugins` 常驻使用：改源码边写边出产物，宿主自己热重挂。
+- `--watch` 模式供 `pnpm dev:plugins` 常驻使用：改源码边写边出产物；产物变了还要在设置页点一次
+  「重新扫描插件目录」才会重挂（D20）。
 
 ## 3. 调 ComfyUI（「API 工作流」这一步）
 
-- **地址从哪来**：插件自己的设置（`ctx.space` 的 `settings.json`）。宿主设置页的「统一 ComfyUI 地址」
-  （`data/host.json` 的 `globals.comfyuiBaseUrl`）现在只剩「默认值只读下发」，**不会**自动写进插件的配置（D16/D19）。
+- **地址从哪来**：插件自己的设置（`ctx.space` 的 `settings.json`）—— 这也是唯一会生效的地方。
+  宿主设置页有个「统一 ComfyUI 地址」（`data/host.json` 的 `globals.comfyuiBaseUrl`），但宿主
+  **不会**把它写进任何插件（D16/D19）；想让插件跟随，就自己在启动时 `GET /api/ui` 读它当兜底。
 - **提交与取结果**：`POST /prompt` 提交（带 `client_id`），`/ws` 收进度，`/history/<prompt_id>` 取产物；
   上传素材走 `/upload/image`。
 - **工作流模板**：把 API 格式的 workflow JSON 放工程里（构建时作为 extra 拷进 tab 根），运行时按表单值改节点输入；

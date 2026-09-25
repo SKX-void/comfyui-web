@@ -24,7 +24,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 export const name = 'anima-example';
 
-// 核只给一个句柄：文件空间（按**包名**分配，不是 profile 里的行 id）
+// 核只给两个句柄：文件空间（按**包名**分配）+ 路由挂载点
 export const inject = ['routes', 'space'];
 
 const ID = 'anima-example';
@@ -438,7 +438,7 @@ function migrate(db) {
 // 2.5 设置：由插件自己持有（决策 D15）
 // ===========================================================================
 //
-// 目录型 tab 没有"行配置"这回事（宿主对它的 PUT config 返回 400，plugins.yml 里也没有它），
+// 目录型 tab 没有"行配置"这回事（宿主没有写它配置的端点，D15/D19），
 // 所以设置住在自己的空间里（`data/plugins/<包名>/settings.json`），由本插件的 /api/settings
 // 读写。字段的**形状**仍写在 package.json 的 plugin.settings 里（界面从宿主清单端点取）。
 

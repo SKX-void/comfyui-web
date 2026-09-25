@@ -40,7 +40,7 @@ pnpm build:plugins            # 插件源码（plugins/<id>/）→ tabs/<id>/
 | 想知道 | 看 |
 |---|---|
 | 怎么跑、怎么装插件、怎么自己写一个插件、目录约定 | **[`docs/README.md`](docs/README.md)**（唯一入口） |
-| 架构与决策（D1–D19）、插件契约、句柄 API | [`docs/architecture.md`](docs/architecture.md) |
+| 架构与决策（D1–D21）、插件契约、句柄 API | [`docs/architecture.md`](docs/architecture.md) |
 | 十几个"配置"文件分别属于哪一层、谁能改、入不入库 | [`docs/config.md`](docs/config.md) |
 | 目录型插件（`tabs/`）怎么用、热到什么程度 | [`tabs/README.md`](tabs/README.md) |
 | 某个插件的设置项与内部结构 | 那个插件自己的 `README.md` |

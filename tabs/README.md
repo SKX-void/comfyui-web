@@ -78,7 +78,8 @@ export default {
 
 **状态归插件自己**：宿主不持有 tab 的配置 —— 设置写在插件自己的
 `ctx.space`（`data/plugins/<包名>/settings.json`），改完由插件请求 `POST /api/tabs/:id/reload` 重新
-`apply()`；`PUT /api/plugins/:id/enabled` 只在本次运行期生效。
+`apply()`；`PUT /api/plugins/:id/enabled` 是**宿主**的部署事实，写进 `data/host.json` 的 `disabled`
+（重启后仍生效，D21）—— 插件自己的数据依旧归插件。
 
 ## 热的边界（诚实版）
 
@@ -118,8 +119,8 @@ export function apply(ctx) {
 
 ## 决策状态
 
-1. **启停 / 顺序要不要落盘**：✋ 没做 —— tab 的启停目前只在本次运行期生效
-   （计划：`data/host.json` 里加 `disabled: []`，宿主扫完按它过滤）。
+1. **启停 / 顺序落哪儿**：✅ 已落地 —— 顺序/首页/统一地址/启停都在 `data/host.json`（宿主的部署事实，
+   D21；启停是 `disabled: []`），插件自己的配置/库在 `data/plugins/<包名>/`。
 2. **唯一来源**：✅ 已落地（D16/D19）—— `tabs/` 是宿主唯一装载来源，`profiles/`、Include 装配、
    `pnpm plugin` 与示例 tab 一起删掉了。
 3. **安全模型**：✋ 仍是「能写文件 = 能执行代码」，容器 / 文件权限是唯一边界。

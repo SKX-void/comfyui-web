@@ -115,20 +115,21 @@ SSE 是**连接即发 snapshot**，所以断线重连不需要回放历史；终
 | `assets` | 产出图：`job_id, idx, file, mime, bytes`（`file` 是**相对空间根**的路径） |
 
 表名不加前缀，版本用 `PRAGMA user_version`，迁移数组写在 `server.js` 里（只追加不回改）。
-`assets` 对 `jobs` 有真外键（`ON DELETE CASCADE`）。卸载时若选择删数据，
-`plugin remove --drop-data` 直接删掉整个空间目录。
+`assets` 对 `jobs` 有真外键（`ON DELETE CASCADE`）。卸载 = 把 `tabs/anima-example/` 目录删掉；
+数据留在 `data/plugins/@comfyui-web+anima-example/`，宿主不代管 —— 要删自己删。
 
 图片落在空间里的 `images/<jobId>/`。**没有任何自动清理** ——
 那是用户资产。清空历史只删记录，不删文件。
 
 ## 配置
 
-`package.json` 的 `plugin.settings[]` 是元数据，值存在 `plugins.yml` 该行的 `config` 里，
-设置页保存后宿主就地重载插件：
+`package.json` 的 `plugin.settings[]` 只是**元数据**（字段形状）；值由插件自己持有
+（`data/plugins/<包名>/settings.json`，见 `settings.ts`），在插件自己的设置界面里改，
+存完由插件请求 `POST /api/tabs/anima-example/reload` 就地重挂：
 
 | key | 默认 | 说明 |
 |---|---|---|
-| `comfyuiBaseUrl` | `http://localhost:8188` | ComfyUI 地址（HTTP 与 WS 都由它推出）。**留空 = 跟随设置页里的「统一 ComfyUI 地址」**（那边也没填就用内置默认）；填了 = 只有这个插件用它 |
+| `comfyuiBaseUrl` | `http://localhost:8188` | ComfyUI 地址（HTTP 与 WS 都由它推出）。留空 = 用内置默认值。**本插件不读宿主的「统一 ComfyUI 地址」**（D19：那个值只在宿主设置页里，不下发给插件）；要连别的 ComfyUI 就在这一项里填 |
 | `negativePrompt` | 工作流里的负向词 | 表单初始值，留空即不预填 |
 | `defaultSteps` / `defaultCfg` | 6 / 1 | 表单初始值 |
 | `defaultWidth` / `defaultHeight` | 832 / 1216 | 表单初始值 |
@@ -161,7 +162,7 @@ GPU 上的裸奔版本。ComfyUI 不会替你拦，显存打满就是整个队�
 
 1. **请求校验**：越界直接 **400**（`INVALID_INPUT`），**不夹紧** —— 静默改小会让用户
    以为出的是自己要的那张图。
-2. **设置默认值收敛**：`plugins.yml` 里配的 `defaultSteps` / `defaultWidth` / `defaultHeight`
+2. **设置默认值收敛**：设置里配的 `defaultSteps` / `defaultWidth` / `defaultHeight`
    超界会被收敛到边界并打日志；否则"不传参数"就绕过了上限。
 3. **提交前看图**：`assertGraphSafe()` 不看请求，只查**真正要发出去的图**，
    拦得住工作流模板自带的数值和以后改坏的绑定；越界返回 400（`UNSAFE_GRAPH`）。

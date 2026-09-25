@@ -5,8 +5,8 @@ import type { PluginSettings } from './config.js';
 /**
  * 本插件的设置**由插件自己持有**（决策 D15）。
  *
- * 目录型 tab 没有"行配置"这回事：宿主对它的 `PUT /api/plugins/:id/config` 返回 400，
- * 它在 `plugins.yml` 里也没有位置。所以设置就住在自己的空间里（`ctx.space` →
+ * 目录型 tab 没有"行配置"这回事：宿主没有写它配置的端点（D15/D19）。
+ * 所以设置就住在自己的空间里（`ctx.space` →
  * `data/plugins/<包名>/settings.json`），由本插件的 `/api/settings` 读写、
  * 由本插件自己的页面渲染（字段的**形状**仍在 package.json 的 `plugin.settings`）。
  *
@@ -14,8 +14,8 @@ import type { PluginSettings } from './config.js';
  *
  * 1. 文件就是普通 JSON：排障时直接看，不需要接口；
  * 2. 读坏了不算致命：回落到"没有设置"（= 内置默认值），把原因交给调用方显示；
- * 3. **一次性迁移**：从 profile 行传来的 config 只在还没有 settings.json 时被采信一次，
- *    之后 profile 改什么都不再影响这里 —— 否则"两个真源"迟早打架。
+ * 3. 这里就是**唯一**的真源：宿主不持有、也不下发 tab 的配置值（D15），
+ *    所以不存在"两个真源打架"的问题。
  */
 
 const FILE_NAME = 'settings.json';

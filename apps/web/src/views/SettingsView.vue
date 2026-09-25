@@ -162,7 +162,7 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
   try {
     await putJSON(`/api/plugins/${plugin.id}/enabled`, { enabled });
     await refresh();
-    notice.value[plugin.id] = enabled ? '已启用' : '已停用（进程内生效，不改文件）';
+    notice.value[plugin.id] = enabled ? '已启用（已落盘）' : '已停用（已落盘，重启后仍然停用）';
   } catch (err) {
     notice.value[plugin.id] = `操作失败：${err instanceof Error ? err.message : String(err)}`;
   } finally {
@@ -199,8 +199,8 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
       任何一处不可用都不会让界面出错：顺序是"过滤+补齐"，首页有回退链。
     -->
     <!--
-      宿主全局设置：统一 ComfyUI 地址。它只是宿主给的一个只读默认值：
-      插件可以拿它当兜底，也可以自己配，宿主不把它写进任何插件（D16）。
+      宿主全局设置：统一 ComfyUI 地址。宿主只保存、不下发（D16/D19）—— 插件要跟随就自己来
+      读 /api/ui（今天两个示例插件都不读，它们的地址来自各自的 settings.json）。
     -->
     <section class="card host-globals">
       <header class="page-head">
@@ -211,8 +211,8 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
       </header>
 
       <p class="hint">
-        插件可以把这里当成<strong>默认地址</strong>（自己的设置留空时用它）；插件自己配了就听它的。
-        宿主只保存这个值，不会把它写进任何插件。留空 = 不统一。
+        留在这里当一台装置的<strong>备忘录</strong>：宿主只保存，不会写进任何插件。
+        插件想跟随就自己来读 <code>/api/ui</code>（今天没有插件这么做 —— 它们的地址在各自的设置里）。
       </p>
 
       <input
@@ -299,7 +299,7 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
             :disabled="busy[plugin.id] !== undefined || plugin.phase === 'rejected'"
             @change="setEnabled(plugin, ($event.target as HTMLInputElement).checked)"
           />
-          启用（仅本次运行期；tab 的启停不落盘）
+          启用（写进 <code>data/host.json</code> 的 <code>disabled</code>，重启后仍然生效）
         </label>
 
         <p class="hint">

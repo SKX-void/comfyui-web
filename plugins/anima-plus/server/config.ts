@@ -98,11 +98,11 @@ function booleanSetting(raw: unknown, fallback: boolean, key: string, notes: str
     const text = raw.trim().toLowerCase();
     if (text === '') return fallback;
     if (['true', '1', 'yes', 'on'].includes(text)) {
-      notes.push(`plugins.yml: ${key}`);
+      notes.push(`settings.json: ${key}`);
       return true;
     }
     if (['false', '0', 'no', 'off'].includes(text)) {
-      notes.push(`plugins.yml: ${key}`);
+      notes.push(`settings.json: ${key}`);
       return false;
     }
   }

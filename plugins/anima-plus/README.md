@@ -124,22 +124,23 @@ curl -s -X POST localhost:8087/api/p/anima-plus/api/jobs \
 | `cache/loras-thumbs/` | 缩略图磁盘缓存；键里带引擎 tag（`purejs-jpeg-v1`），换引擎/阈值就换一套，直接删掉即可重建 |
 
 任务列表在**内存**里（与旧服务一致：重启丢历史，产图仍在 ComfyUI 的 output 目录）。
-只有 `pnpm plugin remove anima-plus --drop-data` 才会删掉整个空间目录。
+只有手工删掉 `data/plugins/@comfyui-web+anima-plus/` 才会清掉数据（宿主从不代管）。
 
 ## 配置
 
-设置页里能改的 5 项（写进 `plugins.yml` 的 `config` 段，保存后宿主**就地重载**插件）：
+插件设置界面里能改的 5 项（值由插件自己持有：`data/plugins/<包名>/settings.json`，
+保存后插件请求 `POST /api/tabs/anima-plus/reload` **就地重挂**）：
 
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
-| `comfyuiBaseUrl` | `http://localhost:8188` | ComfyUI 地址（HTTP 与 WS 都由它推出）。**留空 = 跟随设置页里的「统一 ComfyUI 地址」**（那边也没填就用内置默认）；填了 = 只有这个插件用它。只写 `host:port` 会自动补 `http://`。WeiLin 的 `/weilin/*` 路由注册在同一个 ComfyUI 上，所以标签/LoRA 面板跟着它走；ComfyUI 不可达时出图链路整体不可用（不是降级）。 |
+| `comfyuiBaseUrl` | `http://localhost:8188` | ComfyUI 地址（HTTP 与 WS 都由它推出）。留空 = 用内置默认值。**本插件不读宿主的「统一 ComfyUI 地址」**（D19：那个值只在宿主设置页里，不下发给插件）；要连别的 ComfyUI 就在这一项里填。只写 `host:port` 会自动补 `http://`。WeiLin 的 `/weilin/*` 路由注册在同一个 ComfyUI 上，所以标签/LoRA 面板跟着它走；ComfyUI 不可达时出图链路整体不可用（不是降级）。 |
 | `maxQueueDepth` | `5` | 同一台 ComfyUI 上最多同时排多少条任务（范围 1~16）。8G 卡建议 2~3，24G 卡可以放飞。 |
 | `maxJobsRetained` | `200` | 任务列表在内存里保留多少条（范围 10~5000）。 |
 | `depsWarmupOnStart` | `true` | 激活时预热一次依赖检查，省掉首屏那次 9MB 拉取。 |
 | `depsCacheTtlMinutes` | `5` | 依赖检查缓存时长（范围 0~1440 分钟）。**0 = 每次都重查上游**（约 9MB / 2s），刚在 ComfyUI 装完包时用；界面上的「重新检查」随时能绕过缓存。 |
 
 取值原则是**填错不许炸**：非法值回默认、越界收敛进范围，`GET /api/p/anima-plus/config` 的
-`configFiles` 会写明这次的值是从哪儿来的（`内置默认值` / `plugins.yml: <键>` / `越界已收敛到 N`）。
+`configFiles` 会写明这次的值是从哪儿来的（`内置默认值` / `settings.json: <键>` / `越界已收敛到 N`）。
 
 宿主跑在容器里时 `localhost` 是**容器自己**：同机 Docker 部署要么给容器加
 `extra_hosts: host.docker.internal:host-gateway` 后填 `host.docker.internal:8188`，
@@ -199,8 +200,8 @@ LoRA 预览图与产出图都走服务端缩略图，编解码是**纯 JS**（`p
 
 - **没有原生模块**：缩略图用纯 JS 的 `purejsimage`（`.node` / wasm 都进不了单文件产物）。
   代价是转码慢一些，但只在「划算」时才转、且转一次就长期缓存 —— 详见下面的「缩略图」一节。
-- **能力插件（comfy / weilin / jobs / quota）没有拆**：核只提供 `routes` 与 `space` 两个句柄，
-  跨插件服务注入还没有契约，硬拆要改宿主内核。模块边界按旧服务的目录原样保留，
-  将来要拆就是"搬目录 + 加 provide/inject"。
+- **能力（comfy / weilin / jobs / quota）没有拆成独立包**：D19 之后不存在"库形态插件"，
+  宿主也只 provide `routes` 与 `space` 两个句柄 —— 跨插件只有 HTTP 路由一条路。
+  模块边界按旧服务的目录原样保留；将来要复用就抽成共享源码包、**构建时 bundle** 进各插件产物。
 - **`safety/limits.ts` 是唯一的安全收口**：改模板/加字段之后务必跑 `smoke`，
   里面 12 项断言专门盯护栏（越界拒绝、夹紧、数量超限、取值不明 fail closed）。

@@ -19,7 +19,7 @@ import type { ScannedTab } from './tabs.js';
  * 端点：
  *   GET  /api/host                      宿主信息（数据目录 / tab 目录 / 契约版本）
  *   GET  /api/plugins                   tab 清单（真源 = /tabs 扫描 + 后端 Loader 状态）
- *   PUT  /api/plugins/:id/enabled       运行期启停（不写文件）
+ *   PUT  /api/plugins/:id/enabled       启停（写进 `data/host.json` 的 `disabled`，重启仍生效，D21）
  *   POST /api/tabs/rescan               重扫 /tabs 并增量装载（D20：唯一会改装载状态的入口）
  *   POST /api/tabs/:id/reload           强制重挂一个 tab（配置归插件自己，D15）
  *   GET  /api/ui                        外壳偏好 + 宿主全局设置（统一 ComfyUI 地址）
@@ -34,6 +34,10 @@ export interface CorePluginConfig {
   tabs: {
     /** **已装载**的 tab（row 的唯一来源）：没点重扫的目录不在里面 */
     scan(): ScannedTab[];
+    /** 已装载的 tab + 它们当前的启用状态（清单要如实报 `enabled`） */
+    rows(): Array<{ tab: ScannedTab; enabled: boolean }>;
+    /** 单个 tab 现在的启用状态（启停端点回报用；与 `rows()` 同一判据） */
+    enabledOf(id: string): boolean;
     /** 按 id 取一格 tab（拿入口路径与包元数据） */
     get(id: string): ScannedTab | undefined;
     rescan(): Promise<{
@@ -121,8 +125,19 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
   /** 宿主配置文件（部署段 + 运行期偏好同住一个文件，见 host-settings.ts） */
   const settingsFile = path.join(config.dataDir, 'host.json');
 
+  /**
+   * 这个 tab 是不是被**落盘地**停用了（`data/host.json` 的 `disabled`）。
+   *
+   * 每次现读文件：启停是低频动作，读一个小 JSON 比维护一份缓存 + 失效逻辑便宜得多，
+   * 而且改了文件（手写 `disabled`）也能立刻被下一次重扫看见。
+   */
+  function isDisabled(id: string): boolean {
+    return readHostSettings(settingsFile).disabled.includes(id);
+  }
+
   /** 取一格 tab 的完整描述（含失败原因）；entry 可能不存在（没挂上 / 挂失败） */
-  async function describe(tab: ScannedTab): Promise<PluginRow> {
+  /** `enabled` 由调用方给（今天来自 `tabs.rows()`：宿主写盘的那个启停状态） */
+  async function describe(tab: ScannedTab, enabled: boolean): Promise<PluginRow> {
     const id = tab.id;
     const entry = findEntry(id);
     const manifest: PluginPackageManifest = tab.pkg?.manifest ?? {};
@@ -163,7 +178,7 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
     return {
       id,
       entry: tab.entry,
-      enabled: entry !== undefined && !entry.disabled,
+      enabled,
       phase,
       title: manifest.title ?? id,
       ...(manifest.icon !== undefined ? { icon: manifest.icon } : {}),
@@ -180,8 +195,8 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
     const rows: PluginRow[] = [];
     // 只列**已装载**的 tab（含没通过检查的那些，它们也要显示原因）：目录里刚放进来、
     // 还没点重扫的插件不出现在这里 —— 免得界面显示一个"看得见但点不开"的 tab
-    for (const tab of config.tabs.scan()) {
-      rows.push(await describe(tab));
+    for (const { tab, enabled } of config.tabs.rows()) {
+      rows.push(await describe(tab, enabled));
     }
     rows.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
     return rows;
@@ -231,7 +246,7 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
     if (!ok) {
       return reply.code(409).send({ error: `重挂 ${id} 失败：目录已变化或入口不可用（看设置页的 reasons）` });
     }
-    return { reloaded: id, plugin: await describe(tab) };
+    return { reloaded: id, plugin: await describe(tab, config.tabs.enabledOf(id)) };
   });
 
   // ---- 插件清单（唯一真源）------------------------------------------------
@@ -254,13 +269,36 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
         return reply.code(409).send({ error: `tab ${id} 未通过检查，无法启用：${tab.problem}` });
       }
       const enabled = request.body?.enabled !== false;
-      await ctx.loader.update(entry.id, { disabled: !enabled });
-      await ctx.loader.await();
-      return {
-        plugin: await describe(tab),
-        // 目录型 tab 的启停是运行期状态，宿主不落盘（它的状态归插件自己在 data/ 里管）
-        warning: '目录型 tab 的启停不落盘：重启后回到 /tabs 目录的默认状态',
-      };
+      // 落盘（D21）：`disabled` 是宿主自己的启停状态，写在 data/host.json 里 ——
+      // 它是**部署事实**，跟 tab 的顺序/首页一样属于"宿主管的东西"，而不属于插件自己。
+      try {
+        const current = readHostSettings(settingsFile);
+        const next = enabled
+          ? current.disabled.filter((item) => item !== id)
+          : [...new Set([...current.disabled, id])];
+        writeHostSettings(settingsFile, { ...current, disabled: next });
+      } catch (err) {
+        // 写不进去（只读卷）就别假装成功：否则"停用"只在本次运行期成立，用户却以为存住了
+        return reply.code(500).send({
+          error: `写启停状态失败（${settingsFile}）：${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+      // 停用走 loader.update（不需要重挂）；启用走 reload（插件可能是在停用状态下挂上来的，
+      // 要重新 apply 一遍才算真的启用）。两条路都以**盘上的值**为准。
+      if (!enabled) {
+        await ctx.loader.update(entry.id, { disabled: true });
+        await ctx.loader.await();
+      } else {
+        const ok = await config.tabs.reload(id);
+        if (!ok) {
+          return reply.code(409).send({
+            error: `启用 ${id} 失败：目录已变化或入口不可用（设置页里能看原因）`,
+          });
+        }
+      }
+      // 用**已落地**的状态回报（loader.await() 之后 entry.disabled 已是事实），
+      // 而不是我们请求的那个值：写盘成功、行也更新了，这三者才是同一个事实
+      return { plugin: await describe(tab, config.tabs.enabledOf(id)), persisted: true };
     },
   );
 

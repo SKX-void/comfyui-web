@@ -12,7 +12,7 @@ ComfyUI 的**轻前端 + 工作流插件宿主**。三个概念：
 | 要改什么 | 先看 |
 |---|---|
 | 跑起来 / 装插件 / 写插件 / 目录约定 | `docs/README.md` |
-| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D20 | `docs/architecture.md` §4 / §5 / §2 |
+| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D21 | `docs/architecture.md` §4 / §5 / §2 |
 | 某个配置该写进哪个文件、入不入库 | `docs/config.md`（五层表） |
 | 插件源码放哪、产物怎么来（`plugins/*` → `tabs/*`） | `docs/architecture.md` §4.1 + `tabs/README.md` |
 | 从 0 写一个插件（路由/存储/前端 tab/构建/调 ComfyUI） | `plugins/README.md` |
@@ -53,7 +53,7 @@ pnpm -r typecheck
   数据写进 `ctx.space`（→ `data/plugins/<包名>/`），宿主不代管、不迁移、不清理。
 - tab（`tabs/<id>/`）：**交付物**（编译完、自包含、无 `node_modules`）、目录名即 id、配置自己持有
   —— 宿主**没有**写它配置的端点，插件把设置写进自己的 `ctx.space` 后请求 `POST /api/tabs/:id/reload`；
-  `PUT enabled` 只在本次运行期生效。
+  `PUT enabled` 是**宿主的部署事实**：写 `data/host.json` 的 `disabled`（重启后仍停用，D21）。
   源码在 `plugins/<id>/`，改完要 `pnpm build:plugins`（或常驻 `pnpm dev:plugins`）。`tabs/` **不入库**，
   仓库只留 `tabs/README.md`；**手写 tab：把目录直接丢进 `tabs/`**；`tabs-sync` 只查「产物能不能装载」。
 - **重挂靠手动触发（D20）**：宿主不监听、不轮询目录 —— 装进去 / 改完在设置页点一次「重新扫描插件目录」

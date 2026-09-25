@@ -7,10 +7,10 @@
 | **随包发布** | 插件自带的事实：默认值、合法范围、表单字段 | 插件作者，跟版本走 | `plugins/*/package.json` 的 `plugin.settings[]`、`plugins/*/server/config.ts` |
 | **随部署变化** | 这台装置怎么跑：端口、路径 | 部署的人；宿主首次启动也会写默认值 | `data/host.json`（部署段，不存在时自动生成）、`docker-compose.yml`、`nginx.conf` |
 | **随机器变化** | 这批部署装了哪些插件、各配了什么（本机状态） | 你 / 插件自己的设置界面 | `tabs/<id>/`（装了哪些）、`data/plugins/<包名>/`（各配了什么） |
-| **随用户变化** | 运行期偏好：tab 顺序、默认首页、统一地址 | 设置页，随时改 | `data/host.json`（偏好段）、`data/plugins/<包名>/` |
+| **随用户变化** | 运行期偏好：tab 顺序、默认首页、统一地址、插件启停 | 设置页，随时改 | `data/host.json`（偏好段，含 `disabled: []` —— 启停是宿主的事实，D21）、`data/plugins/<包名>/` |
 | **随目录** | 工作流插件：整个目录就是一个插件（自包含、无 `node_modules`） | 你，往 `tabs/` 丢目录 | `tabs/<id>/`（**不入库**：编译产物，见 §6）、配置与状态自持在 `data/plugins/<包名>/` |
 
-层与层的边界是锁过的：D6（§4.2 / §6）、D15/D16/D19。**不要跨层放值** ——
+层与层的边界是锁过的：D6（§4.2 / §6）、D15/D16/D19、D21（启停归宿主、配置归插件）。**不要跨层放值** ——
 比如"某台机器的 ComfyUI 地址"属于随机器/随用户，放不进随包发布的 `package.json`。
 
 ## 一览
@@ -21,7 +21,7 @@
 | `docker-compose.yml` | `docker compose` | 部署 | ✅ | ✅ |
 | `nginx.conf` | 外部/容器 nginx（**conf.d 片段**） | 部署 | ✅ | ✅ |
 | `pnpm-workspace.yaml`（根） | pnpm（workspace + `storeDir`） | 环境 | ✅ | ✅ |
-| `data/host.json`（偏好段：`tabOrder` / `home` / `globals`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui` | 用户 | ❌ 走设置页 | ❌ |
+| `data/host.json`（偏好段：`tabOrder` / `home` / `globals` / `disabled`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写；手改也行，重扫后生效） | ❌ |
 | `data/plugins/<包名>/…` | 各插件自己（如 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
 | `plugins/<pkg>/package.json` 的 `plugin.settings[]` | 宿主 → `GET /api/plugins` → 插件自己的设置界面 | 包 | ✅（改包） | ✅ |
 | `plugins/<pkg>/server/config.ts` | 插件自己（运行期默认值 / 范围） | 包 | ✅（改包） | ✅ |
@@ -151,7 +151,7 @@
 | 想干的事 | 改哪里 |
 |---|---|
 | 换宿主端口 | `data/host.json` 的 `port` + `docker-compose.yml` healthcheck 的 URL + `nginx.conf` 的 upstream，然后重启 |
-| 统一各插件的 ComfyUI 地址 | 设置页的"统一 ComfyUI 地址"（写 `data/host.json` 的偏好段）—— 它只是**只读默认值**，插件自己留空时才用它 |
+| 统一各插件的 ComfyUI 地址 | 设置页的"统一 ComfyUI 地址"（写 `data/host.json` 的偏好段）—— 它只是**只读默认值**，宿主不下发；**今天没有插件读它**，等于一份备忘录 |
 | 给某个插件单独地址 | 在那个插件自己的设置界面里改（值存在 `data/plugins/<包名>/`） |
 | 加 / 删插件 | 把编译好的目录放进 / 移出 `tabs/`（源码工程走 `pnpm build:plugins`）—— **不用装、不用改清单**；增删目录与改代码都热（见 `tabs/README.md`） |
 | tab 的配置 / 数据存哪儿 | tab 插件自己写 `ctx.space`（→ `data/plugins/<包名>/`）：宿主不代管、不迁移、不清理 |
