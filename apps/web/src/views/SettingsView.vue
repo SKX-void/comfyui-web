@@ -10,6 +10,7 @@ import {
   orderTabs,
   plugins,
   resolveHome,
+  rescanTabs,
   saveUiPrefs,
   uiPrefs,
 } from '../store';
@@ -124,6 +125,37 @@ async function refresh(): Promise<void> {
   await fetchPlugins();
 }
 
+// ---- 扫描 tabs/ 目录（D20：宿主不监听文件系统，这里是唯一的装载入口）----
+
+const scanBusy = ref(false);
+const scanNotice = ref('');
+
+/**
+ * 让宿主重扫目录，然后把结果**如实说清楚**：只说"刷新成功"的话，
+ * 用户分不清"目录里真的没问题"和"宿主压根没看见我改的东西"。
+ */
+async function rescan(): Promise<void> {
+  scanBusy.value = true;
+  scanNotice.value = '';
+  try {
+    const result = await rescanTabs();
+    const parts: string[] = [];
+    if (result.added.length > 0) parts.push(`新装载 ${result.added.join('、')}`);
+    if (result.reloaded.length > 0) parts.push(`重挂 ${result.reloaded.join('、')}`);
+    if (result.removed.length > 0) parts.push(`已卸载 ${result.removed.join('、')}`);
+    const failed = result.failed.map((item) => `${item.id}（${item.reason}）`);
+    if (failed.length > 0) parts.push(`失败 ${failed.join('、')}`);
+    scanNotice.value =
+      parts.length === 0
+        ? '已重扫：目录内容与已装载的一致，什么都没变'
+        : `已重扫：${parts.join('；')}`;
+  } catch (err) {
+    scanNotice.value = `重扫失败：${err instanceof Error ? err.message : String(err)}`;
+  } finally {
+    scanBusy.value = false;
+  }
+}
+
 async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
   busy.value[plugin.id] = enabled ? '启用中…' : '停用中…';
   notice.value[plugin.id] = '';
@@ -143,7 +175,12 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
   <div class="page">
     <header class="page-head">
       <h2>设置</h2>
-      <button @click="refresh">重新读取</button>
+      <span class="actions">
+        <button :disabled="scanBusy" @click="rescan">
+          {{ scanBusy ? '扫描中…' : '重新扫描插件目录' }}
+        </button>
+        <button @click="refresh">重新读取</button>
+      </span>
     </header>
 
     <p class="muted">
@@ -151,8 +188,10 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
       （存在它自己的 <code>data/plugins/&lt;包名&gt;/</code> 里）：宿主既不读也不写，
       这一页不改任何文件。
       增删 tab 就是把目录放进 / 移出 <code>{{ hostInfo?.tabsDir ?? 'tabs' }}</code>，
-      宿主会热重扫，不必重启。
+      然后点上面的「重新扫描插件目录」—— 宿主<strong>不监听</strong>文件系统，
+      装载只在启动时和这次点击时发生，不必重启进程。
     </p>
+    <p v-if="scanNotice" class="muted hint">{{ scanNotice }}</p>
 
     <!--
       标签栏顺序 + 默认首页。偏好存在后端的 <dataDir>/host.json（与部署段同处一个文件）；

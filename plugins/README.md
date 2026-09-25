@@ -149,8 +149,9 @@ export default {
 | `pnpm --filter <包名> test:contract` | 契约测试（从 `tabs/<id>/` 读产物做断言） |
 | `pnpm verify` | typecheck → smoke → build → tabs-sync → contract |
 
-热的边界（诚实版，详见 `tabs/README.md`）：改 `tabs/` 里的产物约 0.3~2s 自动重挂；
-改 `plugins/*` 的**源码**不会热 —— 先构建（或让 `pnpm dev:plugins` 常驻）。
+生效时机（D20，详见 `tabs/README.md`）：**宿主不监听目录** —— 装进去 / 改完在设置页点一次
+「重新扫描插件目录」（= `POST /api/tabs/rescan`）才装载或重挂；改 `plugins/*` 的**源码**不会自动生效，
+先构建（或让 `pnpm dev:plugins` 常驻出产物）再点重扫。
 
 ## 7. 产物里必须带什么
 

@@ -58,10 +58,9 @@ export async function bootHost(options: BootOptions): Promise<BootedHost> {
   const coreConfig: CorePluginConfig = { app, dataDir, tabsDir, tabs };
   ctx.plugin({ name: coreName, inject: [...coreInject], apply: applyCore }, coreConfig);
 
-  // 4. 目录型 tab → Loader entries。之后目录增删由 fs.watch 触发重扫（热挂/热卸），
-  //    改插件**代码**不热（Node 的 ESM 模块缓存按 URL 记），这是 PoC 的明确边界。
+  // 4. 目录型 tab → Loader entries。宿主**不监听目录**（D20）：启动装一次，之后靠
+  //    `POST /api/tabs/rescan`（设置页的「重新扫描」按钮）增量重挂变了的那几个。
   const scanned = await tabs.rescan();
-  tabs.watch();
 
   // 路由分发要靠"这一行现在是不是活的"来兜底：插件的路由表是内存里的，
   // 停用/卸载后不能再由它对外服务。

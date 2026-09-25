@@ -10,6 +10,17 @@ export async function getJSON<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+export async function postJSON<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const payload = (await res.json().catch(() => ({}))) as { error?: string } & T;
+  if (!res.ok) throw new Error(payload.error ?? `${url} → HTTP ${res.status}`);
+  return payload;
+}
+
 export async function putJSON<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: 'PUT',

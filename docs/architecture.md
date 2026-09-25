@@ -60,11 +60,12 @@
 | D11 | 交付顺序 | ① 框架本体（tab 栏 + 后端挂载点 + 设置）→ ② 极简工作流插件化安装验证 → ③ 改造 txt2img → anima-plus 插件 | 用户裁定 |
 | D12 | 存储归属 | **核不提供数据库句柄**：只按**包名**在 `data/plugins/<包名>/` 下分一块唯一空间；建库、写 JSON、版本迁移、清理全是插件自己的事 | 用户裁定「不存在跨插件库操作」；落地见 §5、§9。代价：核里不再有迁移账本可查；改包名＝换空间 |
 | D13 | 清单的入库形态 | ~~`plugins.yml` 不入库、入库模板 + profile 依赖~~ —— **已随 D19 删除**（没有清单了；本机状态只剩 `data/plugins/<包名>/`，本来就既不入库也不分发） | 当时的理由：清单里的 `config` 必然含本机值，提交它 = 待提交 diff + secret 泄漏面。见 §6.1 |
-| D14 | 插件来源（唯一） | **`/tabs/<id>/` 目录即插件**：扫描 + 指纹轮询（配 `fs.watch` 快路径）热重扫，目录名即 id，服务端入口按绝对路径交给 Loader；**改代码也热**（重挂时说明符带 `?v=` 绕开 ESM 缓存）；自包含 bundle、配置自持 `data/plugins/<包名>/`， | 让"加一类工作流插件"退化成丢一个目录（零安装、零清单、零 `node_modules`）。代价：能写 `tabs/` = 能在宿主进程执行代码；重挂 = 新 fiber，插件必须用 `ctx.effect` 收尾且只能把状态放 `ctx.space`；宿主没有写它配置的端点（状态归插件）。见 §6.2 |
+| D14 | 插件来源（唯一） | **`/tabs/<id>/` 目录即插件**：启动扫描一次 + 手动 `POST /api/tabs/rescan` 重扫（D20），目录名即 id，服务端入口按绝对路径交给 Loader；重挂时说明符带 `?v=` 绕开 ESM 缓存；自包含 bundle、配置自持 `data/plugins/<包名>/`， | 让"加一类工作流插件"退化成丢一个目录（零安装、零清单、零 `node_modules`）。代价：能写 `tabs/` = 能在宿主进程执行代码；重挂 = 新 fiber，插件必须用 `ctx.effect` 收尾且只能把状态放 `ctx.space`；宿主没有写它配置的端点（状态归插件）。见 §6.2 |
 | D15 | tab 的配置归属 | **配置与设置界面都归插件自己**：值住在 `ctx.space`（如 `settings.json`），读写走插件自己的端点，界面在插件自己的页面里；宿主只提供 `POST /api/tabs/:id/reload`（强制重挂）让新值生效，清单行按 `configOwner` 标出归属，设置页对 `plugin` 的行只读 | 目录型 tab 没有"行配置"可写（D14 已定 `PUT config` 返回 400），而"宿主收下但只在内存里改"会造出假的生效 —— tab 重挂一次就丢（`tabs.ts` 装载时恒传 `config: {}`），设置页却还显示统一值。字段**形状**仍留在 `package.json` 的 `plugin.settings[]`（D10）由清单端点下发，插件不抄第二份。代价：每个插件要出一次自己的设置界面；|
 | D16 | 配置的落点与 profile 的去留 | **宿主唯一配置文件 = `data/host.json`**（部署段 + 偏好段同处一个文件；不存在就写默认 —— 挂空 `data/` 卷即可启动；坏文件不覆盖）；**退役 profile**：npm 包形态、Include 装配、清单落盘一起删，插件只剩一种形态 —— `tabs/<id>/` 里**编译完的产物**，源码与构建留在 `plugins/*`；**不存在库形态插件**（没有被别的插件 import 的能力包），共享代码只在构建时 bundle 进产物 | 非 tab 插件没有规划，profile 的依赖解析 / 清单落盘 / 契约 patch 层全被 tabs 覆盖（tabs 自己的契约检查就在 `scanTabs()`）；统一地址只剩"作默认值只读下发"一条语义。见 §6.2、§14.5 |
 | D17 | 产物的入库形态 | **`tabs/` 不入库**：它是 `plugins/*` 的构建产物（可复现：重建 16/16 文件字节一致），仓库只留 `tabs/README.md`（`.gitignore`: `/tabs/*/`）；`pnpm verify` 的 `tabs-sync` 步只做结构性检查（每个带 `scripts/pack.mjs` 的源码工程都有可装载的产物） | D16 之后 `plugins/*` 是唯一真源，产物入库换来的只有 788KB diff / 冲突 / 过期产物静默，而 `dist/`（宿主产物）本来就不入库；一致性由"构建可复现 + `tabs-sync`"保证。见 §4.1、§14.5 |
 | D18 | 交付物的形状 | **`dist/` 是完整可跑的一包**：`app/`（`server.mjs` + `web/`）+ `tabs/`（`tabs/` 下每个子目录的**拷贝**）+ `data/`（空目录，首次启动写 `host.json`）；产物态 `repoRoot = dist/`（不再往上看 `pnpm-workspace.yaml`）；入口 `server.mjs`、**不出 sourcemap**；`docker-compose.yml` 把 `dist/` 的三段挂进容器（`app`/`tabs` 只读、`data` 可写） | 既然 `tabs/` 不入库（D17），交付物里必须有它，「把 `dist/` 拷到机器上就能跑」才成立；软链会让 dist 不可搬，所以用拷贝。副作用：仓库里跑产物与部署跑产物语义一致（都看 `dist/{tabs,data}`） |
+| D20 | 扫描时机 | **不监听、不轮询**：宿主只在**启动**与 `POST /api/tabs/rescan`（设置页/欢迎页的「重新扫描插件目录」按钮）时扫 `tabsDir`；重扫是**增量**的（只重挂指纹变了的），结果分项回报（`added`/`reloaded`/`removed`/`failed`），前端如实转述；`GET /api/plugins` 只列**已装载**的 tab（含没通过检查、已挂成 `rejected` 的）—— 不放"看得见但点不开"的条目 | 目录里什么时候有新东西，**改的人自己知道** —— 自动扫描换来的只有"改到一半被装成一份半成品"和一套没人看的 2s 心跳；顺带消掉"容器挂载 / 网络盘上 `fs.watch` 静默失聪"这个只有实测才会发现的坑（旧实现靠 2s 指纹轮询兜底，见 §14.5）。代价：放进去 / 改完必须点一下按钮（或 `curl -X POST /api/tabs/rescan`）才生效 |
 | D19 | profile 机制与示例 tab 的删除 | **`profiles/`、Include 装配、`apps/server/scripts/plugin.mjs`、清单落盘、契约 patch 层、`fallback`/`following` 全删**：插件唯一来源是 `tabs/<id>/`；统一地址只剩"只读默认值"（宿主不写进任何插件）；`tabs/hello/` 不再作为示例（写法见 `tabs/README.md`） | D16 已把落点定死（`data/host.json` + `tabs/`），留着 profile 只会多一条没人走的装配路径与一份"两个真源"的歧义；示例 tab 的内容已经并进 `tabs/README.md` 的三文件骨架。见 §6/§6.1/§14.5 |
 
 ```
@@ -394,7 +395,7 @@ D14 引入的 `/tabs` 来源在 D16/D19 之后成了**唯一**来源：插件 = 
 
 | 环节 | 做法 |
 |---|---|
-| 发现 | `apps/server/src/tabs.ts` 的 `scanTabs()` 扫 `<tabsDir>`（默认 `tabs/`）；**指纹轮询（2s）做硬保证** + `fs.watch` 递归做快路径（约 0.3s）；`POST /api/tabs/rescan` 手动兜底。轮询是硬保证而不是监听，因为实测 Linux 上递归监听会静默失聪（连续追加写一次事件都不来，也不报错） |
+| 发现 | `apps/server/src/tabs.ts` 的 `scanTabs()` 扫 `<tabsDir>`（默认 `tabs/`），**只在启动与 `POST /api/tabs/rescan` 时**执行（D20）；重扫按目录指纹做增量：新的挂上、变的带 `?v=` 重挂、没了的卸掉 |
 | 挂载 | `ctx.loader.create({ id: 目录名, name: 入口绝对路径, config: {} })` —— Loader 的 `import()` 直接吃绝对路径 |
 | 改代码 | 目录指纹（相对路径 + size + mtime）一变就**卸载重挂**，说明符改成 `<入口>?v=<token>` —— 不同 URL = 新模块实例（`plugin-package.ts` 解析时会剥掉 query）。重挂 = 新 fiber，所以收尾要写 `ctx.effect`，状态要放 `ctx.space` |
 | id | **目录名即 id**。平铺 entry 的 id 不能带 `:`（那是 Loader 的 group 分隔符，会让 `resolve`/`remove` 找不到它）；它同时决定 `/api/p/<id>` 与 `/plugins/<id>/` |
@@ -408,9 +409,9 @@ D14 引入的 `/tabs` 来源在 D16/D19 之后成了**唯一**来源：插件 = 
 deps 全在 `devDependencies`、由 esbuild inline 进 `lib/server.js`），所以 tabs 目录下不需要
 `node_modules` —— "丢目录就能用"因此成立，也顺手免掉 N 份不可复现的依赖树。
 
-**热边界**：增删目录热、**改代码也热**（指纹一变就卸载重挂，说明符带 `?v=` 换掉 URL，
-从而绕开 Node 的 ESM 模块缓存）。代价只有一条：重挂 = 新 fiber —— 插件要用 `ctx.effect`
-把收尾做干净，要活下来的状态必须写进 `ctx.space`，内存状态一律归零。
+**生效时机**：改 `tabs/<id>/` 里的任何文件（源码或产物）都只是目录变了，**点一次「重新扫描插件目录」**
+（= `POST /api/tabs/rescan`）才卸载重挂 —— 指纹一变就换带 `?v=` 的说明符，绕开 Node 的 ESM 模块缓存。
+代价只有一条：重挂 = 新 fiber —— 插件要用 `ctx.effect` 把收尾做干净，要活下来的状态必须写进 `ctx.space`。
 前端产物不用动：`/plugins/<id>/*` 不缓存，刷新浏览器就是新的。
 
 **profile 已经没了**（D19）：宿主只扫 `tabsDir`，没有清单、没有 Include、没有模板 bootstrap。
@@ -632,7 +633,7 @@ comfyui-web/
 |---|---|
 | `apps/server/` | 宿主后端：`config.ts` 配置、`kernel.ts` 装配（Loader + tabs）、`core-plugin.ts` 宿主端点、`host-settings.ts` 唯一配置文件（D16）、`handles/{space,routes}.ts` 两个句柄、`plugin-package.ts` 包清单解析、`scripts/build.mjs` |
 | `apps/web/` | 宿主前端：`index.html`（import map 是核心）、`src/main.ts` 插件装载器、`App.vue` tab 栏壳、`views/SettingsView.vue`（设置页只读展示插件设置，D15） |
-| `tabs/` | 工作流插件交付物（D14/D15/D16）：一个子目录一个插件、目录名即 id、自包含 |
+| `tabs/` | 工作流插件交付物（D14/D15/D16）：一个子目录一个插件、目录名即 id、自包含；装载时机见 D20（启动 + 手动重扫） |
 | `plugins/anima-plus/` | **v1 整体搬完**：前端是 v1 的 `App.vue` + 8 个组件，后端是 v1 那 14 个模块逐字搬进 `server/`（模板/渲染/显存护栏/任务编排/LoRA/标签/预设），反代已删；另加依赖检查（`server/deps.ts`，见 §14.1f）。见 §13 与 `plugins/anima-plus/README.md` |
 | `data/host.json` | 宿主唯一配置文件（部署段 + 偏好段）；不存在时宿主写默认值，挂空 data 卷即可启动（D16） |
 
@@ -692,6 +693,11 @@ comfyui-web/
   示例 `tabs/hello/` 也删了（骨架并进 `tabs/README.md`）；`plugins/README.md` 是新的插件编写入口；
   宿主 `dev` 的 `--exclude` 改成 `.cordis/data/dist/tabs/web`（loader 现在把 `resolve.mjs` 写在
   **仓库根**的 `.cordis/` 下，不排除还是活锁）。
+- **已落地（扫描时机，D20）**：删掉 `fs.watch` 与 2s 指纹轮询，`TabsService` 只剩
+  `scan()`（只读目录，无副作用）与 `rescan()`（增量重挂）；入口只有启动装配与
+  `POST /api/tabs/rescan`；外壳在设置页与欢迎页各放一个「重新扫描插件目录」按钮，
+  按 `added`/`reloaded`/`removed`/`failed` 分项回报。实测：放进一个新目录后**不点按钮不会出现**，
+  点了才 `added`；改产物后重扫报 `reloaded`，删目录后报 `removed`。
 - **未决**：插件启停（`PUT /api/plugins/:id/enabled`）只在本次运行期生效；要落盘就得给宿主一个
   自己的启停文件（`data/host.json` 里的 `disabled: []` 是最省事的一条路），暂未做。
 

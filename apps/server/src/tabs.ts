@@ -22,7 +22,13 @@ import {
  * ```
  *
  * 它是宿主**唯一**的插件来源（D16/D19）：契约检查、失败隔离、`GET /api/plugins`、
- * 设置页 schema、前端 tab 装载全部走这一条路，不新增第二套生命周期。
+ * 设置页说明、前端 tab 装载全部走这一条路，不新增第二套生命周期。
+ *
+ * ## 什么时候扫（D20）
+ *
+ * **只在两个时刻**：宿主启动时装配一次，以及 `POST /api/tabs/rescan`（设置页/欢迎页的
+ * 「重新扫描插件目录」按钮）。宿主不监听目录、不轮询：改完 `tabs/` 是人知道自己改了什么，
+ * 由人决定什么时候生效 —— 顺带把"容器挂载 / 网络盘上 fs.watch 静默失聪"这类坑一起消掉。
  *
  * ## 为什么要求"自包含"
  *
@@ -140,7 +146,7 @@ export interface RescanResult {
 /**
  * 目录内容指纹：任一文件的相对路径 / 大小 / mtime 变了它就变。
  *
- * 用它而不是"看 fs.watch 报的文件名"，是为了对**编辑器写盘方式**不敏感
+ * 用它而不是"看文件事件报的名字"，是为了对**编辑器写盘方式**不敏感
  * （直接写 vs 临时文件 + rename 都只是 mtime 变化），也顺手挡掉"事件到了但内容没变"的空重扫。
  * 排除 `.` 前缀与 `node_modules`：前者是草稿，后者按约定不该存在。
  */
@@ -176,13 +182,12 @@ function fingerprintDir(dir: string): string {
 /**
  * 目录型 tab 的注册表：扫描 → Loader 增删 / 就地重挂。
  *
- * 热的边界：
+ * 装的时机（D20）：**不再自动扫描**。启动装一次，之后靠手动 ——
+ * `POST /api/tabs/rescan` 重新比对目录指纹，新的挂上、变的带 `?v=<token>` 重挂、没了的卸掉。
+ * 宿主不监听文件系统：目录里什么时候有新东西，是**知道的人（你）**的事。
  *
- * - **增删目录**热：cordis 的 create/remove 不需要重启宿主，`GET /api/plugins` 立刻反映；
- * - **改代码**热：目录指纹一变就卸载重挂，说明符带 `?v=<token>` 绕开 Node 的 ESM 模块缓存
- *   （同一 URL 不会重新求值，换个 URL 就是新模块实例）。重挂 = 新的 fiber，
- *   所以插件必须在 `ctx.effect(() => () => 收尾)` 里关掉自己开的东西（文件、定时器、在跑的任务）；
- * - **内存状态会随重挂丢失** —— 要活下来的状态请写进 `ctx.space`（`data/plugins/<包名>/`）。
+ * 重挂 = 新 fiber，所以插件必须在 `ctx.effect(() => () => 收尾)` 里关掉自己开的东西
+ * （文件、定时器、在跑的任务）；内存状态会随重挂丢失 —— 要活下来的写进 `ctx.space`。
  */
 export class TabsService {
   /**
@@ -194,22 +199,12 @@ export class TabsService {
     { state: 'ok' | 'bad'; fingerprint: string; problem?: string }
   >();
   private queue: Promise<unknown> = Promise.resolve();
-  private watcher?: fs.FSWatcher;
-  private timer?: NodeJS.Timeout;
-  private poll?: NodeJS.Timeout;
-  /** 只在第一次扫描时把"有坏目录"打到日志（之后每 2s 扫一次，不能每次都刷） */
+  /** 只在第一次扫描时把"有坏目录"打到日志（之后每次重扫都会自己报，不能每次都刷） */
   private firstScan = true;
   /** 重挂计数：和 Date.now() 一起构成 cache-buster，保证同一毫秒内的多次重挂也不撞 */
   private reloads = 0;
-
-  /**
-   * 兜底轮询间隔。
-   *
-   * **监听不是保证**：实测 Linux 上 `fs.watch(dir, {recursive:true})` 会静默失聪
-   * （连续追加写一次事件都不来，也没报错）。所以"改代码热"靠的是**指纹轮询**这一条硬保证，
-   * `fs.watch` 只是把延迟从 2s 压到 0.3s。一次轮询 = 几个目录的 readdir + stat，成本可忽略。
-   */
-  private static readonly POLL_MS = 2000;
+  /** 重扫的触发者（启动装配 vs 手动端点），只用于日志文案 */
+  private via: 'boot' | 'api' = 'boot';
 
   constructor(
     private readonly ctx: Context,
@@ -237,7 +232,11 @@ export class TabsService {
     return this.list().find((tab) => tab.id === id);
   }
 
-  /** 重扫并让 Loader 跟上；并发调用排队（两次重扫叠在一起没有意义） */
+  /**
+   * 重扫并让 Loader 跟上（**加载/重挂的唯一入口**，D20）；并发调用排队（两次重扫叠在一起没有意义）。
+   *
+   * 调用点只有两个：启动时装配一次、`POST /api/tabs/rescan`。宿主不再监听目录。
+   */
   async rescan(): Promise<RescanResult> {
     const run = this.queue.then(() => this.rescanNow());
     this.queue = run.then(() => undefined, () => undefined);
@@ -247,6 +246,9 @@ export class TabsService {
   private async rescanNow(): Promise<RescanResult> {
     const result: RescanResult = { added: [], removed: [], reloaded: [], failed: [] };
     const scanned = this.list();
+    // "新挂"与"重挂"在这一层一次算清：下面按每个 tab 的真实状态决定做什么
+    const newlySeen = new Set(this.pending());
+    const changedSeen = new Set(this.changed());
 
     // 目录没了 → 卸载（也包括改名：旧 id 卸载、新 id 挂载）
     const seen = new Set(scanned.map((tab) => tab.id));
@@ -273,6 +275,8 @@ export class TabsService {
 
       // 已在跑、且代码没变：不动
       if (current?.state === 'ok' && current.fingerprint === tab.fingerprint) continue;
+      if (current === undefined && !newlySeen.has(tab.id)) continue;
+      if (current !== undefined && !changedSeen.has(tab.id) && current.state === 'ok') continue;
 
       const reload = current?.state === 'ok';
       const wasDisabled = reload ? (this.findEntry(tab.id)?.disabled ?? false) : false;
@@ -288,6 +292,8 @@ export class TabsService {
     }
 
     await this.ctx.loader.await();
+    this.logger.info({ ...result, via: this.via }, '已重扫 tab 目录');
+    this.via = 'api';
     return result;
   }
 
@@ -376,65 +382,34 @@ export class TabsService {
   }
 
   /**
-   * 开始盯着 tab 目录：`fs.watch` 做快路径（约 0.3s），指纹轮询做硬保证（约 2s）。
+   * **已装载**的 tab 清单（`GET /api/plugins` 走这条）。
    *
-   * 递归监听才能看见 `tabs/<id>/server.js` 的改动；平台不支持递归时退化成只看一层，
-   * 此时增删目录仍靠事件、改代码靠轮询。
+   * 只报已经在 Loader 里的那些：目录里刚放进来、还没点重扫的插件**不出现在清单里** ——
+   * 否则界面会显示一个"看得见但点不开"的 tab（路由与前端都还没挂），那比看不见更骗人。
    */
-  watch(): void {
-    if (!fs.existsSync(this.tabsDir)) {
-      this.logger.info({ tabsDir: this.tabsDir }, '没有 tab 目录（不存在就当作没有目录型插件）');
-      return;
-    }
-    try {
-      this.watcher = fs.watch(this.tabsDir, { recursive: true }, () => this.schedule());
-      this.watcher.on('error', (err) => {
-        this.logger.warn({ tabsDir: this.tabsDir, err: message(err) }, 'tab 目录监听出错，已关闭（轮询继续兜底）');
-        this.watcher?.close();
-        this.watcher = undefined;
-      });
-      this.logger.info({ tabsDir: this.tabsDir }, '已监听 tab 目录（递归）：增删目录、改代码都会热重扫');
-    } catch (err) {
-      this.logger.warn(
-        { tabsDir: this.tabsDir, err: message(err) },
-        '递归监听不可用，退化为只看一层；改代码靠 2s 轮询兜底',
-      );
-      try {
-        this.watcher = fs.watch(this.tabsDir, () => this.schedule());
-      } catch (err2) {
-        this.logger.warn(
-          { tabsDir: this.tabsDir, err: message(err2) },
-          '监听 tab 目录失败；改代码仍由轮询兜底，也可 POST /api/tabs/rescan',
-        );
-      }
-    }
-
-    // 轮询是"改代码热"的硬保证（见 POLL_MS 的注释）：事件漏了就靠它
-    this.poll = setInterval(() => this.schedule(), TabsService.POLL_MS);
-    this.poll.unref();
+  scan(): ScannedTab[] {
+    return this.list().filter((tab) => this.mounted.has(tab.id));
   }
 
-  private schedule(): void {
-    if (this.timer !== undefined) clearTimeout(this.timer);
-    // 防抖稍长一点：编辑器保存常常是"写临时文件 + rename"，一次保存会来好几个事件；
-    // 指纹会在重扫时兜住"内容其实没变"的情况。
-    this.timer = setTimeout(() => {
-      void this.rescan()
-        .then((result) => {
-          const changed =
-            result.added.length + result.removed.length + result.reloaded.length + result.failed.length;
-          if (changed > 0) this.logger.info({ ...result }, 'tab 目录有变化，已重扫');
-        })
-        .catch((err: unknown) => this.logger.warn({ err: message(err) }, '重扫 tab 目录失败'));
-    }, 300);
-    this.timer.unref();
+  /** 目录里有、但还没装载的 id（重扫结果里的 `added`）；坏了且还没挂上的也算 */
+  private pending(): string[] {
+    return this.list()
+      .filter((tab) => !this.mounted.has(tab.id))
+      .map((tab) => tab.id);
   }
 
-  dispose(): void {
-    if (this.timer !== undefined) clearTimeout(this.timer);
-    if (this.poll !== undefined) clearInterval(this.poll);
-    this.watcher?.close();
+  /** 已装载、但目录指纹变了的 id（重扫结果里的 `reloaded`）——只跟已装载的比 */
+  private changed(): string[] {
+    return this.list()
+      .filter((tab) => {
+        const current = this.mounted.get(tab.id);
+        return current !== undefined && current.fingerprint !== tab.fingerprint;
+      })
+      .map((tab) => tab.id);
   }
+
+  /** 正常退出时没什么要收的：没有监听器、没有定时器（D20 之后宿主只在启动时扫一次） */
+  dispose(): void {}
 }
 
 /** `include:anima-plus` → `anima-plus`（与 core-plugin 的 shortId 同一约定） */

@@ -20,7 +20,7 @@ import type { ScannedTab } from './tabs.js';
  *   GET  /api/host                      宿主信息（数据目录 / tab 目录 / 契约版本）
  *   GET  /api/plugins                   tab 清单（真源 = /tabs 扫描 + 后端 Loader 状态）
  *   PUT  /api/plugins/:id/enabled       运行期启停（不写文件）
- *   POST /api/tabs/rescan               手动重扫 /tabs（watch 不灵时的兜底）
+ *   POST /api/tabs/rescan               重扫 /tabs 并增量装载（D20：唯一会改装载状态的入口）
  *   POST /api/tabs/:id/reload           强制重挂一个 tab（配置归插件自己，D15）
  *   GET  /api/ui                        外壳偏好 + 宿主全局设置（统一 ComfyUI 地址）
  *   PUT  /api/ui                        写这两样（<dataDir>/host.json 的偏好段）
@@ -32,8 +32,8 @@ export interface CorePluginConfig {
   tabsDir: string;
   /** 目录型 tab 的注册表：清单、手动重扫、重挂 */
   tabs: {
-    /** 当前扫描结果（row 的唯一来源） */
-    list(): ScannedTab[];
+    /** **已装载**的 tab（row 的唯一来源）：没点重扫的目录不在里面 */
+    scan(): ScannedTab[];
     /** 按 id 取一格 tab（拿入口路径与包元数据） */
     get(id: string): ScannedTab | undefined;
     rescan(): Promise<{
@@ -178,8 +178,9 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
 
   async function listRows(): Promise<PluginRow[]> {
     const rows: PluginRow[] = [];
-    // row 的唯一来源就是 /tabs 扫描结果（含没通过检查的那些，它们也要显示原因）
-    for (const tab of config.tabs.list()) {
+    // 只列**已装载**的 tab（含没通过检查的那些，它们也要显示原因）：目录里刚放进来、
+    // 还没点重扫的插件不出现在这里 —— 免得界面显示一个"看得见但点不开"的 tab
+    for (const tab of config.tabs.scan()) {
       rows.push(await describe(tab));
     }
     rows.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
@@ -207,10 +208,10 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
   // ---- 目录型 tab（`/tabs/<id>/`）----------------------------------------
 
   /**
-   * 手动重扫 `/tabs`。
+   * 重扫 `/tabs` —— **唯一会改动装载状态的入口**（D20：宿主不监听目录，壳里给了按钮）。
    *
-   * 正常情况下增删目录会由 fs.watch 自动重扫；这个端点是给"watch 在某些文件系统上
-   * 不灵"（网络盘、容器挂载）和排查用的兜底。返回增删结果，便于一眼看出有没有生效。
+   * 增量：新目录挂上、指纹变了的带 `?v=` 重挂、目录没了的卸掉。返回这四个列表，
+   * 前端据此说清"到底发生了什么"（而不是只说一句"刷新成功"）。
    */
   app.post('/api/tabs/rescan', async () => config.tabs.rescan());
 

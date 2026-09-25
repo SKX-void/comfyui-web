@@ -25,8 +25,8 @@
 | `data/plugins/<包名>/…` | 各插件自己（如 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
 | `plugins/<pkg>/package.json` 的 `plugin.settings[]` | 宿主 → `GET /api/plugins` → 插件自己的设置界面 | 包 | ✅（改包） | ✅ |
 | `plugins/<pkg>/server/config.ts` | 插件自己（运行期默认值 / 范围） | 包 | ✅（改包） | ✅ |
-| `tabs/<id>/package.json` | 宿主扫描（`apps/server/src/tabs.ts` → `scanTabs()`） | 目录 | ✅ 改完等热重扫（或 `POST /api/tabs/rescan`） | ❌（产物） |
-| `tabs/<id>/server.js`、`client.js` | Loader 直接 `import()` 绝对路径 → 宿主 / 浏览器 | 目录 | ✅ 存盘即**热重挂**（约 0.3~2s，前端刷新浏览器） | ❌（产物） |
+| `tabs/<id>/package.json` | 宿主扫描（`apps/server/src/tabs.ts` → `scanTabs()`） | 目录 | ✅ 改完点「重新扫描插件目录」（= `POST /api/tabs/rescan`，D20） | ❌（产物） |
+| `tabs/<id>/server.js`、`client.js` | Loader 直接 `import()` 绝对路径 → 宿主 / 浏览器 | 目录 | ✅ 同上：重扫时指纹变了才**重挂**（前端再刷新浏览器） | ❌（产物） |
 
 ---
 
@@ -134,11 +134,12 @@
   插件存完配置由自己的前端调一次它，装载时读到的新值立刻生效 —— 这比"宿主替它热改字段"可靠：
   需要重建的东西（客户端、队列上限）本来就只能在 `apply()` 里装。
 - **热到什么程度**：
-  - 增 / 删 / 改名**目录** → 热（`GET /api/plugins` 立刻反映，浏览器刷新即见）；
-  - **改代码** → 也热：宿主发现目录指纹变了就**卸载重挂**，说明符带 `?v=<token>` 绕开 Node 的
-    ESM 模块缓存（同一 URL 不重新求值，换 URL 就是新模块实例）。延迟 ≈ 0.3s（`fs.watch` 快路径）
-    / 最多 2s（指纹轮询兜底 —— 实测 Linux 的递归监听会静默失聪，所以**轮询才是硬保证**）；
-    `POST /api/tabs/rescan` 可手动触发。改**前端**代码后刷新浏览器即可（`/plugins/<id>/*` 不缓存）。
+  - **宿主不监听、不轮询**（D20）：扫描只发生在**启动**与 `POST /api/tabs/rescan`（设置页 / 欢迎页
+    的「重新扫描插件目录」按钮）两个时刻；
+  - 重扫是**增量**的：新目录挂上、目录指纹变了的带 `?v=<token>` **卸载重挂**（绕开 Node 的 ESM
+    模块缓存 —— 同一 URL 不重新求值，换 URL 就是新模块实例）、目录没了的卸掉；
+  - 改**前端**代码后还要刷新浏览器（`/plugins/<id>/*` 不缓存）；
+  - 清单（`GET /api/plugins`）只报**已装载**的 tab，没点重扫的目录不出现在里面。
   - 因此插件必须把收尾写在 `ctx.effect(() => () => 收尾)` 里（关文件 / 定时器 / 在跑的任务），
     并把**要活下来的状态写进 `ctx.space`** —— 重挂 = 新 fiber，内存状态一律归零。
 - **边界**：谁能写 `tabs/`，谁就能让宿主进程执行代码（同进程、同权限、无沙箱）。这是它

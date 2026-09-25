@@ -12,10 +12,11 @@ ComfyUI 的**轻前端 + 工作流插件宿主**。三个概念：
 | 要改什么 | 先看 |
 |---|---|
 | 跑起来 / 装插件 / 写插件 / 目录约定 | `docs/README.md` |
-| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D19 | `docs/architecture.md` §4 / §5 / §2 |
+| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D20 | `docs/architecture.md` §4 / §5 / §2 |
 | 某个配置该写进哪个文件、入不入库 | `docs/config.md`（五层表） |
 | 插件源码放哪、产物怎么来（`plugins/*` → `tabs/*`） | `docs/architecture.md` §4.1 + `tabs/README.md` |
-| 目录型插件（`tabs/`）怎么写、热到什么程度 | `tabs/README.md` |
+| 从 0 写一个插件（路由/存储/前端 tab/构建/调 ComfyUI） | `plugins/README.md` |
+| 目录型插件（`tabs/`）怎么写、什么时候生效 | `tabs/README.md` |
 | 历史（v1 单体、v2 落地过程） | `docs/archive/` —— **只作来龙去脉参考，别照着实现** |
 
 ## 命令
@@ -37,7 +38,7 @@ pnpm -r typecheck
 - **`tsx watch` 会盯整仓，必须带 `--exclude`**：cordis 启动时会在「`baseUrl` 往上最近的那个
   `package.json`」旁写 `.cordis/resolve.mjs`。现在 `baseUrl` 是 `tabs/`，于是它落在**仓库根** ——
   不排除就是每 2s 重启一次的活锁（宿主永远起不来）；改 `tabs/`、`data/` 也会连带重启宿主。
-  `pnpm dev:host` 已经排除 `.cordis/data/dist/tabs/web`：改 `src/` 才重启，改 tab 走宿主自己的热重扫。
+  `pnpm dev:host` 已经排除 `.cordis/data/dist/tabs/web`：改 `src/` 才重启，改 tab 由人点「重新扫描」生效。
 - **跨 bash 调用起的后台进程杀不掉**（PID namespace 限制）：验证请"同一次调用内起进程 + kill"，
   或换个空闲端口再起，别指望后面 `kill` 掉它。
 - 端口：宿主 `8087`，外壳 vite dev **固定 5173**（`strictPort`，被占就直接失败；换端口用 `COMFYUI_WEB_DEV_PORT`），`/api`、`/plugins` 由它代理到宿主。
@@ -55,8 +56,9 @@ pnpm -r typecheck
   `PUT enabled` 只在本次运行期生效。
   源码在 `plugins/<id>/`，改完要 `pnpm build:plugins`（或常驻 `pnpm dev:plugins`）。`tabs/` **不入库**，
   仓库只留 `tabs/README.md`；**手写 tab：把目录直接丢进 `tabs/`**；`tabs-sync` 只查「产物能不能装载」。
-- **改代码即热重挂**（说明符带 `?v=` 换 URL）：收尾写在 `ctx.effect(() => () => 收尾)`，
-  内存状态一律归零，要活下来的写 `ctx.space`。
+- **重挂靠手动触发（D20）**：宿主不监听、不轮询目录 —— 装进去 / 改完在设置页点一次「重新扫描插件目录」
+  （`POST /api/tabs/rescan`）才装载或重挂；重挂 = 新 fiber（说明符带 `?v=` 换 URL），收尾写在
+  `ctx.effect(() => () => 收尾)`，内存状态一律归零，要活下来的写 `ctx.space`。
 - **profile 机制已删除（D19）**：`profiles/`、Include 装配、清单落盘、契约 patch 层、`pnpm plugin`、
   `fallback`/`following` 全没了 —— `tabs/` 是唯一的插件来源，别在这上面加新东西。
   统一 ComfyUI 地址只剩「只读默认值」一条语义（`data/host.json` 的 `globals`）。

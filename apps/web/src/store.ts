@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
-import { getJSON, putJSON } from './api';
-import type { HostInfo, PluginInfo, TabEntry, UiPrefs } from './types';
+import { getJSON, postJSON, putJSON } from './api';
+import type { HostInfo, PluginInfo, RescanResult, TabEntry, UiPrefs } from './types';
 
 /** tab 栏内容：来自已成功加载的插件前端入口（**自然顺序**：清单 order,id） */
 export const tabs = ref<TabEntry[]>([]);
@@ -57,6 +57,18 @@ export async function fetchUiPrefs(): Promise<void> {
 export async function saveUiPrefs(next: UiPrefs): Promise<void> {
   const data = await putJSON<{ prefs: UiPrefs }>('/api/ui', next);
   uiPrefs.value = data.prefs;
+}
+
+/**
+ * 让宿主重扫 `tabs/` 目录（D20：宿主不监听文件系统，这是**唯一**能改变装载状态的动作），
+ * 然后重读清单。返回宿主的分项结果，调用方据此把"到底发生了什么"说清楚。
+ *
+ * 失败会抛：这个动作是用户明确点的，沉默地不生效比报错更难查。
+ */
+export async function rescanTabs(): Promise<RescanResult> {
+  const result = await postJSON<RescanResult>('/api/tabs/rescan', {});
+  await fetchPlugins();
+  return result;
 }
 
 /**

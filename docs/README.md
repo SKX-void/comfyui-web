@@ -48,13 +48,16 @@ node dist/app/server.mjs     # 一个进程同时提供 API 与前端（dist/ �
 ## 装一个插件
 
 ```bash
-pnpm build:plugins            # 插件源码（plugins/<id>/）→ tabs/<id>/，宿主热重扫
+pnpm build:plugins            # 插件源码（plugins/<id>/）→ tabs/<id>/
 # 手写 tab：直接把目录丢进 tabs/（三个文件的骨架见 tabs/README.md）
+# 然后在设置页点「重新扫描插件目录」（或 POST /api/tabs/rescan）—— 宿主不监听目录，D20
 ```
 
 **插件 = `tabs/<id>/`**（目录即插件，D16/D19）：没有清单、没有安装步骤、没有 `node_modules`，
 宿主**唯一**的装载来源就是它。`tabs/` **不入库**（构建产物、可复现），仓库只留 `tabs/README.md`。
 启停在设置页按**运行期**切换（不落盘），插件配置由插件自己持有（`data/plugins/<包名>/`）。
+**放进去 / 改完要点一次「重新扫描插件目录」才生效**（宿主不监听、不轮询，D20）。
+怎么从 0 写一个插件（后端两个句柄、前端 tab、构建脚本、调 ComfyUI）见 **[`plugins/README.md`](../plugins/README.md)**。
 
 **装插件不需要重新构建宿主。** 这是本方案的核心主张，验收口径是
 `sha256(dist/app/**)` 在装插件前后逐字节一致 —— 宿主产物里既没有插件代码，

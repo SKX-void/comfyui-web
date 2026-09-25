@@ -14,7 +14,7 @@
 | 手写 tab | 直接把目录丢进 `tabs/` | 没有构建这一步 |
 
 于是「改插件」分两种：改 `plugins/*` 的源码 → `pnpm build:plugins`（或常驻 `pnpm dev:plugins`，pack.mjs 的 watch 模式边写边出产物）；
-改 `tabs/<id>/` 里的文件 → 宿主下一次指纹轮询（约 2s）就热重挂，见下面「热的边界」。
+改 `tabs/<id>/` 里的文件 → 在设置页点一次「重新扫描插件目录」（= `POST /api/tabs/rescan`）就重挂，见下面「生效时机」。
 新克隆 / 产物被删之后先跑一次 `pnpm dev`（它先 `build:plugins`）或 `pnpm build:plugins`，否则库里没有 tab。
 
 宿主启动时扫一遍 `tabsDir`（默认 `tabs/`，`data/host.json` 的 `tabsDir` 可改），每个子目录挂成一条
@@ -82,16 +82,22 @@ export default {
 
 ## 热的边界（诚实版）
 
-| 动作 | 是否热 |
-|---|---|
-| 增 / 删 / 改名 `tabs/<id>/` 目录 | ✅ 约 0.3s（`fs.watch`）~ 2s（指纹轮询兜底），`GET /api/plugins` 立刻反映，浏览器刷新即见 |
-| 改 `tabs/<id>/` 里的代码 | ✅ **也热**：宿主发现目录指纹变了就卸载重挂，说明符带 `?v=<token>` 换掉 URL —— 不同 URL = 新模块实例，绕开 Node 的 ESM 缓存 |
-| 改前端 `client.js` | ✅ 后端热 + **浏览器刷新**（`/plugins/<id>/*` 不缓存） |
-| 改 `package.json` 的 manifest | ⚠️ 会随下一次重挂生效（`title` / `order` / `client` / `settings`） |
+**宿主不监听、不轮询**（D20）：扫描只发生在**启动**与 `POST /api/tabs/rescan` 两个时刻 ——
+目录里改了什么、什么时候该生效，由人决定（设置页和欢迎页都有「重新扫描插件目录」按钮）。
+因此 `GET /api/plugins` 列出来的永远是**已经装载**的 tab：刚放进目录、还没点重扫的插件不在清单里
+（点重扫后以 `added` 出现）—— 免得界面上出现一个看得见却点不开的标签页。
 
-**为什么轮询才是硬保证**：实测 Linux 上 `fs.watch(dir, { recursive: true })` 会**静默失聪**
-（连续追加写一次事件都不来，也不报错）。所以"改代码热"靠每 2s 的指纹轮询，监听只是把延迟压到 0.3s。
-`POST /api/tabs/rescan` 可随时手动重扫。
+| 动作 | 生效方式 |
+|---|---|
+| 增 / 删 / 改名 `tabs/<id>/` 目录 | 点一次重扫：新的挂上、没了的卸掉，`GET /api/plugins` 立刻反映，浏览器刷新即见 |
+| 改 `tabs/<id>/` 里的代码 | 同上：重扫时发现目录指纹变了就**卸载重挂**，说明符带 `?v=<token>` 换掉 URL —— 不同 URL = 新模块实例，绕开 Node 的 ESM 缓存 |
+| 改前端 `client.js` | 后端重挂 + **浏览器刷新**（`/plugins/<id>/*` 不缓存） |
+| 改 `package.json` 的 manifest | 随重扫生效（`title` / `order` / `client` / `settings`） |
+
+**为什么不用 fs.watch / 轮询兜底**：实测 Linux 上 `fs.watch(dir, { recursive: true })` 会**静默失聪**
+（连续追加写一次事件都不来，也不报错），于是旧实现只能再叠一层 2s 指纹轮询；而容器挂载、网络盘上
+这两种都不一定可靠。改成手动之后：语义确定（点一次 = 扫一次）、没有后台心跳、也不会在你刚写进去
+半个插件时就把它挂起来。命令行等价物：`curl -X POST localhost:8087/api/tabs/rescan`。
 
 **热重挂对插件作者的要求**（重挂 = 销毁旧 fiber 再建新的）：
 

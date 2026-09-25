@@ -48,6 +48,15 @@ export interface HostInfo {
   contract: number;
 }
 
+/** `POST /api/tabs/rescan` 的返回：重扫到底做了什么（D20 后这是唯一的装载入口） */
+export interface RescanResult {
+  added: string[];
+  removed: string[];
+  /** 代码变了、被就地重挂的 tab */
+  reloaded: string[];
+  failed: Array<{ id: string; reason: string }>;
+}
+
 /** 宿主全局设置：统一 ComfyUI 地址，只是宿主给的**只读默认值**（D16） */
 export interface HostGlobals {
   /** 统一 ComfyUI 地址；空串 = 未设置 */
