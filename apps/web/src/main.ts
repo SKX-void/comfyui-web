@@ -3,7 +3,17 @@ import { createRouter, createWebHistory, type Router } from 'vue-router';
 
 import App from './App.vue';
 import './style.css';
-import { fetchHostInfo, fetchPlugins, fetchUiPrefs, manifestError, orderedTabs, resolveHome, tabs, uiPrefs } from './store';
+import {
+  fetchHostInfo,
+  fetchPlugins,
+  fetchUiPrefs,
+  manifestError,
+  orderedTabs,
+  pluginRoutes,
+  resolveHome,
+  tabs,
+  uiPrefs,
+} from './store';
 import type { PluginClient, PluginInfo, TabEntry } from './types';
 import WelcomeView from './views/WelcomeView.vue';
 import SettingsView from './views/SettingsView.vue';
@@ -32,13 +42,18 @@ async function mountPlugin(router: Router, plugin: PluginInfo): Promise<TabEntry
 
   const base = `/w/${plugin.id}`;
   const routes = client.routes ?? [];
+  const declaredPaths: string[] = [];
   for (const [index, route] of routes.entries()) {
+    const path = route.path ? `${base}/${route.path}` : base;
+    declaredPaths.push(path);
     router.addRoute({
-      path: route.path ? `${base}/${route.path}` : base,
+      path,
       name: `${plugin.id}:${String(index)}`,
       component: route.component as never,
     });
   }
+  // 诊断用：落到兜底页时能列出"它到底声明了哪些路径"
+  pluginRoutes.value = { ...pluginRoutes.value, [plugin.id]: declaredPaths };
 
   const declared = client.tabs?.length
     ? client.tabs
@@ -65,8 +80,6 @@ async function bootstrap(): Promise<void> {
       { path: '/w/:id(.*)*', name: 'plugin-missing', component: PluginMissingView },
     ],
   });
-  app.use(router);
-
   // 根路径送到**默认首页**：偏好里选中的那个 tab；它不可用就按回退链退到第一个可用 tab。
   // 一个 tab 都没有时才留在欢迎页（/home 永远是欢迎页，品牌链接指向它）。
   router.beforeEach((to) => {
@@ -116,7 +129,11 @@ async function bootstrap(): Promise<void> {
   collected.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
   tabs.value = collected;
 
-  // 路由全部登记完再挂载，避免首屏导航落进兜底路由
+  // **必须先登记完插件路由、再 `app.use(router)`**：vue-router 的 install 会立刻用
+  // `history.location` 发起首次导航，而 addRoute **不会**重新解析当前路由 —— 顺序反了的话，
+  // 直接落在 `/w/<id>` 的首屏（默认首页就是这种）会先匹配到兜底路由，插件页面白白显示
+  // "没声明 routes"，点一下 tab 才恢复（实测踩过）。
+  app.use(router);
   app.mount('#app');
 }
 

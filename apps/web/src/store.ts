@@ -4,6 +4,13 @@ import type { HostInfo, PluginInfo, RescanResult, TabEntry, UiPrefs } from './ty
 
 /** tab 栏内容：来自已成功加载的插件前端入口（**自然顺序**：清单 order,id） */
 export const tabs = ref<TabEntry[]>([]);
+
+/**
+ * 每个插件前端**声明**了哪些路径（`/w/<id>` 的子路径）。
+ *
+ * 只用于诊断：落到兜底页时能说清"它声明的是这些路径"，而不是含糊地说"没声明 routes"。
+ */
+export const pluginRoutes = ref<Record<string, string[]>>({});
 /** 完整清单：设置页用 */
 export const plugins = ref<PluginInfo[]>([]);
 export const hostInfo = ref<HostInfo | null>(null);

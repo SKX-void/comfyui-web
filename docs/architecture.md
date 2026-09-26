@@ -454,6 +454,11 @@ deps 全在 `devDependencies`、由 esbuild inline 进 `lib/server.js`），所�
 
 ### 7.3 路由前缀
 
+**顺序有硬要求：先把插件的 `routes` 全部 `addRoute`，再 `app.use(router)` / `mount`。**
+vue-router 的 `install()` 会立刻用 `history.location` 发起**首次导航**，而 `addRoute` **不会**重新解析
+当前路由 —— 顺序反了的话，直接停在 `/w/<id>` 的首屏（例如默认首页）先匹配到兜底路由，
+插件页面会显示成「没声明 routes」，点一下 tab 才恢复（实测踩过）。
+
 框架只管 `/w/<id>` 前缀与 tab 渲染位置；**插件内部子路由自管**（`routes` 数组相对挂载）。
 
 ### 7.4 开发态
