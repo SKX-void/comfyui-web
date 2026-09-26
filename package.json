@@ -2,7 +2,12 @@
   "name": "comfyui-web",
   "version": "0.1.0",
   "private": true,
-  "description": "ComfyUI 轻前端服务器：表单 → 模板渲染 → ComfyUI API → 进度 → 出图",
+  "description": "Lightweight frontend + workflow plugin host for ComfyUI: form → template render → ComfyUI API → progress → image",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SKX-void/comfyui-web.git"
+  },
   "type": "module",
   "engines": {
     "node": ">=24"
