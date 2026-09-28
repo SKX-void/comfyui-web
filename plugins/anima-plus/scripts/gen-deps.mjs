@@ -1,7 +1,7 @@
 /**
  * 依赖清单生成器。
  *
- * 从模板声明（`assets/templates/<id>/template.json` 的 `requirements`）生成两份**给人看**
+ * 从工作流声明（`assets/form.json` 的 `requirements`）生成两份**给人看**
  * 的文件，避免"声明一处、文档另一处"再次漂移：
  *
  *   readme.md   ← 纯清单：装什么、去哪装（使用者核对安装情况的第一入口）
@@ -23,31 +23,21 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.resolve(HERE, '..');
-const TEMPLATES = path.join(PKG, 'assets', 'templates');
+const FORM = path.join(PKG, 'assets', 'form.json');
 const README = path.join(PKG, 'README.md');
 const PLAIN = path.join(PKG, 'readme.md');
 const MARK_START = '<!-- deps:start';
 const MARK_END = '<!-- deps:end -->';
 
-/** 所有模板的依赖声明合并；同名包合并 provides（任一模板必需 → 该包必需） */
+/** 工作流（唯一一份）的依赖声明 */
 export function collectDeps() {
   const packs = new Map();
   const builtin = new Set();
-  for (const entry of fs.readdirSync(TEMPLATES).sort()) {
-    const file = path.join(TEMPLATES, entry, 'template.json');
-    if (!fs.existsSync(file)) continue;
-    const def = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const req = def.requirements ?? {};
-    for (const cls of req.builtin ?? []) builtin.add(cls);
-    for (const pack of req.packs ?? []) {
-      const prev = packs.get(pack.name);
-      if (prev === undefined) {
-        packs.set(pack.name, { ...pack, provides: [...pack.provides] });
-      } else {
-        prev.provides = [...new Set([...prev.provides, ...pack.provides])];
-        if (prev.optional === true && pack.optional !== true) prev.optional = false;
-      }
-    }
+  const def = JSON.parse(fs.readFileSync(FORM, 'utf8'));
+  const req = def.requirements ?? {};
+  for (const cls of req.builtin ?? []) builtin.add(cls);
+  for (const pack of req.packs ?? []) {
+    packs.set(pack.name, { ...pack, provides: [...pack.provides] });
   }
   return { packs: [...packs.values()], builtin: [...builtin].sort() };
 }

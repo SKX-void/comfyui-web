@@ -112,6 +112,18 @@ export const DEFAULT_LIMITS: readonly NumericLimit[] = [
     max: MAX_BATCH,
     integer: true,
   },
+  {
+    // 采样器（ClownsharKSampler_Beta）把 seed 声明成 INT，上界 ≈ 2^64。
+    // 不设这条，1e20 这种超范围值会原样落图，提交后才在 ComfyUI 侧报错。
+    // exempt 里的 -1 是"每次随机"的占位值，在 render 里就已经被换成具体数了。
+    id: 'seed',
+    label: '随机种子',
+    fields: ['seed'],
+    min: -1,
+    max: Number.MAX_SAFE_INTEGER,
+    integer: true,
+    exempt: [-1],
+  },
 ];
 
 export const DEFAULT_COUNT_LIMITS: readonly CountLimit[] = [
@@ -169,7 +181,7 @@ export interface LimitHit {
   /** 被突破的那个边界 */
   bound: number;
   reason: LimitReason;
-  /** 可读的取值链，如 "26.inputs.steps → 49.inputs.value" */
+  /** 可读的取值链，如 "26.inputs.steps"（字面量）或 "26.inputs.steps → 49.inputs.value"（常量节点接线） */
   chain: string;
 }
 
@@ -223,9 +235,9 @@ const MAX_LINK_DEPTH = 4;
 /**
  * 解析某个节点字段的**实际数值**。
  *
- * ComfyUI 的 API 图里，`steps` 常常不是字面量而是 `["49", 0]`
+ * ComfyUI 的 API 图里，`steps` 有时不是字面量而是 `["49", 0]`
  * （连到一个 INTConstant / PrimitiveInt 的 `value`）。只看字面量会漏掉这类图，
- * 所以这里顺着连线往上找，并且：
+ * 所以这里在字面量取不到时顺着连线往上找，并且：
  *   - 上游节点只有一个数值输入 → 采用它
  *   - 上游节点没有数值输入但只有一条连线 → 继续往上
  *   - 有多个数值输入（无法判断哪个是取值） → **判定失败**，不猜
@@ -603,7 +615,7 @@ export function effectiveBounds(
 }
 
 /**
- * 收窄模板下发的 ui.min/max（`GET /api/templates/:id`）。
+ * 收窄表单下发的 ui.min/max（`GET /api/template`）。
  *
  * 好处：改安全策略只需改一处，前端滑块/数字框自动跟着变，
  * 不需要回头改 template.json 里那份可能过期的提示值。

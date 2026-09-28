@@ -1,6 +1,6 @@
 import type { Graph, TemplateDef, TemplateInput } from '@comfyui-web/shared';
 import { AppError } from '../errors.js';
-import { applyTransform } from './transforms.js';
+import { SEED_RANDOM, applyTransform } from './transforms.js';
 import {
   type EffectiveBounds,
   type LimitHit,
@@ -76,14 +76,15 @@ function coerceOne(input: TemplateInput, raw: unknown, bounds: EffectiveBounds):
       if (typeof n !== 'number' || Number.isNaN(n)) {
         throw new Error(`必须是数字，收到 ${JSON.stringify(raw)}`);
       }
-      if (input.type !== 'seed') {
-        const note = bounds.fromPolicy ? '（服务端安全限制）' : '';
-        if (bounds.min !== undefined && n < bounds.min) {
-          throw new Error(`不能小于 ${bounds.min}${note}`);
-        }
-        if (bounds.max !== undefined && n > bounds.max) {
-          throw new Error(`不能大于 ${bounds.max}${note}`);
-        }
+      // seed 的 -1 是"每次随机"的占位值，不是真实的种子，天然要豁免下界；
+      // 上界则必须查，否则 1e20 这种超范围值会原样落图（采样器 seed 上界 ≈ 2^64）。
+      if (input.type === 'seed' && n === SEED_RANDOM) return n;
+      const note = bounds.fromPolicy ? '（服务端安全限制）' : '';
+      if (bounds.min !== undefined && n < bounds.min) {
+        throw new Error(`不能小于 ${bounds.min}${note}`);
+      }
+      if (bounds.max !== undefined && n > bounds.max) {
+        throw new Error(`不能大于 ${bounds.max}${note}`);
       }
       return n;
     }
@@ -125,6 +126,11 @@ function setPath(graph: Graph, target: string, value: unknown): void {
 export interface RenderResult {
   graph: Graph;
   values: Record<string, unknown>;
+  /**
+   * seed transform 落到图上的**实际**种子，按输入 key 索引。
+   * values 里用户填的 -1（"每次随机"）会原样留着，想复用本次结果就得看这里。
+   */
+  seeds: Record<string, number>;
   /** 护栏夹紧的记录：只可能是模板自带值（用户值越界会直接抛错） */
   safety: { clamped: LimitHit[] };
 }
@@ -147,6 +153,10 @@ export function renderTemplate(
   const values = coerceValues(tpl.def, rawValues, tpl.graph);
   const graph: Graph = structuredClone(tpl.graph);
 
+  // 走 seed transform 的实际值。用户填 -1 时这里才拿到"这次到底用了哪个种子"，
+  // 而 values 里始终留着 -1（表单语义：下次还想随机），所以要单独回传。
+  const seeds: Record<string, number> = {};
+
   for (const binding of tpl.def.bindings) {
     if (!whenMatches(binding.when, values)) continue;
 
@@ -162,6 +172,9 @@ export function renderTemplate(
 
     if (binding.transform) {
       value = applyTransform(binding.transform, value, { args: binding.args });
+    }
+    if (binding.transform === 'seed' && typeof value === 'number') {
+      seeds[binding.from ?? binding.target] = value;
     }
     setPath(graph, binding.target, value);
   }
@@ -207,5 +220,5 @@ export function renderTemplate(
     );
   }
 
-  return { graph, values, safety: { clamped: scan.hits } };
+  return { graph, values, seeds, safety: { clamped: scan.hits } };
 }

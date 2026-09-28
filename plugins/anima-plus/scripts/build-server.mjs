@@ -20,8 +20,8 @@
  * 3. **图像编解码是纯 JS 依赖**（`purejsimage`，见 `weilin/thumb-codec.ts`）：它会被完整打进
  *    产物（`server.js` 因此从 232KB 涨到 785KB）。**不要再引入原生模块**（sharp 之类）——
  *    `.node` 没法内联，单文件交付这条就断了。
- * 4. **运行期资产不打进包**：`assets/templates/` 由 `import.meta.url` 在运行时定位，
- *    所以换模板不需要重新打包。
+ * 4. **运行期资产不打进包**：`assets/form.json` 与 `workflow.json` 由 `import.meta.url` 在
+ *    运行时定位，所以换工作流不需要重新打包。
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

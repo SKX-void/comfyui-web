@@ -13,6 +13,18 @@ export interface FieldModel {
   [key: string]: unknown;
 }
 
+/**
+ * 抽一个种子，范围与上界跟服务端 transforms.ts 的 randomSeed() 一致（0 ~ 2^53-1）。
+ *
+ * 上界取 2^53-1 而不是采样器声明的 2^64：超过 2^53 的整数在 JS number 里不保证精确。
+ * 两个调用点：App.vue 在点「开始出图」时抽（随机模式），FieldControl 的 🎲 在手动模式下摇。
+ */
+export function drawSeed(): number {
+  const hi = Math.floor(Math.random() * 2 ** 21);
+  const lo = Math.floor(Math.random() * 2 ** 32);
+  return hi * 2 ** 32 + lo;
+}
+
 export function defaultValues(inputs: TemplateInput[] | undefined): FieldModel {
   const out: FieldModel = {};
   // 防御：接口异常时也不要把整页渲染搞崩

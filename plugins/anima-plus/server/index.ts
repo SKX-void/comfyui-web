@@ -25,7 +25,7 @@ import { buildConfig, type PluginSettings } from './config.js';
 import { AppError } from './errors.js';
 import { pickSettings, readSettings, seedSettings, settingsFile, writeSettings } from './settings.js';
 import { RealComfyClient } from './comfy/real.js';
-import { TemplateRegistry } from './templates/loader.js';
+import { WorkflowDefinition } from './templates/loader.js';
 import { JobManager } from './jobs/manager.js';
 import { WeilinClient } from './weilin/client.js';
 import { ThumbnailCache } from './weilin/thumb.js';
@@ -44,8 +44,9 @@ const ID = 'anima-plus';
 /** 空间按包名分配，所以这里必须写本插件的包名 */
 const PACKAGE = '@comfyui-web/anima-plus';
 
-/** 产物在 tab 根（tabs/<id>/server.js），资产与它同级（scripts/pack.mjs 拷过去的 assets/） */
-const ASSETS_DIR = fileURLToPath(new URL('./assets/', import.meta.url));
+/** 产物在 tab 根（tabs/<id>/server.js）；workflow.json 与它同级（唯一基准），assets/ 放表单声明 */
+const PLUGIN_DIR = fileURLToPath(new URL('./', import.meta.url));
+const ASSETS_DIR = path.join(PLUGIN_DIR, 'assets');
 
 // ---------------------------------------------------------------------------
 // 宿主句柄的最小类型（插件不 import cordis，也不 import 宿主源码）
@@ -175,18 +176,18 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
   if (stored.error !== undefined) warn(`设置文件读不出来，改用内置默认值：${stored.error}`);
 
   const config = buildConfig(stored.values, {
-    templatesDir: path.join(ASSETS_DIR, 'templates'),
+    pluginDir: PLUGIN_DIR,
     dbFile: space.resolve('anima-plus.sqlite'),
     cacheDir: space.resolve('cache'),
     dataDir: space.root,
   });
 
-  // 1. 模板：静态校验失败直接抛 → 装配审计会把它记成"插件激活失败"，设置页可见
-  const templates = new TemplateRegistry(config.templatesDir, (msg, meta) =>
+  // 1. 工作流：静态校验失败直接抛 → 装配审计会把它记成"插件激活失败"，设置页可见
+  const workflow = new WorkflowDefinition(config.pluginDir, (msg, meta) =>
     warn(`${msg} ${meta === undefined ? '' : JSON.stringify(meta)}`),
   );
-  await templates.load();
-  log(`模板已加载 ${templates.list().length} 个`);
+  await workflow.load();
+  log(`工作流已加载 ${Object.keys(workflow.get().graph).length} 个节点`);
 
   // 2. 插件私有 SQLite（node 内置，零原生依赖）
   const db = openDatabase(config.dbFile, (msg, meta) =>
@@ -207,7 +208,7 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
   // 4. 依赖检查（模板需要的节点类 vs 上游 /object_info）+ 任务编排 + 缩略图缓存
   const deps = new DepsService(
     client,
-    templates,
+    workflow,
     (msg, meta) => warn(`${msg} ${meta === undefined ? '' : JSON.stringify(meta)}`),
     // 缓存时长来自设置项（0 = 每次重查，见 config.ts）
     { ttlMs: config.depsCacheTtlMs },
@@ -227,7 +228,7 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
       });
   }
 
-  const jobs = new JobManager(client, templates, {
+  const jobs = new JobManager(client, workflow, {
     clientId,
     deps,
     // 并发与历史长度都来自设置项（JobManager 本来就支持注入，见其 ManagerOptions）
@@ -257,7 +258,7 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
   const routes = ctx.routes.for(ID);
   await registerRoutes(createRouteHost(routes, ctx.logger ?? {}), {
     config,
-    templates,
+    workflow,
     jobs,
     client,
     weilin,
@@ -304,7 +305,7 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
     maxJobsRetained: config.maxJobsRetained,
     depsWarmupOnStart: config.depsWarmupOnStart,
     depsCacheTtlMs: config.depsCacheTtlMs,
-    templatesDir: config.templatesDir,
+    pluginDir: config.pluginDir,
     dataDir: config.dataDir,
     dbFile: config.dbFile,
     weilin: weilinStatus,

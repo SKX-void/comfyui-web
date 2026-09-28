@@ -103,13 +103,11 @@ export const api = {
   /** 帮助文档：包内 readme.md 的原文（运行前需要装哪些节点包） */
   help: () => request<HelpDoc>('/api/help'),
 
-  listTemplates: () =>
-    request<{ items: Array<{ id: string; name: string; description: string; version: string }> }>(
-      '/api/templates',
-    ),
-
-  getTemplate: (id: string) =>
-    request<TemplateDetail>(`/api/templates/${encodeURIComponent(id)}`),
+  /**
+   * 本插件唯一的工作流定义（表单 + 绑定 + 图规模）。
+   * 没有"列模板再挑一个"这一步：一个插件 = 一个工作流（docs/architecture.md §0 G1）。
+   */
+  getTemplate: () => request<TemplateDetail>('/api/template'),
 
   listModels: (folder: string) =>
     request<{ items: string[] }>(`/api/models?folder=${encodeURIComponent(folder)}`),

@@ -27,14 +27,14 @@ globalThis.document = {
   head: { appendChild: (el) => links.push(el) },
 };
 
-// 前端产物住在 tab 目录（D16：tabs/<id>/ 里全是编译完的文件）；模板是源码资产，位置不变
+// 前端产物住在 tab 目录（D16：tabs/<id>/ 里全是编译完的文件）；工作流定义是源码资产，位置不变
 const tabDir =
   process.env.TAB_OUT_DIR ?? fileURLToPath(new URL('../../../tabs/anima-plus/', import.meta.url));
 const clientUrl = pathToFileURL(path.join(tabDir, 'client.js'));
 const js = await readFile(clientUrl, 'utf8');
 const css = await readFile(path.join(tabDir, 'client.css'), 'utf8');
 const template = JSON.parse(
-  await readFile(new URL('../assets/templates/txt2img-basic/template.json', import.meta.url), 'utf8'),
+  await readFile(new URL('../assets/form.json', import.meta.url), 'utf8'),
 );
 
 let failed = 0;
@@ -118,7 +118,7 @@ check(
 );
 check('.page 不再自带 padding', /\.page\[data-v-[0-9a-f]+\]\{[^}]*padding:\s*0[;}]/.test(css));
 
-section('模板资产：字段标签');
+section('工作流定义：字段标签');
 const byKey = new Map((template.inputs ?? []).map((i) => [i.key, i]));
 check('prompt 标签 = 描述提示词', byKey.get('prompt')?.label === '描述提示词', byKey.get('prompt')?.label);
 check(
@@ -128,7 +128,7 @@ check(
 
 section('依赖声明：图里用到的节点类必须都有出处');
 const graph = JSON.parse(
-  await readFile(new URL('../assets/templates/txt2img-basic/graph.json', import.meta.url), 'utf8'),
+  await readFile(new URL('../workflow.json', import.meta.url), 'utf8'),
 );
 const used = [...new Set(Object.values(graph).map((n) => n.class_type))];
 const req = template.requirements ?? {};

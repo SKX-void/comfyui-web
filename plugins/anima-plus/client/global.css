@@ -49,3 +49,25 @@
   min-width: 0;
   max-width: 100%;
 }
+
+/**
+ * 去掉数字输入框右侧的上下箭头（spinner）。
+ *
+ * 它是浏览器画的原生控件，不吃这里的深色主题；每个数字框右边都挂一截，同一行里
+ * 还会挤掉有效宽度、跟旁边的控件对不齐。键盘 ↑/↓ 仍按 step 增减 —— 那是键盘
+ * 行为，不依赖这个按钮。
+ *
+ * WebKit/Blink 要分别干掉 outer/inner 两个私有伪元素；Firefox 走 appearance
+ * （-moz-appearance 是它认的旧名，appearance 是新标准名）。放在 global.css
+ * 而不是各组件里：数字框散在 FieldControl 和 SettingsPanel，逐个写会漏。
+ */
+.cw-anima-plus input[type='number']::-webkit-outer-spin-button,
+.cw-anima-plus input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cw-anima-plus input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

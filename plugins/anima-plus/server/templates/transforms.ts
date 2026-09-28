@@ -56,6 +56,24 @@ function normalizeLora(raw: unknown): LoraRef {
 }
 
 /**
+ * 随机种子的上界取 JS 安全整数上限（2^53-1）。
+ * ComfyUI 那边 ClownsharKSampler_Beta 把 seed 声明成 INT、上界 ≈ 2^64，但超过 2^53 的数在
+ * JS number 里已经不保证精确，落图时会被写成另一个值 —— 所以干脆只在这个"说了算"的区间里抽。
+ * 原来的 `Math.random() * 2**32` 只覆盖 2^32，这里是它的 2^21 倍。
+ */
+export const SEED_MAX = Number.MAX_SAFE_INTEGER;
+
+/** 用户输入的占位值：表示"这次随机"，渲染时换成 [0, SEED_MAX] 内的一个具体数。 */
+export const SEED_RANDOM = -1;
+
+/** 抽一个种子：高 21 位与低 32 位各自独立抽，避免只用低位导致的可预测性。 */
+export function randomSeed(): number {
+  const hi = Math.floor(Math.random() * 2 ** 21);
+  const lo = Math.floor(Math.random() * 2 ** 32);
+  return hi * 2 ** 32 + lo;
+}
+
+/**
  * 值变换器（docs/archive/v1-templates.md §4）。
  *
  * 说明：`weilinLora` 产出的 JSON **字符串**里含反斜杠转义，
@@ -69,7 +87,7 @@ export function applyTransform(
   switch (name) {
     case 'seed': {
       const n = asNumber(value, 'seed');
-      if (n === -1) return Math.floor(Math.random() * 2 ** 32);
+      if (n === -1) return randomSeed();
       return n;
     }
 
