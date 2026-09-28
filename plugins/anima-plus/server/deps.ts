@@ -1,13 +1,13 @@
 import type {
   DepsPackView,
   DepsReport,
-  DepsTemplateView,
+  DepsWorkflowView,
   PackRequirement,
   TemplateRequirements,
 } from '@comfyui-web/shared';
 
 import type { ComfyClient } from './comfy/types.js';
-import type { TemplateRegistry } from './templates/loader.js';
+import type { WorkflowDefinition } from './templates/loader.js';
 
 /**
  * 依赖检查：模板需要的节点类，这台 ComfyUI 到底有没有。
@@ -37,7 +37,7 @@ export class DepsService {
 
   constructor(
     private readonly client: ComfyClient,
-    private readonly templates: TemplateRegistry,
+    private readonly workflow: WorkflowDefinition,
     private readonly log: (msg: string, meta?: unknown) => void = () => {},
     options: { ttlMs?: number } = {},
   ) {
@@ -92,13 +92,13 @@ export class DepsService {
         missingBuiltin: [],
         missing: [],
         packs: this.packViews(null),
-        templates: this.templateViews(null),
+        workflow: this.workflowView(null),
       };
     }
 
     const { builtin } = this.declared();
     const missingBuiltin = builtin.filter((cls) => !keys.has(cls));
-    const templates = this.templateViews(keys);
+    const workflow = this.workflowView(keys);
     const packs = this.packViews(keys);
 
     // 节点 → 出处（包）；内置缺失时 pack 为 null（装插件包没用，得升级 ComfyUI）
@@ -118,7 +118,7 @@ export class DepsService {
       missingBuiltin,
       missing,
       packs,
-      templates,
+      workflow,
     };
   }
 
@@ -138,24 +138,13 @@ export class DepsService {
       .join('；');
   }
 
-  /** 全部模板的声明并集；同名包合并 provides（任一模板必需 → 该包必需） */
+  /** 工作流声明的节点出处（builtin ∪ packs[].provides） */
   private declared(): { builtin: string[]; packs: PackRequirement[] } {
-    const builtin = new Set<string>();
-    const packs = new Map<string, PackRequirement>();
-    for (const tpl of this.templates.list()) {
-      const req = tpl.def.requirements;
-      for (const cls of req?.builtin ?? []) builtin.add(cls);
-      for (const pack of req?.packs ?? []) {
-        const prev = packs.get(pack.name);
-        if (prev === undefined) {
-          packs.set(pack.name, { ...pack, provides: [...pack.provides] });
-        } else {
-          prev.provides = [...new Set([...prev.provides, ...pack.provides])];
-          if (prev.optional === true && pack.optional !== true) prev.optional = false;
-        }
-      }
-    }
-    return { builtin: [...builtin].sort(), packs: [...packs.values()] };
+    const req = this.workflow.get().def.requirements;
+    return {
+      builtin: [...new Set(req?.builtin ?? [])].sort(),
+      packs: (req?.packs ?? []).map((pack) => ({ ...pack, provides: [...pack.provides] })),
+    };
   }
 
   private packViews(keys: Set<string> | null): DepsPackView[] {
@@ -166,23 +155,21 @@ export class DepsService {
     }));
   }
 
-  private templateViews(keys: Set<string> | null): DepsTemplateView[] {
-    return this.templates.list().map((tpl) => {
-      const req = tpl.def.requirements;
-      const nodes = req?.nodes ?? [];
-      // 可选包里提供的节点不算"必需"
-      const optional = new Set(
-        (req?.packs ?? []).filter((p) => p.optional === true).flatMap((p) => p.provides ?? []),
-      );
-      const missing =
-        keys === null ? [] : nodes.filter((cls) => !keys.has(cls) && !optional.has(cls));
-      return {
-        id: tpl.def.id,
-        name: tpl.def.name,
-        // 没查成时**不拦**（ready=true）：拦的只能是"确实缺"，不能是"查不了"
-        ready: keys === null ? true : missing.length === 0,
-        missing,
-      };
-    });
+  private workflowView(keys: Set<string> | null): DepsWorkflowView {
+    const def = this.workflow.get().def;
+    const req = def.requirements;
+    const nodes = req?.nodes ?? [];
+    // 可选包里提供的节点不算"必需"
+    const optional = new Set(
+      (req?.packs ?? []).filter((p) => p.optional === true).flatMap((p) => p.provides ?? []),
+    );
+    const missing = keys === null ? [] : nodes.filter((cls) => !keys.has(cls) && !optional.has(cls));
+    return {
+      id: def.id,
+      name: def.name,
+      // 没查成时**不拦**（ready=true）：拦的只能是"确实缺"，不能是"查不了"
+      ready: keys === null ? true : missing.length === 0,
+      missing,
+    };
   }
 }

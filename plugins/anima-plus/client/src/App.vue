@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import type { DepsReport, HealthResponse, Job, JobProgress, TemplateDetail } from '@comfyui-web/shared';
 import { api, apiUrl, assetUrl, subscribeJob } from '@/api';
-import { defaultValues, normalizeValues, type FieldModel } from '@/form';
+import { defaultValues, drawSeed, normalizeValues, type FieldModel } from '@/form';
 import TemplateForm from '@/components/TemplateForm.vue';
 import DependencyNotice from '@/components/DependencyNotice.vue';
 import HelpPanel from '@/components/HelpPanel.vue';
@@ -12,13 +12,11 @@ const health = ref<HealthResponse | null>(null);
 /** 依赖检查结果；null = 还没查过 */
 const deps = ref<DepsReport | null>(null);
 const depsChecking = ref(false);
-/** 依赖面板手工展开（正常时它不出现，只在顶栏留一个 pill） */
-const depsOpen = ref(false);
+
 /** 帮助面板（显式展示包内 readme.md） */
 const helpOpen = ref(false);
 /** 设置面板：本插件的设置由自己持有（目录型 tab 的宿主设置页对它只读，见 components/SettingsPanel.vue） */
 const settingsOpen = ref(false);
-const templates = ref<Array<{ id: string; name: string }>>([]);
 const template = ref<TemplateDetail | null>(null);
 const values = ref<FieldModel>({});
 const models = ref<Record<string, string[]>>({});
@@ -37,26 +35,12 @@ const log = ref<string[]>([]);
 
 let unsubscribe: (() => void) | null = null;
 
-/** 当前模板的依赖结论；查不了时为 null */
-const currentDeps = computed(
-  () => deps.value?.templates.find((t) => t.id === template.value?.id) ?? null,
-);
+/** 当前工作流的依赖结论；查不了时为 null */
+const currentDeps = computed(() => deps.value?.workflow ?? null);
 /** 只在**确实缺**的时候拦提交；"没查成"不拦 */
 const depsReady = computed(() => currentDeps.value?.ready ?? true);
 const canSubmit = computed(() => !!template.value && !submitting.value && depsReady.value);
 
-/** 顶栏 pill 的形态：ok / 缺 N / ？（没查成）/ 检查中 */
-const depsState = computed(() => {
-  if (deps.value === null) return depsChecking.value ? '' : 'warn';
-  if (deps.value.ok === null) return 'warn';
-  return (currentDeps.value?.missing.length ?? 0) > 0 ? 'bad' : 'ok';
-});
-const depsPillText = computed(() => {
-  if (deps.value === null) return depsChecking.value ? '检查中…' : '?';
-  if (deps.value.ok === null) return '?';
-  const missing = currentDeps.value?.missing.length ?? 0;
-  return missing > 0 ? `缺 ${missing}` : '✓';
-});
 /** 有真问题（缺节点 / 没查成）时提示条自己冒出来 */
 const showDepsProblem = computed(
   () =>
@@ -82,7 +66,7 @@ async function checkDeps(refresh = false): Promise<void> {
     deps.value = await api.deps(refresh);
     const missing = currentDeps.value?.missing ?? [];
     if (missing.length > 0) {
-      pushLog(`依赖：当前模板缺 ${missing.length} 个节点 —— ${missing.join('、')}`);
+      pushLog(`依赖：当前工作流缺 ${missing.length} 个节点 —— ${missing.join('、')}`);
     } else if (deps.value.ok === null) {
       pushLog(`依赖检查未完成（ComfyUI 不可达）：${deps.value.error ?? ''}`);
     }
@@ -95,7 +79,7 @@ async function checkDeps(refresh = false): Promise<void> {
       missingBuiltin: [],
       missing: [],
       packs: [],
-      templates: [],
+      workflow: { id: '', name: '', ready: true, missing: [] },
     };
     pushLog(`依赖检查失败: ${message}`);
   } finally {
@@ -114,15 +98,12 @@ async function bootstrap(): Promise<void> {
   }
 
   try {
-    const list = await api.listTemplates();
-    templates.value = list.items;
-    if (list.items[0]) {
-      await loadTemplate(list.items[0].id);
-    }
+    // 一个插件只有一份工作流定义，不需要先"列模板再挑一个"
+    await loadTemplate();
   } catch (err) {
-    // 关键：模板加载失败必须**可见**，否则页面会静默残缺
+    // 关键：工作流加载失败必须**可见**，否则页面会静默残缺
     // （曾经因为 structuredClone 缺失抛错，只剩描述、没有表单、无人知道为什么）
-    fail(`模板加载失败: ${(err as Error).message}`);
+    fail(`工作流加载失败: ${(err as Error).message}`);
   }
 
   await refreshHistory();
@@ -134,14 +115,14 @@ function fail(message: string): void {
   pushLog(`✘ ${message}`);
 }
 
-async function loadTemplate(id: string): Promise<void> {
+async function loadTemplate(): Promise<void> {
   fatalError.value = null;
-  const tpl = await api.getTemplate(id);
+  const tpl = await api.getTemplate();
   template.value = tpl;
-  // 先算好表单值再声明成功：否则会留下"模板已设但表单为空"的半截状态
+  // 先算好表单值再声明成功：否则会留下"定义已设但表单为空"的半截状态
   values.value = defaultValues(tpl.inputs);
   pushLog(
-    `模板已加载: ${tpl.name}（${tpl.graphNodeCount} 个节点 / ${tpl.inputs?.length ?? 0} 个输入）`,
+    `工作流已加载: ${tpl.name}（${tpl.graphNodeCount} 个节点 / ${tpl.inputs?.length ?? 0} 个输入）`,
   );
 
   // 预取 model-select 需要的模型列表
@@ -197,8 +178,13 @@ async function submit(): Promise<void> {
   status.value = '提交中…';
 
   try {
+    // 随机开启：现在抽定，并写回表单 —— 提交的值与界面显示的必须是同一个数
+    if (values.value.randomSeed === true) {
+      const drawn = drawSeed();
+      values.value = { ...values.value, seed: drawn };
+      pushLog(`随机种子: ${drawn}`);
+    }
     const res = await api.createJob({
-      templateId: template.value.id,
       values: normalizeValues(template.value.inputs, values.value),
     });
     activeJobId.value = res.jobId;
@@ -280,8 +266,19 @@ async function cancel(): Promise<void> {
 }
 
 function reuse(job: Job): void {
-  values.value = { ...values.value, ...job.values };
-  pushLog(`已复用任务 ${job.jobId} 的参数`);
+  // 复用 = 复现同一张图：种子必须是**当时那个具体数**，所以顺手关掉随机，
+  // 否则下一次提交又抽新的，复用就白点了。
+  const resolved = job.seeds ?? {};
+  const next: Record<string, unknown> = { ...values.value, ...job.values };
+  for (const [key, seed] of Object.entries(resolved)) next[key] = seed;
+  if (Object.keys(resolved).length > 0) next.randomSeed = false;
+  values.value = next;
+  const seedKeys = Object.keys(resolved);
+  pushLog(
+    seedKeys.length > 0
+      ? `已复用任务 ${job.jobId} 的参数（种子 ${seedKeys.map((k) => resolved[k]).join(', ')}，已切换为固定种子）`
+      : `已复用任务 ${job.jobId} 的参数`,
+  );
 }
 
 const percent = computed(() => {
@@ -317,26 +314,11 @@ onMounted(() => {
   <div class="page">
     <header class="header">
       <h1>ComfyUI 轻前端</h1>
+      <!-- 顶栏只留「ComfyUI 连不连得上」一条：模式、WS、WeiLin 各有自己的去处
+           （设置页 / 依赖提示条），堆在这里只是一排没人看的小框 -->
       <div class="health" v-if="health">
-        <span class="pill" :class="health.comfyMode">模式 {{ health.comfyMode }}</span>
         <span class="pill" :class="health.comfyui.reachable ? 'ok' : 'bad'">
-          ComfyUI {{ health.comfyui.reachable ? '可达' : '不可达' }}
-        </span>
-        <span class="pill" :class="health.ws.connected ? 'ok' : 'bad'">
-          WS {{ health.ws.connected ? '已连接' : '未连接' }}
-        </span>
-        <span class="pill" :class="health.weilin.available ? 'ok' : 'bad'">
-          WeiLin {{ health.weilin.available ? `就绪 · ${health.weilin.total} LoRA` : '不可用' }}
-        </span>
-        <span
-          class="pill clickable"
-          :class="depsState"
-          role="button"
-          tabindex="0"
-          title="点击查看依赖清单（每个节点包 + 安装地址）"
-          @click="depsOpen = !depsOpen"
-        >
-          依赖 {{ depsPillText }}
+          ComfyUI {{ health.comfyui.reachable ? '已连接' : '未连接' }}
         </span>
       </div>
       <!-- 帮助：显式展示包内 readme.md（运行前需要装哪些节点包） -->
@@ -378,13 +360,12 @@ onMounted(() => {
       </p>
     </div>
 
+    <!-- pill 撤掉后，提示条只剩"真有问题才冒出来"这一条路；有问题时它自己不给收起 -->
     <DependencyNotice
-      v-if="depsOpen || showDepsProblem"
+      v-if="showDepsProblem"
       :deps="deps"
-      :template-id="template?.id ?? null"
       :checking="depsChecking"
       @refresh="checkDeps(true)"
-      @close="depsOpen = false"
     />
 
     <HelpPanel v-if="helpOpen" :deps="deps" @close="helpOpen = false" />
@@ -395,14 +376,6 @@ onMounted(() => {
       <section class="card">
         <div class="card-head">
           <h2>参数</h2>
-          <select
-            v-if="templates.length > 1"
-            class="control"
-            :value="template?.id"
-            @change="loadTemplate(($event.target as HTMLSelectElement).value)"
-          >
-            <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}</option>
-          </select>
         </div>
 
         <TemplateForm
@@ -482,13 +455,20 @@ onMounted(() => {
         <table v-if="history.length" class="table">
           <thead>
             <tr>
-              <th>任务</th><th>状态</th><th>产出</th><th></th>
+              <th>任务</th><th>状态</th><th>种子</th><th>产出</th><th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="job in history" :key="job.jobId">
               <td class="mono" data-label="任务">{{ job.jobId.slice(0, 12) }}…</td>
               <td data-label="状态"><span class="pill" :class="job.status">{{ job.status }}</span></td>
+              <!-- 展示实际落图的种子：用户填 -1 时表单里看不到它，但复现这张图要靠它 -->
+              <td class="mono" data-label="种子">
+                <template v-if="job.seeds && Object.keys(job.seeds).length">
+                  {{ Object.values(job.seeds).join(', ') }}
+                </template>
+                <span v-else class="dim">—</span>
+              </td>
               <td class="cell-assets" data-label="产出">
                 <a
                   v-for="a in job.assets"
@@ -566,15 +546,6 @@ h2 {
 }
 .help-btn svg {
   display: block;
-}
-/* 依赖 pill：可点开清单；warn = 没查成（区别于"确实缺"） */
-.pill.clickable {
-  cursor: pointer;
-  user-select: none;
-}
-.pill.warn {
-  color: #fcd34d;
-  border-color: #78350f;
 }
 .actions-hint {
   font-size: 12px;

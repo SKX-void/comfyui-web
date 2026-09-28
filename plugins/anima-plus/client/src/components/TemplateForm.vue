@@ -6,7 +6,7 @@
  * - `ui.row` 相同的字段排在同一行（按首次出现顺序）
  * - 行内任意字段声明 `ui.swap: "<key>"` 时，该字段后出现 ⇄ 一键交换
  * - 字段声明 `ui.preset` 时出现预设切换器（单字段在标签行右侧，
- *   整行则在行上方；`targets` 决定预设覆盖哪些字段）
+ *   分组行里贴在整行最右那一格的标签行右端）；`targets` 决定预设覆盖哪些字段
  * - 单字段声明 `ui.collapsible` 时标题行变成 ▸/▾，收起后只留标题 + 值摘要；
  *   `ui.collapsed: true` 决定初始是收起的（质量词这种"填一次就不动"的长文本用得上）
  *
@@ -29,6 +29,8 @@ const props = defineProps<{
 interface LayoutItem {
   kind: 'single' | 'row';
   inputs: TemplateInput[];
+  /** 所属的 `ui.row` 名；`single` 项为 undefined。种子行需要单独排版，靠它辨认 */
+  row?: string;
 }
 
 /** 把 inputs 折叠成「独占一行」与「同行分组」两种布局项 */
@@ -47,7 +49,7 @@ const layout = computed<LayoutItem[]>(() => {
     const at = rowAt.get(row);
     if (at === undefined) {
       rowAt.set(row, items.length);
-      items.push({ kind: 'row', inputs: [input] });
+      items.push({ kind: 'row', inputs: [input], row });
     } else {
       items[at]!.inputs.push(input);
     }
@@ -94,12 +96,22 @@ function presetSpec(input: TemplateInput): { kind: string; targets: string[] } |
 }
 
 /** 行内任一字段声明了 preset 就用它（一行只渲染一个切换器） */
-function rowPreset(item: LayoutItem): { kind: string; targets: string[] } | null {
+function rowPresetSpec(item: LayoutItem): { kind: string; targets: string[] } | null {
   for (const input of item.inputs) {
     const spec = presetSpec(input);
     if (spec) return spec;
   }
   return null;
+}
+
+/**
+ * 切换器挂在这一行的哪一格：最右那一格。
+ *
+ * 挂到声明它的那一格（宽）会让按钮落在宽、高中间 —— 看着像"高的东西"；
+ * 而挂整行最右，就和单字段的预设一样贴右边，也和输入框不抢宽度。
+ */
+function isRowPresetHost(item: LayoutItem, input: TemplateInput): boolean {
+  return input === item.inputs[item.inputs.length - 1] && rowPresetSpec(item) !== null;
 }
 
 function onUpdate(key: string, value: unknown): void {
@@ -172,26 +184,67 @@ function onApplyPreset(values: Record<string, unknown>): void {
 
       <!-- 同行分组 -->
       <div v-else class="row-group">
-        <div v-if="rowPreset(item)" class="row-head">
-          <PresetPicker
-            :kind="rowPreset(item)!.kind"
-            :targets="rowPreset(item)!.targets"
-            :values="props.values"
-            :disabled="props.disabled"
-            @apply="onApplyPreset"
-          />
+        <!--
+          种子行：独占一行，种子占满左侧、开关靠右 —— 开关是"种子的模式"而不是同级字段，
+          并排等宽会看不出主从。这一行也刻意不渲染 description：说明文字挤在这里
+          只会把"随机"这个开关的含义搅浑。
+        -->
+        <div v-if="item.row === 'seed'" class="row seed-row">
+          <div class="row-field seed-field">
+            <label class="field-label">
+              {{ item.inputs.find((i) => i.type === 'seed')?.label }}
+            </label>
+            <FieldControl
+              v-for="input in item.inputs.filter((i) => i.type === 'seed')"
+              :key="input.key"
+              :input="input"
+              :value="props.values[input.key]"
+              :models="props.models"
+              :random-seed="props.values.randomSeed === true"
+              :disabled="props.disabled"
+              @update="onUpdate"
+            />
+          </div>
+          <div
+            v-for="input in item.inputs.filter((i) => i.type !== 'seed')"
+            :key="input.key"
+            class="seed-toggle"
+          >
+            <span class="seed-toggle-label">{{ input.label }}</span>
+            <FieldControl
+              :input="input"
+              :value="props.values[input.key]"
+              :models="props.models"
+              :disabled="props.disabled"
+              @update="onUpdate"
+            />
+          </div>
         </div>
-        <div class="row">
+
+        <div v-else class="row">
           <template v-for="input in item.inputs" :key="input.key">
             <div class="row-field">
-              <label class="field-label">
-                {{ input.label }}
-                <span v-if="input.required" class="req">*</span>
-              </label>
+              <!-- 预设写在标签行：标签行本来就空着一大片，放这里才不用跟输入框抢宽度 -->
+              <div class="field-head">
+                <label class="field-label">
+                  {{ input.label }}
+                  <span v-if="input.required" class="req">*</span>
+                </label>
+                <div v-if="isRowPresetHost(item, input)" class="row-pick">
+                  <PresetPicker
+                    :kind="rowPresetSpec(item)!.kind"
+                    :targets="rowPresetSpec(item)!.targets"
+                    :values="props.values"
+                    :disabled="props.disabled"
+                    @apply="onApplyPreset"
+                  />
+                </div>
+              </div>
               <FieldControl
                 :input="input"
                 :value="props.values[input.key]"
                 :models="props.models"
+                :random-seed="props.values.randomSeed === true"
                 :disabled="props.disabled"
                 @update="onUpdate"
               />
@@ -307,9 +360,13 @@ function onApplyPreset(values: Record<string, unknown>): void {
   gap: 6px;
   min-width: 0;
 }
-.row-head {
-  display: flex;
-  justify-content: flex-end;
+/* 同一行里每个字段的标签行必须一样高：预设按钮比标签高 ~5px，只让带预设的那一格
+   变高的话，行是顶端对齐，另一个字段的输入框就会高 5px，两个输入框对不齐。 */
+.row-field .field-head {
+  min-height: 24px;
+}
+.row-pick {
+  flex: 0 0 auto;
 }
 .row {
   display: flex;
@@ -330,6 +387,26 @@ function onApplyPreset(values: Record<string, unknown>): void {
 .row-field .field-label {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 种子行：种子占满左侧，开关贴右。不换行 —— 换行会让开关漂到种子下面，主从关系又糊了 */
+.seed-row {
+  flex-wrap: nowrap;
+  align-items: flex-end;
+}
+.seed-field {
+  /* 吃掉所有剩余宽度，把开关推到最右 */
+  flex: 1 1 auto;
+}
+.seed-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.seed-toggle-label {
+  font-size: 12px;
+  color: #94a3b8;
 }
 .swap {
   flex: 0 0 auto;

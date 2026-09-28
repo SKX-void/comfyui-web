@@ -67,6 +67,7 @@
 | D18 | 交付物的形状 | **`dist/` 是完整可跑的一包**：`app/`（`server.mjs` + `web/`）+ `tabs/`（`tabs/` 下每个子目录的**拷贝**）+ `data/`（空目录，首次启动写 `host.json`）；产物态 `repoRoot = dist/`（不再往上看 `pnpm-workspace.yaml`）；入口 `server.mjs`、**不出 sourcemap**；`docker-compose.yml` 把 `dist/` 的三段挂进容器（`app`/`tabs` 只读、`data` 可写） | 既然 `tabs/` 不入库（D17），交付物里必须有它，「把 `dist/` 拷到机器上就能跑」才成立；软链会让 dist 不可搬，所以用拷贝。副作用：仓库里跑产物与部署跑产物语义一致（都看 `dist/{tabs,data}`） |
 | D21 | 启停落点 | **插件的启停写进 `data/host.json` 的 `disabled: []`**（宿主自己的部署事实）：`PUT /api/plugins/:id/enabled` 原子落盘后再改运行期状态；装载时（启动 / 重扫 / 重挂）一律**以盘上的值为准**，调用方不许把"这一行现在是停用的"再传下去；清单的 `enabled` 报当前事实（Loader 行优先，行还没落地才回落到盘） | "这个插件在这台装置上停用了"是**部署事实**，跟 tab 顺序/首页/统一地址同类 —— 归宿主；而插件的配置/库是**插件自己的数据**，归插件（D15）。两个真源各管各的，才不会出现"点了停用、重启又活了"。代价：多一个能写坏的状态位（清洗规则与其它偏好字段同款：非字符串丢弃、去重、限长）。见 §14.5 |
 | D20 | 扫描时机 | **不监听、不轮询**：宿主只在**启动**与 `POST /api/tabs/rescan`（设置页/欢迎页的「重新扫描插件目录」按钮）时扫 `tabsDir`；重扫是**增量**的（只重挂指纹变了的），结果分项回报（`added`/`reloaded`/`removed`/`failed`），前端如实转述；`GET /api/plugins` 只列**已装载**的 tab（含没通过检查、已挂成 `rejected` 的）—— 不放"看得见但点不开"的条目 | 目录里什么时候有新东西，**改的人自己知道** —— 自动扫描换来的只有"改到一半被装成一份半成品"和一套没人看的 2s 心跳；顺带消掉"容器挂载 / 网络盘上 `fs.watch` 静默失聪"这个只有实测才会发现的坑（旧实现靠 2s 指纹轮询兜底，见 §14.5）。代价：放进去 / 改完必须点一下按钮（或 `curl -X POST /api/tabs/rescan`）才生效 |
+| D22 | 工作流定义的形状 | **一个插件 = 一份工作流定义，不存在"模板"这层抽象**：图是插件根的 `workflow.json`（与 `package.json` 并列、`pack.mjs` 按名打包，跟 `anima-example` 一致），表单/绑定/产出/依赖声明在 `assets/form.json`；没有 `source.file` 指针（图不存第二份），没有多模板注册表 / 按 id 查 / id 唯一性校验（D16/D19 之后一个工作流 = 一个 tab，多模板能力从未被用过），HTTP 也随之去 `templateId`：`GET /api/template`（单数）、`POST /api/jobs` 只收 `values` | v1 的「模板数据」层是单体应用的产物（§0），v2 用「一个工作流 = 一个 tab」（G1）取代了它：一个插件里再分"模板"是重复抽象，而它唯一独有的能力（一格挂多套表单/图）没有任何使用者。旧形状还实际制造过事故：`workflow.json` 与 `graph.json` 两份图靠 `source.file` 指针连着，改一份忘另一份就悄悄跑偏。见 §10、§14 |
 | D19 | profile 机制与示例 tab 的删除 | **`profiles/`、Include 装配、`apps/server/scripts/plugin.mjs`、清单落盘、契约 patch 层、`fallback`/`following` 全删**：插件唯一来源是 `tabs/<id>/`；统一地址只剩"只读默认值"（宿主不写进任何插件）；`tabs/hello/` 不再作为示例（写法见 `tabs/README.md`） | D16 已把落点定死（`data/host.json` + `tabs/`），留着 profile 只会多一条没人走的装配路径与一份"两个真源"的歧义；示例 tab 的内容已经并进 `tabs/README.md` 的三文件骨架。见 §6/§6.1/§14.5 |
 
 ```
@@ -576,7 +577,8 @@ comfyui-web/
 └── scripts/verify.mjs       `pnpm verify` 的入口
 
 （旧服务的 data/comfyui-server.db、根 config.json、根 templates/、workflow/ 都已删除：
-  预设迁进了插件空间，模板成了插件资产，其余没有读者。v1 文档在 docs/archive/。）
+  预设迁进了插件空间，其余没有读者。v1 文档在 docs/archive/。
+  模板这层抽象后来也删了（D22）：一个工作流 = 一个 tab，插件里不再分"模板"。）
 ```
 
 > **环境坑（提前记下）**：仓库 `pnpm-workspace.yaml` 已有 `storeDir: .pnpm-store`，原因是本环境 HOME 只读。所有跑 pnpm 的地方都得显式指 store，别指望默认路径。
@@ -625,7 +627,7 @@ comfyui-web/
 | `apps/server/src/safety/quota.ts` | `plugins/anima-plus/server/safety/` |
 | `apps/server/src/store/db.ts` | **没有对应物**：核不再提供数据库句柄，各插件在自己的空间里自建（见 §9） |
 | `apps/server/src/store/presets.ts` | 进 `@comfyui-web/anima-plus`（插件私有表） |
-| `apps/server/src/templates/` | 进各插件（模板是插件私有资产，不再是全局数据目录） |
+| `apps/server/src/templates/` | 进各插件（工作流是插件私有资产，不再是全局数据目录）；**多模板这层抽象已删**（D22）：一个插件 = 一份定义 |
 | `apps/server/src/http/routes.ts` | 拆到各插件；宿主只留清单端点与托管 |
 | `apps/web/src/components/` | 进各插件；宿主只留壳 + tab 栏 + 设置页 |
 | `config.json` | 拆成：宿主段（端口/路径/日志，`data/host.json`）+ 用户偏好段（同文件）+ 插件自己的空间（D16/D19） |
@@ -641,7 +643,7 @@ comfyui-web/
 | `apps/server/` | 宿主后端：`config.ts` 配置、`kernel.ts` 装配（Loader + tabs）、`core-plugin.ts` 宿主端点、`host-settings.ts` 唯一配置文件（D16）、`handles/{space,routes}.ts` 两个句柄、`plugin-package.ts` 包清单解析、`scripts/build.mjs` |
 | `apps/web/` | 宿主前端：`index.html`（import map 是核心）、`src/main.ts` 插件装载器、`App.vue` tab 栏壳、`views/SettingsView.vue`（设置页只读展示插件设置，D15） |
 | `tabs/` | 工作流插件交付物（D14/D15/D16）：一个子目录一个插件、目录名即 id、自包含；装载时机见 D20（启动 + 手动重扫） |
-| `plugins/anima-plus/` | **v1 整体搬完**：前端是 v1 的 `App.vue` + 8 个组件，后端是 v1 那 14 个模块逐字搬进 `server/`（模板/渲染/显存护栏/任务编排/LoRA/标签/预设），反代已删；另加依赖检查（`server/deps.ts`，见 §14.1f）。见 §13 与 `plugins/anima-plus/README.md` |
+| `plugins/anima-plus/` | **v1 整体搬完**：前端是 v1 的 `App.vue` + 8 个组件，后端是 v1 那 14 个模块逐字搬进 `server/`（渲染/显存护栏/任务编排/LoRA/标签/预设），反代已删；另加依赖检查（`server/deps.ts`，见 §14.1f）。工作流定义形状见 D22（`workflow.json` + `assets/form.json`）。见 §13 与 `plugins/anima-plus/README.md` |
 | `data/host.json` | 宿主唯一配置文件（部署段 + 偏好段）；不存在时宿主写默认值，挂空 data 卷即可启动（D16） |
 
 ### 14.1 落地时的三处偏离（都要记住）

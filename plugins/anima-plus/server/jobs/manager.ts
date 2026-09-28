@@ -9,7 +9,7 @@ import type {
 import { AppError } from '../errors.js';
 import type { ComfyClient, ComfyEvent } from '../comfy/types.js';
 import type { DepsService } from '../deps.js';
-import type { TemplateRegistry } from '../templates/loader.js';
+import type { WorkflowDefinition } from '../templates/loader.js';
 import { renderTemplate } from '../templates/render.js';
 import { MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../safety/quota.js';
 
@@ -61,7 +61,7 @@ export class JobManager {
 
   constructor(
     private readonly client: ComfyClient,
-    private readonly templates: TemplateRegistry,
+    private readonly workflow: WorkflowDefinition,
     private readonly opts: ManagerOptions,
   ) {
     this.bus.setMaxListeners(0);
@@ -148,13 +148,12 @@ export class JobManager {
   // -------------------------------------------------------------------------
 
   async submit(req: CreateJobRequest): Promise<Job> {
-    const tpl = this.templates.get(req.templateId);
-    const { graph, values, safety } = renderTemplate(tpl, req.values ?? {});
+    const tpl = this.workflow.get();
+    const { graph, values, seeds, safety } = renderTemplate(tpl, req.values ?? {});
 
     // 安全护栏夹紧了模板自带的越界值（用户填的值越界会在这里之前就抛错）
     if (safety.clamped.length > 0) {
-      this.opts.log('安全护栏夹紧了模板自带的越界值', {
-        templateId: tpl.def.id,
+      this.opts.log('安全护栏夹紧了工作流自带的越界值', {
         clamped: safety.clamped.map((h) => ({
           at: `${h.at.nodeId}.inputs.${h.at.field}`,
           from: h.value,
@@ -172,11 +171,11 @@ export class JobManager {
     const job: Job = {
       jobId,
       promptId: null,
-      templateId: tpl.def.id,
-      templateVersion: tpl.def.version,
+      workflowVersion: tpl.def.version,
       status: 'created',
       progress: null,
       values,
+      seeds,
       assets: [],
       error: null,
       createdAt: now,
@@ -200,8 +199,8 @@ export class JobManager {
     // 否则说明它在任何一步失败了，必须释放占位，免得占着名额又没人清。
     let handedOff = false;
     try {
-      // 模板依赖的节点是否都已加载（v1-roadmap M2 验收）。
-      // nodes 由 loader 从 graph.json 推导（手写清单漂过）；检查走 DepsService 的缓存
+      // 工作流依赖的节点是否都已加载（v1-roadmap M2 验收）。
+      // nodes 由 loader 从 workflow.json 推导（手写清单漂过）；检查走 DepsService 的缓存
       // （object_info 很贵，缓存策略见 server/deps.ts）。
       // 查不到（上游不可达）时**跳过检查**：下面的 submit 会给出更准确的连接错误，
       // 不能因为"检查不了"就把任务拦下。
@@ -215,7 +214,7 @@ export class JobManager {
           const missing = required.filter((n) => !keys.has(n));
           if (missing.length > 0) {
             throw AppError.graphValidation(
-              `模板 ${tpl.def.id} 依赖的节点未加载: ${this.deps.describeMissing(missing, tpl.def.requirements)}`,
+              `工作流依赖的节点未加载: ${this.deps.describeMissing(missing, tpl.def.requirements)}`,
               { missing },
             );
           }
@@ -247,7 +246,7 @@ export class JobManager {
       this.promptToJob.set(result.promptId, jobId);
       handedOff = true;
 
-      this.opts.log('任务已提交', { jobId, promptId: result.promptId, templateId: tpl.def.id });
+      this.opts.log('任务已提交', { jobId, promptId: result.promptId });
       this.emit(job, 'queued', { promptId: result.promptId, status: job.status });
 
       return job;
@@ -492,10 +491,7 @@ export class JobManager {
       if (history) {
         completed = history.completed;
         statusStr = history.statusStr;
-        const wanted = new Set(
-          this.templates.list().find((t) => t.def.id === job.templateId)?.def.outputs.nodes ??
-            [],
-        );
+        const wanted = new Set(this.workflow.get().def.outputs.nodes);
         for (const [nodeId, output] of Object.entries(history.outputs)) {
           if (wanted.size > 0 && !wanted.has(nodeId)) continue;
           for (const img of output.images ?? []) historyAssets.push(img);

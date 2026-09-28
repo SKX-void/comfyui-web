@@ -78,6 +78,10 @@ export async function packTab({ pluginDir, extras = [], build = [], watch = fals
   const id = path.basename(pluginDir);
   const outDir = tabOutDir(pluginDir);
   const pkg = JSON.parse(fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8'));
+
+  // 先清空产物目录：extras 是"拷贝"而不是"同步"，源里删掉的文件在产物里会一直活着。
+  // 踩过：assets/templates/ 删掉后，产物里仍留着旧副本，装载的其实是过期资产。
+  fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
 
   for (const extra of extras) copyInto(path.join(pluginDir, extra), path.join(outDir, extra));

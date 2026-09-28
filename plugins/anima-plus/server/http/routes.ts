@@ -8,7 +8,7 @@ import {
 import { AppError } from '../errors.js';
 import type { JobManager } from '../jobs/manager.js';
 import { decodeAssetId } from '../jobs/manager.js';
-import type { TemplateRegistry } from '../templates/loader.js';
+import type { WorkflowDefinition } from '../templates/loader.js';
 import type { ComfyClient } from '../comfy/types.js';
 import type { WeilinClient } from '../weilin/client.js';
 import type { PresetStore } from '../store/presets.js';
@@ -29,7 +29,7 @@ import { narrowTemplateBounds } from '../safety/limits.js';
 export interface RouteDeps {
   config: ServerConfig;
   deps: DepsService;
-  templates: TemplateRegistry;
+  workflow: WorkflowDefinition;
   jobs: JobManager;
   client: ComfyClient;
   weilin: WeilinClient;
@@ -40,27 +40,17 @@ export interface RouteDeps {
 const SSE_HEARTBEAT_MS = 15_000;
 
 export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Promise<void> {
-  const { templates, jobs, client, config, weilin, thumbs, presets, deps: depsService } = deps;
+  const { workflow, jobs, client, config, weilin, thumbs, presets, deps: depsService } = deps;
 
   // -------------------------------------------------------------------------
-  // 模板
+  // 工作流（插件只有一份：D16/D19 之后一个工作流 = 一个 tab，没有"多模板"）
   // -------------------------------------------------------------------------
 
-  app.get('/api/templates', async () => ({
-    items: templates.list().map((t) => ({
-      id: t.def.id,
-      name: t.def.name,
-      description: t.def.description ?? '',
-      version: t.def.version,
-    })),
-  }));
-
-  app.get('/api/templates/:id', async (req) => {
-    const { id } = req.params as { id: string };
-    const tpl = templates.get(id);
+  app.get('/api/template', async () => {
+    const tpl = workflow.get();
     // 用安全策略收窄下发的 ui.min/max（plugins/anima-plus/docs/safety.md）：
     // 前端滑块/数字框因此不会给出"填了也一定会被拒"的区间，
-    // 而且改上限只需改策略一处，不用回头改 template.json 里的提示值。
+    // 而且改上限只需改策略一处，不用回头改 assets/form.json 里的提示值。
     const def = narrowTemplateBounds(tpl.def, tpl.graph);
     const detail: TemplateDetail = {
       ...def,
@@ -70,14 +60,13 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
   });
 
   /**
-   * 重新加载模板目录（改 template.json 后无需重启后端）。
-   * 校验失败时抛错并保留原有模板，不会把服务搞坏。
+   * 重新加载工作流定义（改 assets/form.json / workflow.json 后无需重启后端）。
+   * 校验失败时抛错并保留原有定义，不会把服务搞坏。
    */
-  app.post('/api/templates/reload', async () => {
-    const before = templates.list().map((t) => t.def.id);
-    await templates.load();
-    const after = templates.list().map((t) => t.def.id);
-    return { reloaded: true, templates: after, before };
+  app.post('/api/template/reload', async () => {
+    const before = workflow.get().def.version;
+    await workflow.load();
+    return { reloaded: true, version: workflow.get().def.version, before };
   });
 
   // -------------------------------------------------------------------------
@@ -89,11 +78,8 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
     if (!body || typeof body !== 'object') {
       throw AppError.badRequest('请求体必须是 JSON 对象');
     }
-    if (!body.templateId) {
-      throw AppError.badRequest('缺少 templateId');
-    }
+    // 请求体里没有 templateId：一个插件只有一份工作流定义（D16/D19 之后没有"多模板"）
     const job = await jobs.submit({
-      templateId: body.templateId,
       values: body.values ?? {},
       options: body.options,
     });

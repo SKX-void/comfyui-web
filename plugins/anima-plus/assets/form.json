@@ -1,19 +1,13 @@
 {
   "id": "txt2img-basic",
   "name": "基础文生图（WeiLin + Anima）",
-  "description": "沿用拆分式节点设计：43 负责 LoRA 加载与触发词注入，19 负责主提示词，28/33 负责质量词。",
+  "description": "沿用拆分式节点设计：43 负责 LoRA 加载与触发词注入，19 负责主提示词，28/33 负责质量词，26 负责采样（步数/CFG/种子直接落在节点上）。",
   "version": "1.0.0",
-  "source": {
-    "file": "graph.json",
-    "capturedAt": "2026-09-18T16:46:00Z"
-  },
   "requirements": {
     "builtin": [
       "CLIPLoader",
       "CLIPTextEncode",
       "EmptyLatentImage",
-      "LatentRotate",
-      "PrimitiveFloat",
       "UNETLoader",
       "VAEDecode",
       "VAELoader"
@@ -27,20 +21,6 @@
           "WeiLinPromptUIWithoutLora"
         ],
         "note": "提示词节点；LoRA 列表 / 标签 / 翻译也走它的接口（不在 ComfyUI-Manager 上）"
-      },
-      {
-        "name": "rgthree",
-        "url": "https://github.com/rgthree/rgthree-comfy.git",
-        "provides": [
-          "Seed (rgthree)"
-        ]
-      },
-      {
-        "name": "KJNodes",
-        "url": "https://github.com/kijai/ComfyUI-KJNodes.git",
-        "provides": [
-          "INTConstant"
-        ]
       },
       {
         "name": "Danbooru",
@@ -194,10 +174,19 @@
       "label": "种子",
       "type": "seed",
       "required": false,
-      "default": -1,
-      "description": "-1 表示每次随机",
+      "default": 421066625562399,
       "ui": {
-        "row": "sampling"
+        "row": "seed"
+      }
+    },
+    {
+      "key": "randomSeed",
+      "label": "随机",
+      "type": "switch",
+      "required": false,
+      "default": true,
+      "ui": {
+        "row": "seed"
       }
     },
     {
@@ -289,16 +278,16 @@
       "from": "unet_name"
     },
     {
-      "target": "47.inputs.seed",
+      "target": "26.inputs.seed",
       "from": "seed",
       "transform": "seed"
     },
     {
-      "target": "49.inputs.value",
+      "target": "26.inputs.steps",
       "from": "steps"
     },
     {
-      "target": "46.inputs.value",
+      "target": "26.inputs.cfg",
       "from": "cfg"
     },
     {
@@ -318,12 +307,6 @@
       "from": "quality"
     }
   ],
-  "promptBinding": {
-    "node": "19",
-    "positiveField": "positive",
-    "tempStrField": "temp_str",
-    "loraStackNode": "43"
-  },
   "outputs": {
     "nodes": [
       "57"

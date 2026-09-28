@@ -120,15 +120,6 @@ export interface Binding {
   when?: { key: string; equals?: unknown; truthy?: boolean };
 }
 
-/** WeiLin 提示词节点绑定（docs/archive/v1-templates.md §3.4） */
-export interface PromptBinding {
-  node: string;
-  positiveField: string;
-  tempStrField?: string;
-  /** LoRA 堆叠节点（若走 Q15 方案 B） */
-  loraStackNode?: string;
-}
-
 /**
  * 需要用户自己装的节点包。
  *
@@ -149,8 +140,8 @@ export interface PackRequirement {
 
 export interface TemplateRequirements {
   /**
-   * 模板需要的节点类。**由 graph.json 推导、运行期由 loader 填**，作者不要手写：
-   * 手写过一次就漂了（模板列 9 种、图里实际 17 种，缺的那 8 种一路跑到 ComfyUI 才报错）。
+   * 工作流需要的节点类。**由 workflow.json 推导、运行期由 loader 填**，作者不要手写：
+   * 手写过一次就漂了（声明列 9 种、图里实际 17 种，缺的那 8 种一路跑到 ComfyUI 才报错）。
    */
   nodes?: string[];
   /** ComfyUI 自带（`nodes` / `comfy_extras`）；缺了说明 ComfyUI 版本太老 */
@@ -165,15 +156,13 @@ export interface TemplateDef {
   name: string;
   description?: string;
   version: string;
-  source?: { file: string; capturedAt?: string };
   requirements?: TemplateRequirements;
   inputs: TemplateInput[];
   bindings: Binding[];
-  promptBinding?: PromptBinding;
   outputs: { nodes: string[]; type: 'image' | 'video' | 'audio' | 'file' };
 }
 
-/** 模板详情（对外响应，含 graph 供调试） */
+/** 工作流详情（对外响应，含 graph 规模供调试） */
 export interface TemplateDetail extends TemplateDef {
   graphNodeCount: number;
 }
@@ -239,11 +228,16 @@ export interface JobError {
 export interface Job {
   jobId: string;
   promptId: string | null;
-  templateId: string;
-  templateVersion: string;
+  /** 工作流定义版本（assets/form.json 的 version），用于追历史任务用的是哪一版 */
+  workflowVersion: string;
   status: JobStatus;
   progress: JobProgress | null;
   values: Record<string, unknown>;
+  /**
+   * seed transform 本次实际落图的种子，按输入 key 索引。
+   * values 里保留的是用户填的 -1（"每次随机"），所以想复用/展示"这次用了哪个种子"必须看这里。
+   */
+  seeds?: Record<string, number>;
   assets: JobAsset[];
   error: JobError | null;
   createdAt: string;
@@ -253,7 +247,6 @@ export interface Job {
 }
 
 export interface CreateJobRequest {
-  templateId: string;
   values: Record<string, unknown>;
   options?: { autoRandom?: boolean; clientToken?: string };
 }
@@ -319,8 +312,8 @@ export interface DepsPackView extends PackRequirement {
   missing: string[];
 }
 
-/** 依赖检查的单个模板 */
-export interface DepsTemplateView {
+/** 依赖检查：本插件唯一工作流的就绪情况 */
+export interface DepsWorkflowView {
   id: string;
   name: string;
   ready: boolean;
@@ -347,7 +340,7 @@ export interface DepsReport {
   /** 缺失的节点 → 出处；声明里没写地址时为 null（界面显示"出处未声明"） */
   missing: Array<{ classType: string; pack: { name: string; url: string } | null }>;
   packs: DepsPackView[];
-  templates: DepsTemplateView[];
+  workflow: DepsWorkflowView;
 }
 
 /** `GET /api/help` 的响应：包内 md 的原文（text 为 null = 读不到，`error` 给原因） */

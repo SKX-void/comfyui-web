@@ -14,15 +14,13 @@ WS 收进度 → SSE 推浏览器 → 取图。不依赖 8086，也不依赖任�
 | 节点包 | 提供的节点 | 安装地址 |
 | --- | --- | --- |
 | WeiLin | `WeiLinPromptUI`、`WeiLinPromptUIWithoutLora` | <https://github.com/weilin9999/WeiLin-Comfyui-Tools.git> |
-| rgthree | `Seed (rgthree)` | <https://github.com/rgthree/rgthree-comfy.git> |
-| KJNodes | `INTConstant` | <https://github.com/kijai/ComfyUI-KJNodes.git> |
 | Danbooru | `SaveImagePlus` | <https://github.com/Aaalice233/ComfyUI-Danbooru-Gallery.git> |
 | TeaCache | `AnimaTeaCache` | <https://github.com/CocyNoric/ComfyUI-Anima-TeaCache.git> |
 | Enhancer | `AnimaLayerReplayPatcher` | <https://github.com/AdamNizol/ComfyUI-Anima-Enhancer.git> |
 | Comfyroll | `CR Text` | <https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git> |
 | RES4LYF | `ClownsharKSampler_Beta` | <https://github.com/ClownsharkBatwing/RES4LYF.git> |
 
-ComfyUI 自带（缺了说明版本太老，装插件包解决不了）：`CLIPLoader`、`CLIPTextEncode`、`EmptyLatentImage`、`LatentRotate`、`PrimitiveFloat`、`UNETLoader`、`VAEDecode`、`VAELoader`。
+ComfyUI 自带（缺了说明版本太老，装插件包解决不了）：`CLIPLoader`、`CLIPTextEncode`、`EmptyLatentImage`、`UNETLoader`、`VAEDecode`、`VAELoader`。
 <!-- deps:end -->
 
 ## 请求链路
@@ -39,7 +37,7 @@ ComfyUI 自带（缺了说明版本太老，装插件包解决不了）：`CLIPL
 **前端一行没改**：插件的路由挂在宿主的 `/api/p/<插件id>` 前缀下，而插件内部
 照旧注册 `/api/*`，所以完整路径与旧服务逐字一致 —— `client/src/api.ts` 的
 `API_BASE = '/api/p/anima-plus'` 保持不动就是对的。
-（**不要**把它改成空串：那样会请求 `/api/templates`、打到宿主源上 404。）
+（**不要**把它改成空串：那样会请求 `/api/template`、打到宿主源上 404。）
 
 ## 目录
 
@@ -49,29 +47,34 @@ plugins/anima-plus/
 │   ├── index.ts            # 组装根：句柄接线 + 路由 + 生命周期
 │   ├── config.ts           # 本插件的配置（5 个设置项；填错回默认、越界收敛）
 │   ├── comfy/              # ComfyUI 客户端（HTTP + WS）
-│   ├── templates/          # 模板加载 / 渲染 / 8 个值变换
+│   ├── templates/          # 模板加载 / 渲染 / 值变换（含 seed 随机：-1 → 具体种子）
 │   ├── safety/             # 显存护栏 + 配额（搬家时最不能丢的一段）
 │   ├── jobs/manager.ts     # 任务编排（内存表 + SSE 事件总线）
 │   ├── weilin/             # LoRA 目录/元数据/缩略图、标签树、翻译
 │   │   └── thumb-codec.ts  # 缩略图编解码：纯 JS（purejsimage）、阈值透传、JPEG q74
 │   ├── store/              # 插件私有 SQLite（预设）+ 自己的迁移
-│   ├── deps.ts             # 依赖检查：模板要的节点类 vs 上游 /object_info（带缓存）
+│   ├── deps.ts             # 依赖检查：工作流要的节点类 vs 上游 /object_info（带缓存）
 │   ├── help.ts             # 帮助文档：读包内 readme.md（读不到返回 text:null，界面降级）
 │   └── http/routes.ts      # 23 条路由（逐字搬来 + SSE hijack + /api/deps + /api/help）
 ├── client/                 # 前端源码（v1 的 App.vue + 8 个组件，含依赖提示与帮助面板）
-├── assets/templates/       # 模板资产（template.json + graph.json；requirements 声明在此）
+├── assets/form.json        # 表单声明（inputs / bindings / outputs / requirements）
 ├── scripts/
 │   ├── build-server.mjs    # esbuild 打包 → lib/server.js
 │   ├── gen-deps.mjs        # 从 requirements 生成 readme.md / README 的依赖段
-│   └── smoke.ts            # 自检：不需要 ComfyUI/网络（58 项）
+│   └── smoke.ts            # 自检：不需要 ComfyUI/网络（63 项）
+├── workflow.json           # 工作流本体（唯一基准，与 package.json 并列）
 └── lib/                    # 构建产物：server.js + client.js + client.css
 ```
 
+> **`workflow.json` 就是唯一基准**（与 `package.json` 并列，`pack.mjs` 按名打包）。
+> 表单声明在 `assets/form.json`，它只描述怎么把表单值注入这张图，不再持有图的副本 ——
+> 所以不存在"两份图漂移"这种事故。**改图只改 `workflow.json`。**
+
 ## 依赖声明与检查
 
-**声明**在模板里（`assets/templates/<id>/template.json` 的 `requirements`）：
+**声明**在 `assets/form.json` 的 `requirements`：
 
-- `nodes`：**不写**，由 loader 从 `graph.json` 的 `class_type` 推导（手写会漂）。
+- `nodes`：**不写**，由 loader 从 `workflow.json` 的 `class_type` 推导（手写会漂）。
 - `builtin`：ComfyUI 自带（`nodes` / `comfy_extras`），缺了说明版本太老。
 - `packs[]`：`{ name, url, provides }`，**地址手写、不查 ComfyUI-Manager**
   （它的"类 → 包"推测会猜错，不在 Manager 上的包也查不到）。
@@ -80,7 +83,7 @@ plugins/anima-plus/
 
 | `ok` | 含义 | 界面 |
 | --- | --- | --- |
-| `true` | 齐了 | 只有顶栏一个 `依赖 ✓` |
+| `true` | 齐了 | 界面不提示（要核对清单走顶栏「帮助」） |
 | `false` | 确实缺（含缺失节点 → 出自哪个包 → 装它的地址） | 红条 + **禁用「开始生成」** |
 | `null` | **没查成**（ComfyUI 不可达） | 黄条「无法确认」，**不拦**提交 |
 
@@ -108,7 +111,7 @@ pnpm --filter @comfyui-web/anima-plus deps:sync       # 改过 requirements 后�
 curl -s localhost:8087/api/p/anima-plus/api/system/health
 curl -s -X POST localhost:8087/api/p/anima-plus/api/jobs \
   -H 'content-type: application/json' \
-  -d '{"templateId":"txt2img-basic","values":{"steps":4,"width":512,"height":512}}'
+  -d '{"values":{"steps":4,"width":512,"height":512}}'
 ```
 
 前端产物里 `vue` 必须保持**裸说明符**（由外壳页面的 import map 解析）：

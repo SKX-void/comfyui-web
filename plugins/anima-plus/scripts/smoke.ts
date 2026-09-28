@@ -19,7 +19,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { createImageLibrary } from 'purejsimage';
 import { jpegCodec } from 'purejsimage/codecs/jpeg';
 
-import { TemplateRegistry } from '../server/templates/loader.js';
+import { WorkflowDefinition } from '../server/templates/loader.js';
 import { buildConfig, normalizeBaseUrl } from '../server/config.js';
 import { renderTemplate } from '../server/templates/render.js';
 import {
@@ -45,7 +45,8 @@ import {
   thumbStatus,
 } from '../server/weilin/thumb.js';
 
-const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
+const PLUGIN_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ASSETS = path.join(PLUGIN_DIR, 'assets');
 const VERBOSE = process.argv.includes('-v') || process.argv.includes('--verbose');
 
 let total = 0;
@@ -145,16 +146,13 @@ function makeTestPng(width: number, height: number): Buffer {
 const jpegProbe = createImageLibrary({ codecs: [jpegCodec] });
 
 async function main(): Promise<void> {
-  // ── 模板 ────────────────────────────────────────────────────────────────
-  section('模板');
-  const registry = new TemplateRegistry(path.join(ASSETS, 'templates'), () => {});
-  await registry.load();
-  const list = registry.list();
-  check('模板目录能加载出模板', list.length === 1, `count=${list.length}`);
-  const tpl = list[0];
-  if (!tpl) throw new Error('没有模板，后面的检查无从谈起');
-  check('模板 id / 名称', tpl.def.id === 'txt2img-basic', `${tpl.def.id} · ${tpl.def.name}`);
-  check('模板声明了 12 个表单输入', (tpl.def.inputs ?? []).length === 12, `count=${(tpl.def.inputs ?? []).length}`);
+  // ── 工作流（一个插件一份定义：workflow.json + assets/form.json） ────────
+  section('工作流');
+  const workflow = new WorkflowDefinition(PLUGIN_DIR, () => {});
+  await workflow.load();
+  const tpl = workflow.get();
+  check('工作流 id / 名称', tpl.def.id === 'txt2img-basic', `${tpl.def.id} · ${tpl.def.name}`);
+  check('工作流声明了 13 个表单输入', (tpl.def.inputs ?? []).length === 13, `count=${(tpl.def.inputs ?? []).length}`);
 
   const requiredNodes = tpl.def.requirements?.nodes ?? [];
   const missing = requiredNodes.filter((cls) => !Object.values(tpl.graph).some((n) => n.class_type === cls));
@@ -172,15 +170,35 @@ async function main(): Promise<void> {
   section('渲染');
   const before = JSON.stringify(tpl.graph);
   const r = renderTemplate(tpl, {});
-  check('渲染不修改模板（深拷贝）', JSON.stringify(tpl.graph) === before);
+  check('渲染不修改定义（深拷贝）', JSON.stringify(tpl.graph) === before);
   check('默认值渲染出的 graph 非空', Object.keys(r.graph).length > 5, `nodes=${Object.keys(r.graph).length}`);
-  check('模板默认值没有被夹紧', r.safety.clamped.length === 0, `clamped=${r.safety.clamped.length}`);
+  check('工作流默认值没有被夹紧', r.safety.clamped.length === 0, `clamped=${r.safety.clamped.length}`);
 
   const defaultPrompt = String((tpl.def.inputs ?? []).find((i) => i.key === 'prompt')?.default ?? '');
   check('提示词落到了 graph 里', JSON.stringify(r.graph).includes(defaultPrompt.slice(0, 18)), defaultPrompt.slice(0, 24));
 
+  // ── 随机种子（服务端渲染时手动抽，图里不带 -1 这种哨兵值） ─────────────
   const seed = findLiteral(r.graph, 'seed');
   check('seed=-1 被变换成真实种子', typeof seed === 'number' && seed >= 0, `seed=${seed}`);
+  check(
+    '随机种子是整数且在安全整数范围内',
+    typeof seed === 'number' && Number.isInteger(seed) && seed <= Number.MAX_SAFE_INTEGER,
+    `seed=${seed}`,
+  );
+  // 种子由前端在点「开始出图」时抽定（App.vue 的 drawSeed），所以正常情况下送来的就已是
+  // 具体数字，渲染只是原样落图；-1 留作手工/旧客户端的兜底（下面单独断言）。
+  check(
+    '具体种子原样落图并回传（不再有 -1 哨兵）',
+    r.seeds.seed === seed && r.values.seed === seed,
+    `seeds=${JSON.stringify(r.seeds)} values.seed=${JSON.stringify(r.values.seed)}`,
+  );
+  check('默认种子是具体数字（随机由前端接手）', typeof tpl.def.inputs.find((i) => i.key === 'seed')?.default === 'number' && tpl.def.inputs.find((i) => i.key === 'seed')?.default !== -1);
+  check('存在「随机」开关且默认开启', tpl.def.inputs.find((i) => i.key === 'randomSeed')?.type === 'switch' && tpl.def.inputs.find((i) => i.key === 'randomSeed')?.default === true);
+  const rolls = new Set(Array.from({ length: 8 }, () => findLiteral(renderTemplate(tpl, { seed: -1 }).graph, 'seed')));
+  check('反复提交随机种子不重复', rolls.size === 8, `distinct=${rolls.size}/8`);
+  check('固定种子原样落图', findLiteral(renderTemplate(tpl, { seed: 12345 }).graph, 'seed') === 12345);
+  check('负数种子被拒绝（-1 除外）', /不能小于 -1/.test(errMessage(() => renderTemplate(tpl, { seed: -5 })) ?? ''));
+  check('超出安全整数范围的种子被拒绝', /不能大于/.test(errMessage(() => renderTemplate(tpl, { seed: 1e20 })) ?? ''));
 
   const loraStr = findInput(r.graph, 'lora_str');
   const lorasParsed = (() => {
@@ -239,7 +257,7 @@ async function main(): Promise<void> {
 
   // ── 预设（用内存库，不碰插件空间） ──────────────────────────────────────
   section('配置：设置项（填错不许炸）');
-  const cfgPaths = { templatesDir: '', dbFile: '', cacheDir: '', dataDir: '' };
+  const cfgPaths = { pluginDir: '', dbFile: '', cacheDir: '', dataDir: '' };
   const noCfg = buildConfig(undefined, cfgPaths);
   check(
     '未配置 → 5 / 200 / 预热开 / 缓存 5 分钟',

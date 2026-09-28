@@ -6,22 +6,20 @@ import type { DepsReport } from '@comfyui-web/shared';
  * 依赖提示条。
  *
  * 设计口径（与「不谎报」一致）：
- * - **只有出问题时才自己冒出来**：当前模板缺节点（红）、或压根没查成（黄）。
- * - 一切正常时它不出现，只在顶栏留一个 `依赖 ✓` 的 pill；点开才看全部清单。
+ * - **只有出问题时才自己冒出来**：当前工作流缺节点（红）、或压根没查成（黄）。
+ * - 一切正常时它不出现 —— 顶栏不再有 pill，所以正常态下要看完整清单走「帮助」（那份
+ *   readme.md 里就有）。
  * - 展开后是**完整安装清单**（每个包 ✓/✗ + GitHub 地址）—— 这正是 readme.md 里
  *   那份链接清单的用途：方便使用者自己核对装没装，包括不在 ComfyUI-Manager 上的包。
  */
 const props = defineProps<{
   deps: DepsReport | null;
-  templateId: string | null;
   checking: boolean;
 }>();
 
-const emit = defineEmits<{ (e: 'refresh'): void; (e: 'close'): void }>();
+const emit = defineEmits<{ (e: 'refresh'): void }>();
 
-const current = computed(
-  () => props.deps?.templates.find((t) => t.id === props.templateId) ?? null,
-);
+const current = computed(() => props.deps?.workflow ?? null);
 
 const state = computed<'ok' | 'bad' | 'unknown' | 'loading'>(() => {
   if (props.deps === null) return 'loading';
@@ -30,16 +28,14 @@ const state = computed<'ok' | 'bad' | 'unknown' | 'loading'>(() => {
 });
 
 const missingNow = computed(() => current.value?.missing ?? []);
-/** 有真问题（当前模板缺节点 / 没查成）时，提示条必须显示，不能收起 */
-const mustShow = computed(() => missingNow.value.length > 0 || state.value === 'unknown');
 
 const headline = computed(() => {
   if (state.value === 'loading') return '正在检查依赖…';
   if (state.value === 'unknown') return '无法确认依赖（连不上 ComfyUI）';
   if (missingNow.value.length > 0) {
-    return `当前模板缺 ${missingNow.value.length} 个节点，装了才能跑`;
+    return `当前工作流缺 ${missingNow.value.length} 个节点，装了才能跑`;
   }
-  if (state.value === 'bad') return '有模板缺依赖（当前模板不缺）';
+  if (state.value === 'bad') return '有依赖缺失';
   return '依赖齐全';
 });
 
@@ -62,7 +58,6 @@ const orphanMissing = computed(() =>
       <button class="btn ghost" :disabled="checking" @click="emit('refresh')">
         {{ checking ? '检查中…' : '重新检查' }}
       </button>
-      <button v-if="!mustShow" class="btn ghost" @click="emit('close')">收起</button>
     </div>
 
     <p v-if="state === 'unknown'" class="deps-hint">
@@ -71,7 +66,7 @@ const orphanMissing = computed(() =>
     </p>
 
     <p v-if="current" class="deps-hint">
-      当前模板「{{ current.name }}」：
+      当前工作流「{{ current.name }}」：
       <strong v-if="current.ready">依赖齐全</strong>
       <strong v-else class="bad">缺 {{ current.missing.length }} 个</strong>
       <span v-if="current.missing.length > 0">— {{ current.missing.join('、') }}</span>

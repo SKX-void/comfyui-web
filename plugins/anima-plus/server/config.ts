@@ -47,7 +47,7 @@ export interface ServerConfig {
   /** 排障用：这次生效的值是从哪儿来的 */
   configFiles: string[];
   /** 模板目录（插件自带资产） */
-  templatesDir: string;
+  pluginDir: string;
   /** 插件私有 SQLite（在插件空间里） */
   dbFile: string;
   /** 缩略图缓存根（在插件空间里） */
@@ -111,7 +111,7 @@ function booleanSetting(raw: unknown, fallback: boolean, key: string, notes: str
 
 export function buildConfig(
   settings: PluginSettings | undefined,
-  paths: { templatesDir: string; dbFile: string; cacheDir: string; dataDir: string },
+  paths: { pluginDir: string; dbFile: string; cacheDir: string; dataDir: string },
 ): ServerConfig {
   const configured =
     typeof settings?.comfyuiBaseUrl === 'string' ? settings.comfyuiBaseUrl.trim() : '';
