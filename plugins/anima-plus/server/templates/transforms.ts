@@ -3,6 +3,13 @@ import { AppError } from '../errors.js';
 
 export interface TransformContext {
   args?: Record<string, unknown>;
+  /**
+   * 本次提交解析出的触发词前缀（`词:权重`，见 server/triggers/resolve.ts）。
+   *
+   * 由 manager.submit 在 render **之前**解析并传入：它是运行期数据，不是表单值，
+   * 所以走 ctx 而不是 `values`（用户送来的 values 里伪造不了它）。
+   */
+  triggerPrefix?: string;
 }
 
 function asNumber(v: unknown, what: string): number {
@@ -35,7 +42,7 @@ function stripExt(name: string): string {
  * 注意：LoRA 名可能含反斜杠（如 "Anima\\画师\\x"），
  * 这里只做原样透传，**绝不规范化路径**（plugins/anima-plus/docs/weilin.md §8）。
  */
-function normalizeLora(raw: unknown): LoraRef {
+export function normalizeLora(raw: unknown): LoraRef {
   const r = raw as Partial<LoraRef>;
   const name = stripExt(String(r.name ?? r.lora ?? ''));
   if (!name) {
@@ -107,6 +114,15 @@ export function applyTransform(
       return Math.min(max, Math.max(min, n));
     }
 
+    case 'triggerPrefix': {
+      // 注入点在 28（质量词）之前：19 随后会拼成「触发词 → 质量词 → 主提示词」，
+      // 与旧的全能节点（先注入、再当 opt_text 往下传）逐字一致。
+      const text = String(value ?? '');
+      const prefix = ctx.triggerPrefix?.trim() ?? '';
+      if (!prefix) return text;
+      return text ? `${prefix}, ${text}` : prefix;
+    }
+
     case 'prefixComma': {
       const prefix = typeof ctx.args?.prefix === 'string' ? ctx.args.prefix : '';
       const text = String(value ?? '');
@@ -168,6 +184,7 @@ export const KNOWN_TRANSFORMS: readonly TransformName[] = [
   'weilinTokens',
   'weilinLora',
   'weilinLoraTags',
+  'triggerPrefix',
   'prefixComma',
   'clamp',
 ];

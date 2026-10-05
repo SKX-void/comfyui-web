@@ -1,6 +1,6 @@
 运行此版本需要ComfyUI装有以下插件
 <!-- deps:start 由 scripts/gen-deps.mjs 从 template.json 的 requirements 生成；改声明后跑 deps:sync -->
-- [WeiLin](https://github.com/weilin9999/WeiLin-Comfyui-Tools.git) — WeiLinPromptUI、WeiLinPromptUIWithoutLora
+- [WeiLin](https://github.com/weilin9999/WeiLin-Comfyui-Tools.git) — WeiLinPromptUIOnlyLoraStack、WeiLinPromptUIWithoutLora
 - [Danbooru](https://github.com/Aaalice233/ComfyUI-Danbooru-Gallery.git) — SaveImagePlus
 - [TeaCache](https://github.com/CocyNoric/ComfyUI-Anima-TeaCache.git) — AnimaTeaCache
 - [Enhancer](https://github.com/AdamNizol/ComfyUI-Anima-Enhancer.git) — AnimaLayerReplayPatcher

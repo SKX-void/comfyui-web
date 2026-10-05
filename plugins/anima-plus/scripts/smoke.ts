@@ -13,6 +13,8 @@
  *   pnpm --filter @comfyui-web/anima-plus smoke -v       # 全量明细
  */
 import path from 'node:path';
+import os from 'node:os';
+import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { crc32, deflateSync } from 'node:zlib';
 
@@ -22,6 +24,7 @@ import { jpegCodec } from 'purejsimage/codecs/jpeg';
 import { WorkflowDefinition } from '../server/templates/loader.js';
 import { buildConfig, normalizeBaseUrl } from '../server/config.js';
 import { renderTemplate } from '../server/templates/render.js';
+import { applyTransform } from '../server/templates/transforms.js';
 import {
   MAX_LORAS,
   MAX_SIDE,
@@ -35,6 +38,9 @@ import {
 import { MAX_BODY_BYTES, MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../server/safety/quota.js';
 import { PRESET_KINDS, PresetStore } from '../server/store/presets.js';
 import { closeDatabase, openDatabase, userVersion } from '../server/store/db.js';
+import { TriggerStore } from '../server/triggers/store.js';
+import { TriggerResolver } from '../server/triggers/resolve.js';
+import type { WeilinClient } from '../server/weilin/client.js';
 import {
   RESIZER_TAG,
   THUMB_QUALITY,
@@ -215,6 +221,149 @@ async function main(): Promise<void> {
   check('字符串数值被归一化成 number', coerced.steps === 5, `steps=${JSON.stringify(coerced.steps)}`);
   const sizeApplied = renderTemplate(tpl, { width: 768, height: 640 }).graph;
   check('用户填的宽高落图', findInput(sizeApplied, 'width') === 768 && findInput(sizeApplied, 'height') === 640);
+
+  // ── 触发词注入（Lora堆 不注入；词由服务端拼进 28「质量词」之前） ────────
+  section('触发词注入');
+  const bindings = tpl.def.bindings ?? [];
+  check(
+    '28（质量词）绑定了 triggerPrefix',
+    bindings.find((b) => b.target === '28.inputs.text')?.transform === 'triggerPrefix',
+  );
+  check(
+    'LoRA 绑到 Lora堆（不注入的节点）',
+    bindings.some((b) => b.target === '58.inputs.lora_str'),
+  );
+  check(
+    '已没有 43（全能节点）的绑定',
+    !bindings.some((b) => b.target.startsWith('43.')),
+  );
+
+  const nodeText = (graph: Record<string, unknown>, id: string): unknown =>
+    (graph[id] as { inputs?: Record<string, unknown> } | undefined)?.inputs?.text;
+  check(
+    '触发词拼在质量词之前',
+    nodeText(renderTemplate(tpl, { qualityPos: 'q' }, { triggerPrefix: '@bantan' }).graph, '28') ===
+      '@bantan, q',
+  );
+  check('没有触发词时质量词原样', nodeText(renderTemplate(tpl, { qualityPos: 'q' }).graph, '28') === 'q');
+  check(
+    '值为空时只留触发词（不留分隔逗号）',
+    applyTransform('triggerPrefix', '', { triggerPrefix: 'x' }) === 'x',
+  );
+  // 空串是"没填"而不是"要清空"：coerceValues 会回落到表单默认质量词（既有语义，不是本次改的）
+  check(
+    '质量词留空时回落到默认值，触发词仍在最前',
+    String(
+      nodeText(renderTemplate(tpl, { qualityPos: '' }, { triggerPrefix: 'x' }).graph, '28'),
+    ).startsWith('x, dramatic angle'),
+  );
+
+  // 触发词三态表：写盘 → 重启仍在 → 解析优先级；注入文本不带权重
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'anima-triggers-'));
+  const tmpSpace = { root: tmpDir, resolve: (rel: string) => path.join(tmpDir, rel) };
+  try {
+    const store = new TriggerStore(tmpSpace);
+    check('空表读出不报错（文件不存在是正常状态）', Object.keys(store.all()).length === 0);
+    check('非法 LoRA 名被拒绝', errMessage(() => store.apply('', false, 'x')) !== null);
+
+    // 态 2：自定义词
+    store.apply('Anima\\画师\\taffy-style', false, '@bantan');
+    check(
+      '写入自定义词',
+      store.get('Anima\\画师\\taffy-style') === '@bantan' &&
+        !store.isSuppressed('Anima\\画师\\taffy-style'),
+    );
+    check(
+      '带扩展名的名字被归一化',
+      store.apply('a.safetensors', false, 'w').useDefault === false && store.get('a') === 'w',
+    );
+
+    // 态 3：关默认且留空 = 不注入。必须单独存，否则 reload 后会弹回"用默认"
+    store.apply('silent', false, '');
+    check(
+      '关默认且留空 → 记进 suppressDefault（words 里不留键）',
+      store.isSuppressed('silent') && store.get('silent') === undefined,
+    );
+
+    const reloaded = new TriggerStore(tmpSpace);
+    check('重启后自定义词仍在', reloaded.get('Anima\\画师\\taffy-style') === '@bantan');
+    check('重启后"不注入"仍在（第三态确实落盘）', reloaded.isSuppressed('silent'));
+
+    // 态 1：回到用默认 → 两处记录都清掉
+    reloaded.apply('Anima\\画师\\taffy-style', true, 'ignored');
+    check(
+      '开关打开 → 记录清除，回到用默认',
+      reloaded.stateOf('Anima\\画师\\taffy-style').useDefault &&
+        reloaded.get('Anima\\画师\\taffy-style') === undefined,
+    );
+
+    /** 只实现被用到的那一个方法：解析逻辑不依赖 WeiLin 的其它能力 */
+    const stub = (word: string): WeilinClient =>
+      ({
+        getLoraInfo: async (file: string) => ({
+          file,
+          triggerWords: word ? [word] : [],
+          loraWorks: '',
+          civitaiName: '',
+          nsfwLevel: null,
+          baseModel: '',
+        }),
+      }) as unknown as WeilinClient;
+
+    const lora = { name: 'auto-lora', lora: 'auto-lora.safetensors', weight: 1 };
+    const autoResolver = new TriggerResolver(reloaded, stub('auto'));
+    const autoDetails = await autoResolver.resolve([lora]);
+    check(
+      '开关开 → 用 WeiLin 默认词（含来源与开关态）',
+      autoDetails[0]?.word === 'auto' &&
+        autoDetails[0]?.source === 'weilin' &&
+        autoDetails[0]?.useDefault === true,
+      JSON.stringify(autoDetails),
+    );
+    check('注入文本不带权重', (await autoResolver.prefix([lora])) === 'auto');
+
+    reloaded.apply('auto-lora', false, 'mine');
+    const overrideDetails = await autoResolver.resolve([lora]);
+    check(
+      '自定义词优先（标签库有词也不用）',
+      overrideDetails[0]?.word === 'mine' && overrideDetails[0]?.source === 'override',
+      JSON.stringify(overrideDetails),
+    );
+    check('关掉默认时仍回传默认词（第 1 行要显示它）', overrideDetails[0]?.defaultWord === 'auto');
+
+    const noneResolver = new TriggerResolver(reloaded, stub(''));
+    check(
+      '标签库也没有词 → 不注入',
+      (await noneResolver.prefix([{ name: 'z', lora: 'z.safetensors', weight: 1 }])) === '',
+    );
+
+    // 第三态：关默认 + 留空 → 即便标签库有词也不注入
+    reloaded.apply('silent-lora', false, '');
+    const suppressedResolver = new TriggerResolver(reloaded, stub('不该被用上'));
+    const suppressedDetails = await suppressedResolver.resolve([
+      { name: 'silent-lora', lora: 'silent-lora.safetensors', weight: 1 },
+    ]);
+    check(
+      '关默认且留空 → 不注入（默认词只展示、不使用）',
+      suppressedDetails[0]?.word === '' &&
+        suppressedDetails[0]?.source === 'none' &&
+        suppressedDetails[0]?.useDefault === false &&
+        suppressedDetails[0]?.defaultWord === '不该被用上',
+      JSON.stringify(suppressedDetails),
+    );
+
+    const downResolver = new TriggerResolver(reloaded, {
+      getLoraInfo: async () => {
+        throw new Error('WeiLin 挂了');
+      },
+    } as unknown as WeilinClient);
+    check(
+      'WeiLin 不可用降级成"没有默认词"，不抛错',
+      (await downResolver.prefix([{ name: 'w', lora: 'w.safetensors', weight: 1 }])) === '',
+    );
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
 
   // ── 显存护栏（最关键） ──────────────────────────────────────────────────
   section('显存护栏');
