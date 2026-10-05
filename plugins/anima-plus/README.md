@@ -102,7 +102,7 @@ plugins/anima-plus/
 
 ```bash
 pnpm --filter @comfyui-web/anima-plus build       # 后端 esbuild + 前端 vite → lib/
-pnpm --filter @comfyui-web/anima-plus smoke       # 纯函数级自检（87 项，含护栏、触发词三态、配置解析与缩略图转码）
+pnpm --filter @comfyui-web/anima-plus smoke       # 纯函数级自检（100 项，含护栏、触发词三态、提示词整理、配置解析与缩略图转码）
 pnpm --filter @comfyui-web/anima-plus typecheck
 pnpm --filter @comfyui-web/anima-plus test:contract   # 产物契约（含依赖声明覆盖度、文档同步）
 pnpm --filter @comfyui-web/anima-plus deps:sync       # 改过 requirements 后重新生成依赖清单
