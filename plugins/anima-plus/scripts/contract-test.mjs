@@ -109,6 +109,13 @@ check(
 check('LoRA 浏览器轨道给了可收缩下限', /clamp\(56px,\s*15vw,\s*88px\)\s*minmax\(0,\s*1fr\)/.test(css));
 check('标签浏览器两列固定宽可收缩', /minmax\(0,\s*130px\)/.test(css));
 
+section('标签插入：纯追加 + 下划线转空格');
+// 只追加、不再把整段按逗号重排（旧行为会把 `(a, b:1.2)` 拆开、吃掉换行）
+check('插入时把 `_` 换成空格', /replace\(\/_\/g\s*,\s*" "\)/.test(js));
+check('不再用 parts.join(", ") 重排整段', !/parts\.join\(["'`],\s*["'`]\)/.test(js));
+// 整理改成手动按钮（算法见 client/src/prompt-cleanup.ts）
+check('「整理 / 撤销整理」按钮进了产物', js.includes('撤销整理') && js.includes('没有可整理的'));
+
 section('布局：说明挂在自己字段上、外层不重复留白');
 check('行内说明用 .row-desc 渲染', /class:\s*"row-desc"/.test(js));
 check('.row 改为顶端对齐', /\.row\[data-v-[0-9a-f]+\]\{[^}]*align-items:\s*flex-start/.test(css));

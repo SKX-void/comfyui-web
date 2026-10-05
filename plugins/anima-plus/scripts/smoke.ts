@@ -41,6 +41,7 @@ import { closeDatabase, openDatabase, userVersion } from '../server/store/db.js'
 import { TriggerStore } from '../server/triggers/store.js';
 import { TriggerResolver } from '../server/triggers/resolve.js';
 import type { WeilinClient } from '../server/weilin/client.js';
+import { cleanupPrompt } from '../client/src/prompt-cleanup.js';
 import {
   RESIZER_TAG,
   THUMB_QUALITY,
@@ -364,6 +365,33 @@ async function main(): Promise<void> {
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
+
+  // ── 提示词整理（手动按钮；换行/句号/行尾逗号一律不动） ──────────────────
+  section('提示词整理');
+  const cases: Array<[string, string, string]> = [
+    ['已经干净的行原样返回（`a,b` 不补空格）', '1girl,solo', '1girl,solo'],
+    ['行内去重', 'a, b, a', 'a, b'],
+    ['大小写不同不算重复', '1girl, 1Girl', '1girl, 1Girl'],
+    ['括号内的逗号不拆段（权重语法只算一个段）', '(a, b:1.2), (a, b:1.2)', '(a, b:1.2)'],
+    ['合并连续逗号', 'a,,b', 'a, b'],
+    ['行尾逗号保留', 'a,,b,', 'a, b,'],
+    ['行尾逗号 + 去重同时发生', 'a, a,', 'a,'],
+    ['换行是硬边界：跨行不去重', 'a, a\nb, b', 'a\nb'],
+    ['跨行重复的标签不被删', 'tag\n tag', 'tag\n tag'],
+    ['空行保留', 'a,,a\n\nb', 'a\n\nb'],
+    ['句号不动（不删也不补）', 'a., b.', 'a., b.'],
+  ];
+  for (const [label, input, expect] of cases) {
+    const got = cleanupPrompt(input).text;
+    check(label, got === expect, `in=${JSON.stringify(input)} out=${JSON.stringify(got)}`);
+  }
+  const stats = cleanupPrompt('a, a, b\nc,,d');
+  check(
+    '统计：删重复 1、并连续逗号 1',
+    stats.dupes === 1 && stats.commas === 1,
+    JSON.stringify(stats),
+  );
+  check('无可整理时 text 不变且计数为 0', JSON.stringify(cleanupPrompt('a, b,\n\nc')) === JSON.stringify({ text: 'a, b,\n\nc', dupes: 0, commas: 0 }));
 
   // ── 显存护栏（最关键） ──────────────────────────────────────────────────
   section('显存护栏');

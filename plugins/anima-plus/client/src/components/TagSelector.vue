@@ -12,6 +12,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import type { TagGroupItem, TagItem } from '@comfyui-web/shared';
 import { api } from '@/api';
+import { cleanupPrompt } from '@/prompt-cleanup';
 
 const props = defineProps<{
   modelValue: string;
@@ -23,26 +24,80 @@ const emit = defineEmits<{ 'update:modelValue': [string] }>();
 
 /** textarea 直接写入模板值 */
 function onInput(e: Event): void {
+  // 手打之后"撤销整理"就危险了（会把后来的输入一起吞掉），所以清栈
+  undoStack.value = [];
+  cleanupStats.value = null;
   emit('update:modelValue', (e.target as HTMLTextAreaElement).value);
 }
 
-/** 追加一个标签到末尾（去重） */
+/**
+ * 追加一个标签到**末尾**，只做两件必要的整理：
+ *
+ * 1. `_` → 空格（Danbooru 标签形如 `long_hair`，提示词里要写 `long hair`）；
+ * 2. 原文末尾已有逗号时不再补一个。
+ *
+ * 除此之外**一个字都不改**：换行、空格、权重语法 `(a, b:1.2)` 全部原样保留。
+ * （旧实现会把整段按逗号重排 + trim + 去重，导致权重语法被拆、换行被吃掉、`1girl` 与 `1Girl` 被当同一个。）
+ * 代价：同一个标签连点两次会出现两次 —— 要"已存在就跳过"的话再说。
+ */
 function insert(text: string): void {
-  const t = text.trim();
+  const t = text.trim().replace(/_/g, ' ');
   if (!t) return;
-  const parts = props.modelValue
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (!parts.includes(t)) parts.push(t);
-  emit('update:modelValue', parts.join(', '));
+  // 只清掉尾部空白，免得拼出 "a\n, tag" 这种；中间的格式不动
+  const current = props.modelValue.replace(/\s+$/, '');
+  const next = current === '' ? t : current.endsWith(',') ? `${current} ${t}` : `${current}, ${t}`;
+  emit('update:modelValue', next);
   query.value = '';
   suggestions.value = [];
 }
 
+/** 显示用：按逗号数标签（只读统计，不参与写回） */
 const tagCount = computed(
   () => props.modelValue.split(',').map((s) => s.trim()).filter(Boolean).length,
 );
+
+/**
+ * 整理（**手动**按钮，不再自动跑）：行内去重 + 只合并连续逗号。
+ *
+ * 算法在 `@/prompt-cleanup`（纯函数，smoke 直接单测）：换行、句号、大小写、
+ * 行尾逗号、段内空格一律不动；已经干净的行原样返回。
+ */
+const cleanupStats = ref<{ dupes: number; commas: number } | null>(null);
+
+const cleanupSummary = computed(() => {
+  const s = cleanupStats.value;
+  if (!s) return '';
+  if (s.dupes === 0 && s.commas === 0) return '没有可整理的（无重复、无连续逗号）';
+  return `已整理：删重复 ${s.dupes}、并连续逗号 ${s.commas}`;
+});
+
+/** 整理并记下快照（撤销按钮用） */
+function cleanup(): void {
+  const before = props.modelValue;
+  const r = cleanupPrompt(before);
+  if (r.text === before) {
+    cleanupStats.value = { dupes: 0, commas: 0 };
+    return;
+  }
+  undoStack.value.push(before);
+  emit('update:modelValue', r.text);
+  cleanupStats.value = { dupes: r.dupes, commas: r.commas };
+}
+
+/**
+ * 撤销栈：每点一次整理压一份整理前的原文。
+ *
+ * 手打会**清空**它 —— 撤销是"回到整理前"，不是"撤销你后来的输入"；
+ * 不清的话，整理后又改了半天再点撤销会把改动一起吞掉。
+ */
+const undoStack = ref<string[]>([]);
+
+function undoCleanup(): void {
+  const prev = undoStack.value.pop();
+  if (prev === undefined) return;
+  emit('update:modelValue', prev);
+  cleanupStats.value = null;
+}
 
 // --- 补全 ---
 const query = ref('');
@@ -131,6 +186,28 @@ function toggleSub(topId: number, subId: number): void {
 
     <div class="meta">
       <span class="hint">{{ tagCount }} 个标签（逗号分隔）</span>
+
+      <button
+        type="button"
+        class="btn ghost"
+        :disabled="props.disabled"
+        title="行内去重 + 合并连续逗号；换行、句号、行尾逗号一律不动"
+        @click="cleanup"
+      >
+        整理
+      </button>
+      <button
+        v-if="undoStack.length"
+        type="button"
+        class="btn ghost"
+        :disabled="props.disabled"
+        title="回到上一次整理之前（手打之后此按钮消失，免得吞掉你的输入）"
+        @click="undoCleanup"
+      >
+        撤销整理
+      </button>
+      <span v-if="cleanupSummary" class="hint">{{ cleanupSummary }}</span>
+
       <button
         v-if="!groupsError && groups.length"
         type="button"
