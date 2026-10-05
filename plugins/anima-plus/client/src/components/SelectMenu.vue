@@ -47,7 +47,6 @@ function groupOf(path: string): string {
 const selectedLabel = computed(() =>
   props.modelValue ? baseName(props.modelValue) : '',
 );
-const selectedFolder = computed(() => (props.modelValue ? folderOf(props.modelValue) : ''));
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
@@ -181,7 +180,6 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
       <span class="tr-main">
         <span v-if="props.modelValue" class="tr-name">{{ selectedLabel }}</span>
         <span v-else class="tr-empty">{{ props.placeholder ?? '（请选择）' }}</span>
-        <span v-if="selectedFolder" class="tr-folder">{{ selectedFolder }}</span>
       </span>
       <span v-if="props.modelValue && !props.disabled" class="tr-clear" title="清除" @click="clear">
         ×
@@ -282,13 +280,6 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
 }
 .tr-empty {
   color: #64748b;
-}
-.tr-folder {
-  font-size: 10px;
-  color: #64748b;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .tr-clear {
   flex: none;
