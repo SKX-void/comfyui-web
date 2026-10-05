@@ -27,6 +27,17 @@ function trimSlashes(s: string): string {
 }
 
 /**
+ * 名称排序用**码点序**，不用 localeCompare。
+ *
+ * 坑：`localeCompare(a, b, 'zh')` 会把标点排在数字前面（`[` 在 `0` 前），
+ * 而 LoRA 文件名里 `[` 常作分组前缀（如 `[style]xxx`），用户预期是数字在前。
+ * 默认 `sort()` 即码点序：数字 → 大写 → 小写 → 标点，符合文件管理器习惯。
+ */
+function byName(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
  * 目录浏览切片：**只返回指定目录的直属内容，不递归子目录**。
  *
  * 子目录以 folders 形式返回，由前端逐层进入。
@@ -73,9 +84,9 @@ export function browseLoras(all: WeilinLoraEntry[], dir: string): LoraBrowseResu
 
   const folders: LoraBrowseFolder[] = [...childCounts.entries()]
     .map(([p, count]) => ({ path: p, name: p.split('\\').pop() ?? p, count }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+    .sort((a, b) => byName(a.name, b.name));
 
-  items.sort((a, b) => a.displayName.localeCompare(b.displayName, 'zh'));
+  items.sort((a, b) => byName(a.displayName, b.displayName));
 
   const segments = current ? current.split('\\') : [];
   const breadcrumbs = [{ name: '全部', path: '' }];
