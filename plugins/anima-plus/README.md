@@ -13,7 +13,7 @@ WS 收进度 → SSE 推浏览器 → 取图。不依赖 8086，也不依赖任�
 
 | 节点包 | 提供的节点 | 安装地址 |
 | --- | --- | --- |
-| WeiLin | `WeiLinPromptUI`、`WeiLinPromptUIWithoutLora` | <https://github.com/weilin9999/WeiLin-Comfyui-Tools.git> |
+| WeiLin | `WeiLinPromptUIOnlyLoraStack`、`WeiLinPromptUIWithoutLora` | <https://github.com/weilin9999/WeiLin-Comfyui-Tools.git> |
 | Danbooru | `SaveImagePlus` | <https://github.com/Aaalice233/ComfyUI-Danbooru-Gallery.git> |
 | TeaCache | `AnimaTeaCache` | <https://github.com/CocyNoric/ComfyUI-Anima-TeaCache.git> |
 | Enhancer | `AnimaLayerReplayPatcher` | <https://github.com/AdamNizol/ComfyUI-Anima-Enhancer.git> |
@@ -102,7 +102,7 @@ plugins/anima-plus/
 
 ```bash
 pnpm --filter @comfyui-web/anima-plus build       # 后端 esbuild + 前端 vite → lib/
-pnpm --filter @comfyui-web/anima-plus smoke       # 纯函数级自检（58 项，含护栏、配置解析与缩略图转码）
+pnpm --filter @comfyui-web/anima-plus smoke       # 纯函数级自检（87 项，含护栏、触发词三态、配置解析与缩略图转码）
 pnpm --filter @comfyui-web/anima-plus typecheck
 pnpm --filter @comfyui-web/anima-plus test:contract   # 产物契约（含依赖声明覆盖度、文档同步）
 pnpm --filter @comfyui-web/anima-plus deps:sync       # 改过 requirements 后重新生成依赖清单

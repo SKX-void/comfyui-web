@@ -1,7 +1,7 @@
 {
   "id": "txt2img-basic",
   "name": "基础文生图（WeiLin + Anima）",
-  "description": "沿用拆分式节点设计：43 负责 LoRA 加载与触发词注入，19 负责主提示词，28/33 负责质量词，26 负责采样（步数/CFG/种子直接落在节点上）。",
+  "description": "沿用拆分式节点设计：58（WeiLin Lora堆）只负责 LoRA 加载，19 负责主提示词，28/33 负责质量词，26 负责采样。触发词由本插件在提交时注入到 28 之前（plugins/anima-plus/docs/weilin.md §5.3 方案 B）。",
   "version": "1.0.0",
   "requirements": {
     "builtin": [
@@ -17,7 +17,7 @@
         "name": "WeiLin",
         "url": "https://github.com/weilin9999/WeiLin-Comfyui-Tools.git",
         "provides": [
-          "WeiLinPromptUI",
+          "WeiLinPromptUIOnlyLoraStack",
           "WeiLinPromptUIWithoutLora"
         ],
         "note": "提示词节点；LoRA 列表 / 标签 / 翻译也走它的接口（不在 ComfyUI-Manager 上）"
@@ -252,18 +252,14 @@
   ],
   "bindings": [
     {
-      "target": "43.inputs.lora_str",
+      "target": "58.inputs.lora_str",
       "from": "loras",
       "transform": "weilinLora"
     },
     {
-      "target": "43.inputs.positive",
-      "from": "loras",
-      "transform": "weilinLoraTags"
-    },
-    {
       "target": "28.inputs.text",
-      "from": "qualityPos"
+      "from": "qualityPos",
+      "transform": "triggerPrefix"
     },
     {
       "target": "19.inputs.positive",

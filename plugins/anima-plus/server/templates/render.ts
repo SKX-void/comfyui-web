@@ -135,6 +135,17 @@ export interface RenderResult {
   safety: { clamped: LimitHit[] };
 }
 
+/** 渲染的**运行期**上下文（非表单值，用户送不进来） */
+export interface RenderContext {
+  /**
+   * 本次提交解析出的触发词前缀（`词:权重`，server/triggers/resolve.ts）。
+   *
+   * 走参数而不是 `values`：它是服务端解析结果，不该出现在表单值/预设里，
+   * 也不该被请求体伪造（coerceValues 只保留声明的输入，本来也接不住它）。
+   */
+  triggerPrefix?: string;
+}
+
 /**
  * 渲染：把表单值注入模板 graph（docs/archive/v1-templates.md §5）。
  *
@@ -149,6 +160,7 @@ export interface RenderResult {
 export function renderTemplate(
   tpl: LoadedTemplate,
   rawValues: Record<string, unknown>,
+  ctx: RenderContext = {},
 ): RenderResult {
   const values = coerceValues(tpl.def, rawValues, tpl.graph);
   const graph: Graph = structuredClone(tpl.graph);
@@ -171,7 +183,10 @@ export function renderTemplate(
     }
 
     if (binding.transform) {
-      value = applyTransform(binding.transform, value, { args: binding.args });
+      value = applyTransform(binding.transform, value, {
+        args: binding.args,
+        triggerPrefix: ctx.triggerPrefix,
+      });
     }
     if (binding.transform === 'seed' && typeof value === 'number') {
       seeds[binding.from ?? binding.target] = value;

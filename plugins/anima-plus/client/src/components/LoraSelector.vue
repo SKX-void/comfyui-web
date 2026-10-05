@@ -10,11 +10,13 @@
  * 数据来自本服务适配层（/api/loras/browse）。之所以不让前端直接打 WeiLin：
  * WeiLin 的 `get_lora_list` 是 41MB，服务端已缓存并按层切片。
  *
- * 注意：触发词由 WeiLin 节点在执行期**自动注入**，此处仅作展示，
- * 写进 loraWorks 也不会改变注入结果（plugins/anima-plus/docs/weilin.md §5.3）。
+ * 触发词：节点已换成 WeiLin Lora堆（`WeiLinPromptUIOnlyLoraStack`），它**不注入**任何触发词；
+ * 词由本插件在提交时拼进质量词之前。这里展示/编辑的是那张覆盖表
+ * （`<space>/triggers.json`），解析预览走服务端的同一个 resolver，
+ * 所以"看到的"就是"注入的"（plugins/anima-plus/docs/weilin.md §5.3）。
  */
 import { computed, onMounted, ref, watch } from 'vue';
-import type { LoraFolderEntry, LoraListItem, LoraMeta } from '@comfyui-web/shared';
+import type { LoraFolderEntry, LoraListItem, ResolvedTriggerWord } from '@comfyui-web/shared';
 import { api, apiUrl } from '@/api';
 import { deepClone } from '@/clone';
 
@@ -44,7 +46,15 @@ function sync(value: LoraValue[]): void {
   selected.value = deepClone(value ?? []);
 }
 sync(props.modelValue);
-watch(() => props.modelValue, sync);
+// 外部换值（载入预设等）后重算预览。不能直接写进 sync()：它在 setup 期就被调用了一次，
+// 那时下面的触发词状态还没初始化（TDZ）。
+watch(
+  () => props.modelValue,
+  (value) => {
+    sync(value);
+    void refreshResolved();
+  },
+);
 
 function commit(): void {
   lastEmitted.value = JSON.stringify(selected.value);
@@ -60,11 +70,12 @@ function add(item: LoraListItem): void {
     weight: 0.9,
   });
   commit();
-  void loadMeta(item.lora);
+  void refreshResolved();
 }
 function remove(i: number): void {
   selected.value.splice(i, 1);
   commit();
+  void refreshResolved();
 }
 /** 权重显示成两位小数：滑动条没有刻度，值必须看得见 */
 function weightText(w: number): string {
@@ -104,7 +115,10 @@ async function open(path: string): Promise<void> {
   }
 }
 
-onMounted(() => void open(''));
+onMounted(() => {
+  void refreshResolved();
+  void open('');
+});
 
 // --- 缩略图 ---
 /**
@@ -123,29 +137,91 @@ const thumbFailed = ref<Record<string, boolean>>({});
 function onThumbError(file: string): void {
   thumbFailed.value[file] = true;
 }
-const metaCache = ref<Record<string, LoraMeta | 'loading' | 'error'>>({});
+// --- 触发词（三态表 + 服务端解析预览） ---
+/**
+ * 每个 LoRA 三态：用默认词 / 自定义词 / 关默认且留空（不注入）。
+ *
+ * 解析**不在前端实现** —— 交给 /api/triggers/resolve（与提交同一个 resolver），
+ * 否则界面显示迟早和真正注入的词漂移，那正是换掉全能节点前的老问题。
+ * 服务端返回的明细里三态、默认词、最终词都齐了，这里只负责渲染与提交。
+ */
+const states = ref<Record<string, ResolvedTriggerWord>>({});
+/** 正在保存的 LoRA 名（防重复提交 + 置灰） */
+const saving = ref<string | null>(null);
+const saveError = ref<{ name: string; message: string } | null>(null);
 
-async function loadMeta(file: string): Promise<void> {
-  if (metaCache.value[file]) return;
-  metaCache.value[file] = 'loading';
-  try {
-    metaCache.value[file] = await api.getLoraMeta(file);
-  } catch {
-    metaCache.value[file] = 'error';
+function stateOf(name: string): ResolvedTriggerWord | undefined {
+  return states.value[name];
+}
+/** 第 1 行：WeiLin 标签库给的默认词（可能为空） */
+function defaultWordOf(name: string): string {
+  return stateOf(name)?.defaultWord ?? '';
+}
+/** 第 1 行的开关 */
+function useDefaultOf(name: string): boolean {
+  return stateOf(name)?.useDefault ?? true;
+}
+/** 第 2 行的编辑框值 */
+function customOf(name: string): string {
+  return stateOf(name)?.custom ?? '';
+}
+/** 第 3 行：这次实际会注入的词 */
+function finalWordOf(name: string): string {
+  return stateOf(name)?.word ?? '';
+}
+function sourceLabel(name: string): string {
+  const s = stateOf(name);
+  if (!s) return '';
+  if (s.source === 'override') return '自定义';
+  if (s.source === 'weilin') return 'WeiLin 默认';
+  return s.useDefault ? '无默认词' : '不注入';
+}
+function rowDisabled(name: string): boolean {
+  return props.disabled === true || saving.value === name;
+}
+
+/** 解析预览（与提交同源）。失败时清空，宁可显示不出也不假装知道 */
+async function refreshResolved(): Promise<void> {
+  if (selected.value.length === 0) {
+    states.value = {};
+    return;
   }
+  try {
+    const { details } = await api.resolveTriggers(selected.value);
+    states.value = Object.fromEntries(details.map((d) => [d.name, d]));
+  } catch {
+    states.value = {};
+  }
+}
+
+/**
+ * 落盘：开关与编辑框都**即时保存**（没有"保存"按钮），
+ * 编辑框走 `change`（失焦/回车）而不是每次按键，免得逐字符刷文件。
+ */
+async function saveState(name: string, useDefault: boolean, word: string): Promise<void> {
+  saving.value = name;
+  saveError.value = null;
+  try {
+    await api.setTriggerWord(name, useDefault, word.trim());
+    await refreshResolved();
+  } catch (err) {
+    saveError.value = { name, message: (err as Error).message };
+  } finally {
+    saving.value = null;
+  }
+}
+
+function onToggleDefault(name: string, e: Event): void {
+  const useDefault = (e.target as HTMLInputElement).checked;
+  // 关掉开关就立刻落盘：此时若没填词，服务端记成"不注入"（第三态）
+  void saveState(name, useDefault, useDefault ? '' : customOf(name));
+}
+function onCustomChange(name: string, e: Event): void {
+  void saveState(name, false, (e.target as HTMLInputElement).value);
 }
 
 // --- 文件管理器式的导航辅助 ---
 /** 上一级目录；根目录时为 null */
-/**
- * 已加载到的触发词。未加载 / 加载中 / 无数据都返回空数组 ——
- * 这样整行只在**确实有触发词**时出现，不会出现"加载中"被显示成"未知"的误导。
- */
-function triggerWords(file: string | undefined): string[] {
-  const m = file ? metaCache.value[file] : undefined;
-  if (!m || m === 'loading' || m === 'error') return [];
-  return m.triggerWords;
-}
 
 const parentPath = computed(() => {
   const segs = currentPath.value ? currentPath.value.split('\\') : [];
@@ -205,9 +281,45 @@ const foldersOnly = computed(
           </label>
         </div>
 
-        <div v-if="triggerWords(l.lora).length" class="triggers">
-          <span class="tr-label">触发词：</span>
-          <span class="tr-text">{{ triggerWords(l.lora).slice(0, 3).join(', ') }}</span>
+        <!-- 触发词三行：默认（含开关）→ 自定义（可编辑）→ 最终注入词 -->
+        <div class="triggers">
+          <div class="tr-row">
+            <span class="tr-label">默认触发词</span>
+            <span v-if="defaultWordOf(l.name)" class="tr-text">{{ defaultWordOf(l.name) }}</span>
+            <span v-else class="tr-text muted">无</span>
+            <label class="tr-switch" title="关掉后使用下面的自定义词；自定义词留空则不注入">
+              <input
+                type="checkbox"
+                :checked="useDefaultOf(l.name)"
+                :disabled="rowDisabled(l.name)"
+                @change="onToggleDefault(l.name, $event)"
+              />
+              <span>使用默认</span>
+            </label>
+          </div>
+
+          <div class="tr-row">
+            <span class="tr-label">自定义注入</span>
+            <input
+              class="control tr-input"
+              type="text"
+              :value="customOf(l.name)"
+              :disabled="rowDisabled(l.name) || useDefaultOf(l.name)"
+              placeholder="留空 = 不注入"
+              @change="onCustomChange(l.name, $event)"
+            />
+          </div>
+
+          <div class="tr-row">
+            <span class="tr-label">最终注入词</span>
+            <span v-if="finalWordOf(l.name)" class="tr-text final">{{ finalWordOf(l.name) }}</span>
+            <span v-else class="tr-text muted">不注入</span>
+            <span v-if="sourceLabel(l.name)" class="tr-badge">{{ sourceLabel(l.name) }}</span>
+            <span v-if="saving === l.name" class="tr-hint">保存中…</span>
+            <span v-if="saveError?.name === l.name" class="tr-err">
+              保存失败：{{ saveError.message }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -369,8 +481,15 @@ const foldersOnly = computed(
 }
 .sel-body {
   display: grid;
+  /* 两行：右列上=权重滑动条、右列下=触发词三行；左列图片跨两行吃掉高度差 */
   grid-template-columns: clamp(56px, 15vw, 88px) minmax(0, 1fr);
-  gap: 10px;
+  grid-template-rows: auto auto;
+  gap: 8px;
+}
+.preview {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  min-width: 0;
 }
 .thumb {
   width: 100%;
@@ -388,6 +507,8 @@ const foldersOnly = computed(
   font-size: 11px;
 }
 .sel-fields {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
@@ -431,16 +552,26 @@ const foldersOnly = computed(
   border: none;
   cursor: pointer;
 }
+/* 触发词三行块：在右列、滑动条正下方（图片右侧那块原本浪费掉的空间） */
 .triggers {
-  grid-column: 1 / -1;
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-top: 1px solid #1e293b;
+  padding-top: 5px;
+}
+.tr-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 .tr-label {
   font-size: 11px;
   color: #94a3b8;
+  flex: 0 0 62px;
 }
 .tr-text {
   font-size: 11px;
@@ -449,6 +580,50 @@ const foldersOnly = computed(
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+.tr-text.muted {
+  color: #64748b;
+}
+/* 最终注入词是这块的重点：它就是要发出去的东西 */
+.tr-text.final {
+  color: #6ee7b7;
+}
+.tr-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 11px;
+  color: #94a3b8;
+  cursor: pointer;
+  user-select: none;
+}
+.tr-switch input {
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+.tr-input {
+  flex: 1;
+  /* 右列本来就窄，别用 min-width 顶出横向滚动 */
+  min-width: 0;
+  font-size: 11px;
+  padding: 2px 6px;
+}
+/* 来源标记：自定义词要一眼可辨，否则"改了没生效"无从判断 */
+.tr-badge {
+  font-size: 10px;
+  border-radius: 999px;
+  padding: 0 6px;
+  border: 1px solid #334155;
+  color: #94a3b8;
+}
+.tr-hint {
+  font-size: 11px;
+  color: #64748b;
+}
+.tr-err {
+  font-size: 11px;
+  color: #f87171;
 }
 .btn {
   border-radius: 6px;

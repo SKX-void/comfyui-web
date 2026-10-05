@@ -103,6 +103,7 @@ export type TransformName =
   | 'weilinTokens'
   | 'weilinLora'
   | 'weilinLoraTags'
+  | 'triggerPrefix'
   | 'prefixComma'
   | 'clamp';
 
@@ -181,7 +182,12 @@ export interface LoraRef {
   clipWeight: number;
   triggerWeight?: number;
   displayName?: string;
-  /** 用户编辑的触发词（仅供前端显示；节点不读取） */
+  /**
+   * WeiLin 标签库里该 LoRA 的触发词。
+   *
+   * 只随 `lora_str` 透传给 Lora堆（节点不读它）；真正注入用的词由服务端
+   * `triggers.json` 覆盖表 + 这里解析得到（见 `ResolvedTriggerWord`）。
+   */
   loraWorks?: string;
   hidden?: boolean;
 }
@@ -408,11 +414,48 @@ export interface LoraBrowseResponse {
 export interface LoraMeta {
   file: string;
   triggerWords: string[];
-  /** 用户编辑的触发词（WeiLin 节点不读取，仅展示） */
+  /** WeiLin 标签库里存的触发词（enabled 时作为本插件的默认触发词） */
   loraWorks: string;
   civitaiName: string;
   nsfwLevel: number | null;
   baseModel: string;
+}
+
+/**
+ * 本插件自管的 LoRA 触发词表（`<space>/triggers.json`）。
+ *
+ * key = LoRA 名（不含 `.safetensors`，与 `LoraRef.name` 同形）。每个 LoRA 有三态：
+ * 用默认词 / 自定义词（`words`）/ 关默认且留空（`suppressDefault`，= 不注入）。
+ */
+export type TriggerWordsMap = Record<string, string>;
+
+export interface TriggerWordsResponse {
+  words: TriggerWordsMap;
+  /** 关掉默认开关、但自定义词留空的那批 LoRA —— 它们**什么都不注入** */
+  suppressDefault: string[];
+}
+
+export interface SetTriggerWordRequest {
+  /** LoRA 名（不含扩展名） */
+  name: string;
+  /** 界面上的开关：是否使用 WeiLin 标签库的默认词 */
+  useDefault: boolean;
+  /** 自定义词；`useDefault=false` 且为空 = 不注入 */
+  word: string;
+}
+
+/** 单个 LoRA 的三态 + 解析结果（提交与预览同源，界面直接渲染它） */
+export interface ResolvedTriggerWord {
+  name: string;
+  /** 最终会注入的词；空串 = 不注入 */
+  word: string;
+  source: 'override' | 'weilin' | 'none';
+  /** 开关状态：是否使用默认词 */
+  useDefault: boolean;
+  /** 编辑框的值（自定义词；用默认时为空） */
+  custom: string;
+  /** WeiLin 标签库给的默认词（只读展示，可能为空） */
+  defaultWord: string;
 }
 
 export interface TagItem {

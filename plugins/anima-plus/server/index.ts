@@ -31,6 +31,8 @@ import { WeilinClient } from './weilin/client.js';
 import { ThumbnailCache } from './weilin/thumb.js';
 import { closeDatabase, openDatabase } from './store/db.js';
 import { PresetStore } from './store/presets.js';
+import { TriggerStore } from './triggers/store.js';
+import { TriggerResolver } from './triggers/resolve.js';
 import { registerRoutes } from './http/routes.js';
 import { DepsService } from './deps.js';
 import { MAX_BODY_BYTES } from './safety/quota.js';
@@ -205,7 +207,22 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
   });
   await client.start();
 
-  // 4. 依赖检查（模板需要的节点类 vs 上游 /object_info）+ 任务编排 + 缩略图缓存
+  // 4. WeiLin 适配层（复用它在 ComfyUI 上注册的 REST 路由；不读本地库）。
+  //    放在依赖检查之前：任务编排要用它解析触发词（server/triggers/resolve.ts）。
+  const weilin = new WeilinClient({
+    baseUrl: config.comfyBaseUrl,
+    mode: config.comfyMode,
+    log: (msg, meta) =>
+      ctx.logger?.debug?.(`[${ID}] [weilin] ${msg} ${meta ? JSON.stringify(meta) : ''}`),
+  });
+  const weilinStatus = await weilin.probe();
+  if (weilinStatus.available) {
+    log(`WeiLin 已就绪，LoRA ${weilinStatus.total} 个`);
+  } else {
+    warn(`WeiLin 不可用（标签/LoRA 面板降级，出图不受影响）：${weilinStatus.message}`);
+  }
+
+  // 5. 依赖检查（模板需要的节点类 vs 上游 /object_info）+ 任务编排 + 缩略图缓存
   const deps = new DepsService(
     client,
     workflow,
@@ -228,9 +245,19 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
       });
   }
 
+  // 触发词：覆盖表（用户自管，`<space>/triggers.json`）+ 解析器
+  //（提交与 /api/triggers/resolve 预览共用前者，保证"看到的就是注入的"）
+  const triggerStore = new TriggerStore(space, (msg, meta) =>
+    warn(`${msg} ${meta === undefined ? '' : JSON.stringify(meta)}`),
+  );
+  const triggers = new TriggerResolver(triggerStore, weilin, (msg, meta) =>
+    warn(`${msg} ${meta === undefined ? '' : JSON.stringify(meta)}`),
+  );
+
   const jobs = new JobManager(client, workflow, {
     clientId,
     deps,
+    triggers,
     // 并发与历史长度都来自设置项（JobManager 本来就支持注入，见其 ManagerOptions）
     maxQueueDepth: config.maxQueueDepth,
     maxJobsRetained: config.maxJobsRetained,
@@ -240,19 +267,6 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
   const thumbs = new ThumbnailCache(path.join(config.cacheDir, 'loras-thumbs'), (msg, meta) =>
     ctx.logger?.debug?.(`[${ID}] [thumb] ${msg} ${meta ? JSON.stringify(meta) : ''}`),
   );
-
-  // 5. WeiLin 适配层（复用它在 ComfyUI 上注册的 REST 路由；不读本地库）
-  const weilin = new WeilinClient({
-    baseUrl: config.comfyBaseUrl,
-    mode: config.comfyMode,
-    log: (msg, meta) => ctx.logger?.debug?.(`[${ID}] [weilin] ${msg} ${meta ? JSON.stringify(meta) : ''}`),
-  });
-  const weilinStatus = await weilin.probe();
-  if (weilinStatus.available) {
-    log(`WeiLin 已就绪，LoRA ${weilinStatus.total} 个`);
-  } else {
-    warn(`WeiLin 不可用（标签/LoRA 面板降级，出图不受影响）：${weilinStatus.message}`);
-  }
 
   // 6. 路由：内部路径与旧服务逐字一致 → 完整路径 /api/p/anima-plus/api/*
   const routes = ctx.routes.for(ID);
@@ -264,6 +278,7 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
     weilin,
     thumbs,
     presets,
+    triggers: { store: triggerStore, resolver: triggers },
     deps,
   });
 

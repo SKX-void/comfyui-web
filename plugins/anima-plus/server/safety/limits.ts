@@ -129,8 +129,8 @@ export const DEFAULT_LIMITS: readonly NumericLimit[] = [
 export const DEFAULT_COUNT_LIMITS: readonly CountLimit[] = [
   {
     // 只盯 lora_str / temp_lora_str：它们是 LoRA 数组的**源头**。
-    // 43.inputs.positive 里的 <wlr:> 标签是同一次变换派生的（且会过滤 hidden），
-    // 数量不会更多；19.inputs.positive 是主提示词，不能按这个规则数。
+    // 19.inputs.positive 是主提示词、28.inputs.text 是质量词（触发词前缀也落在它上面），
+    // 都不能按这个规则数。
     id: 'loras',
     label: 'LoRA 数量',
     fields: ['lora_str', 'temp_lora_str'],

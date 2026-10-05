@@ -18,8 +18,9 @@
    我们**零改造成本**即可调用。
 2. 标签库/翻译/LoRA 元数据的逻辑与数据都在插件侧（SQLite at `/workspace/user_data/*.db`），
    重新实现 = 高成本 + 强耦合 + 跟随上游更新。
-3. 提示词注入发生在**执行期**（节点 `encode()` 内部），服务器**不需要理解**其内部逻辑，
-   只要往正确的字段写值。
+3. 提示词注入曾发生在**执行期**（全能节点 `encode()` 内部）。**现已改为本插件注入**：
+   LoRA 节点换成 `WeiLinPromptUIOnlyLoraStack`（Lora堆，本身不注入），
+   触发词在提交时由 `server/triggers/` 拼进 28（质量词）之前 —— 原因与落点见 §5.3。
 
 ---
 
@@ -141,9 +142,13 @@ GET /object_info/WeiLinPromptUIWithoutLora       → 节点是否加载
 
 | 节点 | 提示词 | LoRA | **触发词注入** | 本项目用途 |
 |------|--------|------|----------------|-----------|
-| `WeiLinPromptUI` | ✅ | ✅ | ✅ **会自动注入** | **节点 43**：当"纯 LoRA 加载器"用（`positive` 只放标签） |
+| `WeiLinPromptUI` | ✅ | ✅ | ✅ **会自动注入** | 备选（不采用：注入的词不可控，见 §5.3） |
 | `WeiLinPromptUIWithoutLora` | ✅ | ❌ | ❌ | **节点 19**：主提示词（数据库选词） |
-| `WeiLinPromptUIOnlyLoraStack` | ❌ | ✅ | ❌ **不注入** | 备选（若选 Q15 方案 B 则改用它） |
+| `WeiLinPromptUIOnlyLoraStack` | ❌ | ✅ | ❌ **不注入** | **节点 58（现用）**：只加载 LoRA；触发词由本插件注入 |
+
+> **旧图是 43 = `WeiLinPromptUI`**（当"纯 LoRA 加载器"用，`positive` 只放 `<wlr:>` 标签）。
+> 它确实会自动注入，但注入的是 Civitai/元数据猜的词，**与你在 WeiLin 里编辑的词无关**（§5.3），
+> 所以换成了 58 + 自管覆盖表。
 
 > **重要（已双重验证）**：
 > 1. `OnlyLoraStack` **不做触发词注入**——`__init__.py:553-655` 内 grep `trigger` **零命中**。
@@ -205,8 +210,27 @@ GET /object_info/WeiLinPromptUIWithoutLora       → 节点是否加载
 
 命中即返回（不继续往下找），只取**第一个**触发词（`get_first_trigger_word`）。
 
-> ⚠️ 当前 `/workspace/ComfyUI/loras_tags.json` **不存在** → Civitai 缓存为空，
+> ⚠️ 缓存**按 LoRA 名（不含扩展名）为 key**（`trigger_words.py:113`），SHA256 只用于查 Civitai API。
+> 当前 `/workspace/ComfyUI/loras_tags.json` **不存在** → 缓存为空，
 > 首次会尝试联网查询 Civitai（`timeout=10s`），失败则回退到元数据/文件名。
+> （这张缓存只有全能节点会读；本插件已不依赖它，见 §5.3。）
+
+#### 5.2.1 那 `lorainfo` 给我们的"默认词"准不准？（答：基本就是全能会注入的那个词）
+
+本插件的默认词取自 `lorainfo/api/loras/info` 的 `loraWorks` → `trainedWords[0]`，
+而 `lorainfo` 侧的 `trainedWords` 是**同一套算法**的两份移植（`lora_info.py`）：
+
+| 来源 | `trigger_words.py`（全能） | `lora_info.py`（lorainfo → 我们的默认词） |
+|------|---------------------------|------------------------------------------|
+| Civitai | 自己查，缓存 `loras_tags.json` | 自己查，缓存 `lora_userdatas/` |
+| 元数据 `ss_tag_frequency` | `:445` 按频次降序 + `:452` 过滤通用词 | `:445` 按频次降序 + `:452` 过滤通用词（同算法） |
+| `ss_output_name` | 有 | ❌ |
+| 文件名 | 有 | ❌ |
+| 用户手工词 | ❌ 绝不使用 | ✅ 会被算进来 |
+
+**结论**：默认词在 Civitai/元数据两条路上与全能一致；差异只有"全能多了 `ss_output_name` → 文件名
+两级兜底"和"lorainfo 会带上你在 WeiLin 详情里手工加的词"。所以**默认词为空是可能的**
+（元数据缺失且 Civitai 没查到），此时就不注入 —— 这时才需要你手工填。
 
 ### 5.3 拆分式设计：为什么它天然避免重复注入
 
@@ -262,55 +286,49 @@ GET /object_info/WeiLinPromptUIWithoutLora       → 节点是否加载
 > 放到两个节点，注入只发生一次，且不会污染主提示词。
 > 前端设计应当**镜像这个拆分**（见 §6.6）。
 
-#### ⚠️ 但仍然存在的真实缺口：`loraWorks` 不被节点读取
+#### ✅ 已落地：缺口用方案 B 补上（本文结论）
 
 拆分解决了"重复"，但没解决"**用户编辑的触发词能否生效**"：
 
-| | 用户编辑的触发词 | 节点自动注入用的触发词 |
+| | 用户编辑的触发词 | 全能节点自动注入用的触发词 |
 |---|---|---|
 | 存储 | `lora_userdatas/`（`lorainfo` REST） | `./loras_tags.json` + safetensors 元数据 |
 | 字段 | `trainedWords[].word`、`loraWorks` | `get_first_trigger_word()` 的返回值 |
-| 谁在用 | **只有前端 UI**（插入输入框） | **只有节点**（注入提示词） |
+| 谁在用 | 原先**只有前端 UI** | 原先**只有节点**（注入提示词） |
 
 **证据（双重确认）**：
 1. `grep -n "loraWorks" __init__.py` → **零命中**。节点读取的键只有
    `lora` / `weight` / `text_encoder_weight` / `trigger_weight`（`__init__.py:416-438`）。
 2. 节点走 `get_lora_trigger_words` → `get_first_trigger_word` → `get_trigger_words`，
    只查 Civitai 缓存 / 元数据 / 文件名，**完全没有**读 `lora_userdatas/` 的逻辑。
+3. `grep -rn "loras_tags\|CIVITAI_CACHE_FILE" --include="*.py" .` → 只有 `trigger_words.py`
+   一个写入者；`lorainfo` 的编辑走 `lora_info.py` → `lora_userdatas/`，**两条路不相通**。
 
-**后果**：你的示例里 `taffy-style` 的 `loraWorks: "@bantan"` **不会**被注入。
-实际注入的会是：
+**后果**：`loraWorks: "@bantan"` 这类编辑**不会**被全能节点注入。它实际注入的是：
+Civitai 缓存的第一个词 → 否则 `ss_tag_frequency` 最高频词 → 否则 `ss_output_name` → 否则**文件名**。
 
-- 若 Civitai 缓存有记录 → Civitai 的第一个 `trainedWords`
-- 否则 safetensors `ss_tag_frequency` 中训练频次最高的词（已过滤通用标签）
-- 否则 `ss_output_name`
-- 否则**文件名**（`taffy-style`）← 这个结果多半不是你想要的
+> 也就是说：全能节点的"自动注入"确实生效，但注入的是元数据猜的词，不是你编辑的词。
 
-> 也就是说：**"自动注入"确实生效，但注入的是元数据猜的词，不是你编辑的词。**
-> M0 冒烟时 ComfyUI 控制台会打印 `添加触发词到提示词开头: ...`，
-> 那条日志就是判据——**先看它实际注入了什么，再决定下面选哪个方案。**
+**现方案（方案 B 已实现，Q15 关闭）**：LoRA 节点换成 `WeiLinPromptUIOnlyLoraStack`（节点 58，
+"Lora堆"），它 `RETURN_TYPES = ("CLIP","MODEL")`、**没有一行触发词代码**（`__init__.py:548-655`）；
+注入改由本插件做：
 
-#### 三个方案（需决策 **Q15**）
+| 环节 | 落点 |
+|------|------|
+| 三态表（用户自管） | `<space>/triggers.json`，启动期载入内存 → `server/triggers/store.ts` |
+| 三态 | ① 用默认（开关开）② 自定义词（`words`）③ **关默认且留空（`suppressDefault`）= 什么都不注入** |
+| 默认词来源 | WeiLin 标签库：`loraWorks` → `trainedWords[0]`（与全能节点同源，见 §5.2 的算法对比） |
+| 解析 | `server/triggers/resolve.ts`，提交（`manager.submit`）与预览（`POST /api/triggers/resolve`）**共用同一条路径** |
+| 注入点 | 绑定 `28.inputs.text ← qualityPos + triggerPrefix`；`19` 随后拼成「触发词 → 质量词 → 主提示词」 |
+| 格式 | **纯词、不带权重**（`word, word2`）。Anima 的解析器不认 `词:权重`，带上只会污染 token —— 全能节点的 `f"{word}:{float(w)}"` 是历史包袱，不跟 |
+| 编辑 | `LoraSelector.vue` 卡片内三行（默认含开关 / 自定义输入 / 最终注入词），开关与输入**即时保存**走 `PUT /api/triggers` |
 
-| 方案 | 做法 | 触发词来源 | 用户编辑生效 | 额外代码 |
-|------|------|-----------|-------------|---------|
-| **A 沿用现状** | 保持节点 43 = `WeiLinPromptUI`，我们只写 `lora_str` | Civitai/元数据/文件名 | ❌ | **0** |
-| **B 我们注入**（推荐，若需精确控制） | 节点 43 改用 `WeiLinPromptUIOnlyLoraStack`（不注入），触发词由我们按 `loraWorks`/`trainedWords` 拼进节点 19 | 标签数据库（**你编辑的词**） | ✅ | 中 |
-| **C 双注入** | 保持 `WeiLinPromptUI`，再把自定义词写进 `positive` 正文 | 两者都有 | ⚠️ 部分 | 低 |
+> 三态必须分开存：只靠"`words` 里有没有这个键"区分不出"用默认"与"关掉默认但没填词"。
+> 界面不自己算优先级 —— 三行全部渲染 `/api/triggers/resolve` 的返回值，避免"显示与注入漂移"。
 
-**方案 A vs B 的取舍**：
-
-- **A 的优势 = 零代码**。如果 M0 实测发现你的 LoRA 元数据质量好（注入的词正确），
-  那就直接用 A，最省事，且完全复用插件逻辑。
-- **B 的优势 = 确定性**。触发词在**提交前**就确定了，可以：
-  - 在前端**预览**最终提示词（"你将发送：@bantan, 1girl, solo..."）
-  - 让"编辑触发词"这个功能**真正有意义**
-  - 不依赖 Civitai 网络与元数据质量
-  - 代价：从"节点执行期自动"变成"我们组装"，且需把 43 换成 `OnlyLoraStack`
-
-> **建议**：**先看 M0 的注入日志**。
-> 若元数据命中且词正确 → 选 **A**（零成本）；
-> 若回退到文件名或词不对 → 选 **B**（否则"编辑触发词"是死功能）。
+> **A / C 两个备选方案已不再采用**：A 无法让编辑生效；C 只是把词追加进正文，会与节点注入并存
+> 造成重复。若哪天要回到"完全复刻 `trigger_words.py`"（Civitai/元数据/文件名），需要给服务端
+> 开一条 ComfyUI 文件系统通道 —— 当前只有 HTTP，故不做。
 
 ### 5.4 `auto_random` 的重要副作用（对前端很有用）
 
@@ -497,8 +515,8 @@ M3 实现时必须：
 |------|------|------|
 | WeiLin 接口无版本号，随插件更新静默变更 | 适配层失效 | 启动探活 + 契约快照测试 + 记录上游 commit |
 | 部分端点参数名不明确 | 集成返工 | **先写冒烟脚本实测**（M0） |
-| **触发词注入的词不对**（元数据缺失→回退文件名） | 提示词污染、出图偏差 | 先看 M0 注入日志，再定 Q15 方案 |
-| **用户编辑的触发词不生效**（§5.3） | 功能与预期不符 | 方案 B：我们自己注入 |
+| **触发词注入的词不对**（元数据缺失→回退文件名） | 提示词污染、出图偏差 | ✅ **已解决**：改由本插件注入，词来自覆盖表/标签库，见 §5.3 |
+| **用户编辑的触发词不生效**（§5.3） | 功能与预期不符 | ✅ **已解决**：方案 B 落地（`server/triggers/` + 前端可编辑） |
 | **搬组件带来的依赖膨胀**（§6.4） | 构建体积、维护成本 | 按需裁剪，见 Q16 |
 | `user_data/*.db` 未初始化 | 标签接口 500 | 探活失败即降级（**当前确实为空**） |
 | `loras_tags.json` 未初始化 | 触发词回退到元数据/文件名 | 可接受；或提供预填充 |
@@ -513,12 +531,12 @@ M3 实现时必须：
 |---|------|
 | Q3 | LoRA 写入方式：**`lora_str`（富 JSON）** vs **`positive` 内嵌 `<wlr:>`**？（可同时用） |
 | Q4 | ✅ **已决：强依赖 WeiLin** |
-| **Q15** | **触发词来源**（见 §5.3）——先看 M0 注入日志：词对→方案 A（零代码）；词错→方案 B |
+| **Q15** | ✅ **已决：方案 B** —— 节点 43 换成 `WeiLinPromptUIOnlyLoraStack`（现节点 58），触发词由本插件注入（§5.3） |
 | **Q16** | 前端搬运策略 A 搬源码 / B 嵌 UMD / C 重写（见 §6.2）——建议 **A** |
 | Q12 | 是否需要**标签管理写操作**（增删改标签），还是 v1 只做只读选择？ |
 | Q13 | 是否把 WeiLin **提示词历史**（`prompt/history/*`）接入图库页？ |
 | Q14 | `auto_random` 模式下是否需要"预览本次随机结果"（依赖 `ui.positive` 回传）？ |
-| **Q17** | 是否需要**触发词编辑 UI**（写入 `lorainfo` 的 `trainedWords`/`loraWorks`）？ |
+| **Q17** | ✅ **已决：要** —— 前端 LoRA 行内可编辑触发词（写本插件自管的 `<space>/triggers.json`，**不**写 `lorainfo` 的 `trainedWords`），见 §5.3 |
 
 ---
 

@@ -11,6 +11,7 @@ import type { ComfyClient, ComfyEvent } from '../comfy/types.js';
 import type { DepsService } from '../deps.js';
 import type { WorkflowDefinition } from '../templates/loader.js';
 import { renderTemplate } from '../templates/render.js';
+import type { TriggerResolver } from '../triggers/resolve.js';
 import { MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../safety/quota.js';
 
 /** 把「产出图片」编码成可逆的 assetId，避免额外持久化 */
@@ -34,6 +35,8 @@ interface ManagerOptions {
   clientId: string;
   /** 依赖检查服务：提交前查节点用它的缓存（object_info 很贵，缓存策略见 server/deps.ts） */
   deps: DepsService;
+  /** 触发词解析（覆盖表 → WeiLin 标签库 → 不注入）；渲染前调用，见 submit */
+  triggers: TriggerResolver;
   log: (msg: string, meta?: unknown) => void;
   /** 对账周期（毫秒），默认 10s */
   sweepIntervalMs?: number;
@@ -58,6 +61,7 @@ export class JobManager {
   private readonly maxQueueDepth: number;
   private readonly maxJobsRetained: number;
   private readonly deps: DepsService;
+  private readonly triggers: TriggerResolver;
 
   constructor(
     private readonly client: ComfyClient,
@@ -66,6 +70,7 @@ export class JobManager {
   ) {
     this.bus.setMaxListeners(0);
     this.deps = opts.deps;
+    this.triggers = opts.triggers;
     this.sweepIntervalMs = opts.sweepIntervalMs ?? 10_000;
     this.staleJobMs = opts.staleJobMs ?? 120_000;
     this.maxQueueDepth = opts.maxQueueDepth ?? MAX_QUEUE_DEPTH;
@@ -149,7 +154,12 @@ export class JobManager {
 
   async submit(req: CreateJobRequest): Promise<Job> {
     const tpl = this.workflow.get();
-    const { graph, values, seeds, safety } = renderTemplate(tpl, req.values ?? {});
+    // 触发词必须在渲染前解析：Lora堆（节点 58）不会注入，词由我们拼进 28（质量词）之前。
+    // 解析失败绝不能挡住出图 —— TriggerResolver 内部已把 WeiLin 不可用降级成"没有默认词"。
+    const triggerPrefix = await this.triggers.prefix((req.values ?? {}).loras);
+    const { graph, values, seeds, safety } = renderTemplate(tpl, req.values ?? {}, {
+      triggerPrefix,
+    });
 
     // 安全护栏夹紧了模板自带的越界值（用户填的值越界会在这里之前就抛错）
     if (safety.clamped.length > 0) {

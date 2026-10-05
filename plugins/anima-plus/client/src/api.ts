@@ -9,9 +9,11 @@ import type {
   LoraBrowseResponse,
   LoraMeta,
   PresetKindPayload,
+  ResolvedTriggerWord,
   TagGroupItem,
   TagItem,
   TemplateDetail,
+  TriggerWordsResponse,
 } from '@comfyui-web/shared';
 
 interface ApiErrorBody {
@@ -147,6 +149,25 @@ export const api = {
 
   getLoraMeta: (file: string) =>
     request<LoraMeta>(`/api/loras/meta?file=${encodeURIComponent(file)}`),
+
+  // --- LoRA 触发词（本插件自管的三态表；Lora堆节点不注入，词由服务端拼） ---
+
+  /** 写入一个 LoRA 的三态：`useDefault` = 界面开关，`word` = 自定义词（空 = 不注入） */
+  setTriggerWord: (name: string, useDefault: boolean, word: string) =>
+    request<TriggerWordsResponse & { useDefault: boolean; word: string }>('/api/triggers', {
+      method: 'PUT',
+      body: JSON.stringify({ name, useDefault, word }),
+    }),
+
+  /**
+   * 解析预览：与提交走同一个 resolver，所以这里返回的就是**真正会注入**的词。
+   * 界面不该自己实现一遍优先级（那正是"显示与注入不一致"的老问题）。
+   */
+  resolveTriggers: (loras: unknown) =>
+    request<{ details: ResolvedTriggerWord[] }>('/api/triggers/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ loras }),
+    }),
 
   listTagGroups: () => request<{ items: TagGroupItem[] }>('/api/tags/groups'),
 
