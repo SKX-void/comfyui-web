@@ -1,0 +1,216 @@
+/* 外壳骨架：顶栏 + tab 栏 + 内容区 + 表单控件（这些类名插件页面也在用，别随手删） */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  height: 52px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.tag {
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-left: 4px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.tab.router-link-active {
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.tab.broken {
+  color: var(--danger);
+}
+
+.dot {
+  font-size: 11px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 设置：图标按钮（原来是一个「设置」文字链接） */
+.settings {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.settings:hover {
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.settings.router-link-active {
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.settings svg {
+  display: block;
+}
+
+.content {
+  flex: 1;
+  padding: 20px;
+  /* 文档型视图（首页/设置）的阅读宽度 */
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* 插件 tab 的双栏视图放宽：1000px 会把「表单 + LoRA」两栏挤在一起 */
+.content.wide {
+  max-width: 1400px;
+}
+
+.key {
+  background: var(--panel-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.page h2 {
+  margin-top: 0;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+
+.kv {
+  display: flex;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.kv > span {
+  color: var(--muted);
+  min-width: 84px;
+}
+
+.code {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+button {
+  background: var(--panel-2);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input[type='text'],
+input[type='password'],
+input[type='number'],
+select,
+textarea {
+  background: var(--panel-2);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+  /*
+   * 外壳自己的表单宽度。注意这是**全局**规则，插件视图的输入框也在它的射程内
+   * （插件 tab 渲染在 .content 里），所以不能写死 220px：
+   * 插件那边一行挤三个数字框（种子/步数/CFG）时，3×220px 必然顶破视口。
+   * min(220px, 100%) = 有空间就 220px，容器更窄就跟着收 —— 永远不溢出。
+   */
+  min-width: min(220px, 100%);
+}

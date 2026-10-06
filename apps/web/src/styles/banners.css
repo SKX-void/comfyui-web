@@ -1,0 +1,43 @@
+/* 出错横幅：清单加载失败（App.vue）与插件页面抛错（plugin-boundary.ts）—— 都不许静默残缺 */
+
+.banner {
+  margin: 16px 20px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: rgba(255, 123, 114, 0.08);
+}
+
+.banner strong {
+  color: var(--danger);
+}
+
+.banner p {
+  margin: 6px 0 0;
+}
+
+.banner-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* 插件页面抛错时的替代内容（见 src/plugin-boundary.ts）：必须比白屏多说一句为什么 */
+.plugin-failure {
+  padding: 12px 16px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: rgba(255, 123, 114, 0.08);
+}
+
+.plugin-failure strong {
+  color: var(--danger);
+}
+
+.plugin-failure p {
+  margin: 6px 0 0;
+}
+
+.plugin-failure-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
