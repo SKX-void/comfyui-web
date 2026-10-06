@@ -8,5 +8,5 @@
       "@/*": ["./client/src/*"]
     }
   },
-  "include": ["client/**/*.ts", "client/**/*.vue", "vite.config.ts"]
+  "include": ["server/**/*.ts", "client/**/*.ts", "client/**/*.vue", "vite.config.ts"]
 }

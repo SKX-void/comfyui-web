@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/pack.mjs",
+    "build:server": "node scripts/build-server.mjs",
     "dev": "node scripts/pack.mjs --watch",
     "typecheck": "vue-tsc --noEmit",
     "test:contract": "node scripts/contract-test.mjs"
@@ -81,6 +82,7 @@
     "@comfyui-web/shared": "workspace:*",
     "@types/node": "^22.10.2",
     "@vitejs/plugin-vue": "^5.2.1",
+    "esbuild": "0.25.12",
     "typescript": "^5.7.2",
     "vite": "^6.0.9",
     "vue": "^3.5.13",

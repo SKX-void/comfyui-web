@@ -118,7 +118,9 @@ check('LoRA 强度滑条 max = 1', /max:\s*"1"/.test(rangeAttrs), rangeAttrs.rep
 // ── 安全护栏 ────────────────────────────────────────────────────────────────
 // example 是"照抄一份就能用"的参考实现，所以护栏本身也要有契约：常量、最终校验、
 // 以及前端输入框真的绑上了上下限（SSR 首屏 options 未加载 → 用的是兜底值）。
-const { SAFETY, assertGraphSafe } = await import(new URL('../server.js', import.meta.url).href);
+// import 的是**产物**而不是源码：宿主装的就是 tabs/<id>/server.js，护栏只有出现在这里才算数。
+// （源码是 .ts，Node 直接 import 得靠类型剥离，没必要把测试绑在那上面。）
+const { SAFETY, assertGraphSafe } = await import(artifact('server.js').href);
 check('护栏常量：步数上限 32', SAFETY.maxSteps === 32, String(SAFETY.maxSteps));
 check(
   '护栏常量：边长 64~1216',

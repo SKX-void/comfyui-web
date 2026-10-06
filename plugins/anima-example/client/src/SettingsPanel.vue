@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { api } from './api';
 
 /**
- * 设置面板：本插件的设置**由自己持有**（空间里的 `settings.json`，见 `server.js` §2.5）。
+ * 设置面板：本插件的设置**由自己持有**（空间里的 `settings.json`，见 `server/settings.js`）。
  *
  * 两件事分得很清，别混：
  *   - 字段的**形状**（label / 范围 / 默认值）在 `package.json` 的 `plugin.settings` 里，
