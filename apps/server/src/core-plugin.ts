@@ -311,32 +311,39 @@ export function apply(ctx: Context, config: CorePluginConfig): void {
 
   app.get('/api/ui', async () => ({ prefs: settingsView(readHostSettings(settingsFile)) }));
 
-  app.put<{ Body: { tabOrder?: unknown; home?: unknown; globals?: unknown } }>(
-    '/api/ui',
-    async (request, reply) => {
-      try {
-        const body: Record<string, unknown> = { ...(request.body ?? {}) };
-        // 这一层只认偏好段的三个键：data/host.json 里还住着部署段（端口等），
-        // 设置页不该靠这次提交改掉它们。
-        const patch: Record<string, unknown> = {
-          tabOrder: body.tabOrder,
-          home: body.home,
-          globals: body.globals,
-        };
-        for (const key of Object.keys(patch)) {
-          if (patch[key] === undefined) delete patch[key];
-        }
-        const current = readHostSettings(settingsFile);
-        const prefs = writeHostSettings(settingsFile, { ...current, ...patch });
-        return { prefs: settingsView(prefs) };
-      } catch (err) {
-        // 写不进去（只读挂载 / 磁盘满）必须给出可读原因，而不是静默不保存
-        return reply
-          .code(500)
-          .send({ error: `写外壳偏好失败：${err instanceof Error ? err.message : String(err)}` });
+  app.put<{
+    Body: {
+      tabOrder?: unknown;
+      home?: unknown;
+      tabAliases?: unknown;
+      homeLabel?: unknown;
+      globals?: unknown;
+    };
+  }>('/api/ui', async (request, reply) => {
+    try {
+      const body: Record<string, unknown> = { ...(request.body ?? {}) };
+      // 这一层只认偏好段这几个键：data/host.json 里还住着部署段（端口等），
+      // 设置页不该靠这次提交改掉它们。
+      const patch: Record<string, unknown> = {
+        tabOrder: body.tabOrder,
+        home: body.home,
+        tabAliases: body.tabAliases,
+        homeLabel: body.homeLabel,
+        globals: body.globals,
+      };
+      for (const key of Object.keys(patch)) {
+        if (patch[key] === undefined) delete patch[key];
       }
-    },
-  );
+      const current = readHostSettings(settingsFile);
+      const prefs = writeHostSettings(settingsFile, { ...current, ...patch });
+      return { prefs: settingsView(prefs) };
+    } catch (err) {
+      // 写不进去（只读挂载 / 磁盘满）必须给出可读原因，而不是静默不保存
+      return reply
+        .code(500)
+        .send({ error: `写外壳偏好失败：${err instanceof Error ? err.message : String(err)}` });
+    }
+  });
 
   // ---- 插件前端产物托管 --------------------------------------------------
   // 关键：从 tab 目录的真实路径直送，**不复制进 dist**。

@@ -372,6 +372,24 @@ textarea {
   padding: 3px 8px;
 }
 
+/*
+ * 别名输入框：全局规则给的 220px 会把「名字 + id + 状态 + 三个按钮」挤到下一行，
+ * 所以这里按行内窄输入收窄。
+ */
+.tab-order .alias {
+  min-width: 110px;
+  width: 130px;
+}
+
+/* 品牌名输入：标签与输入框同行，其余按全局输入框规则 */
+.home-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
 .ui-prefs h3 {
   margin: 0;
   font-size: 15px;

@@ -7,7 +7,7 @@
 | **随包发布** | 插件自带的事实：默认值、合法范围、表单字段 | 插件作者，跟版本走 | `plugins/*/package.json` 的 `plugin.settings[]`、`plugins/*/server/config.ts` |
 | **随部署变化** | 这台装置怎么跑：端口、路径 | 部署的人；宿主首次启动也会写默认值 | `data/host.json`（部署段，不存在时自动生成）、`docker-compose.yml`、`nginx.conf` |
 | **随机器变化** | 这批部署装了哪些插件、各配了什么（本机状态） | 你 / 插件自己的设置界面 | `tabs/<id>/`（装了哪些）、`data/plugins/<包名>/`（各配了什么） |
-| **随用户变化** | 运行期偏好：tab 顺序、默认首页、统一地址、插件启停 | 设置页，随时改 | `data/host.json`（偏好段，含 `disabled: []` —— 启停是宿主的事实，D21）、`data/plugins/<包名>/` |
+| **随用户变化** | 运行期偏好：tab 顺序、默认首页、tab 显示别名、统一地址、插件启停 | 设置页，随时改 | `data/host.json`（偏好段，含 `disabled: []` —— 启停是宿主的事实，D21）、`data/plugins/<包名>/` |
 | **随目录** | 工作流插件：整个目录就是一个插件（自包含、无 `node_modules`） | 你，往 `tabs/` 丢目录 | `tabs/<id>/`（**不入库**：编译产物，见 §6）、配置与状态自持在 `data/plugins/<包名>/` |
 
 层与层的边界是锁过的：D6（§4.2 / §6）、D15/D16/D19、D21（启停归宿主、配置归插件）。**不要跨层放值** ——
@@ -21,8 +21,9 @@
 | `docker-compose.yml` | `docker compose` | 部署 | ✅ | ✅ |
 | `nginx.conf` | 外部/容器 nginx（**conf.d 片段**） | 部署 | ✅ | ✅ |
 | `pnpm-workspace.yaml`（根） | pnpm（workspace + `storeDir`） | 环境 | ✅ | ✅ |
-| `data/host.json`（偏好段：`tabOrder` / `home` / `globals` / `disabled`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写；手改也行，重扫后生效） | ❌ |
+| `data/host.json`（偏好段：`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals` / `disabled`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写；手改也行，重扫后生效） | ❌ |
 | `data/plugins/<包名>/…` | 各插件自己（如 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
+| `data/plugins/<包名>/last-state.json` | anima-plus 自己（`plugins/anima-plus/server/state.ts`；`GET/PUT /api/p/anima-plus/api/state`） | 运行期 | ✅ 纯 JSON（点「开始生成」自动写，手改或删掉也行） | ❌ |
 | `plugins/<pkg>/package.json` 的 `plugin.settings[]` | 宿主 → `GET /api/plugins` → 插件自己的设置界面 | 包 | ✅（改包） | ✅ |
 | `plugins/<pkg>/server/config.ts` | 插件自己（运行期默认值 / 范围） | 包 | ✅（改包） | ✅ |
 | `tabs/<id>/package.json` | 宿主扫描（`apps/server/src/tabs.ts` → `scanTabs()`） | 目录 | ✅ 改完点「重新扫描插件目录」（= `POST /api/tabs/rescan`，D20） | ❌（产物） |
@@ -75,15 +76,22 @@
 {
   "tabOrder": ["anima-plus", "anima-example"],   // 标签栏顺序
   "home": "anima-plus",                          // 默认首页
+  "tabAliases": { "anima-plus": "画图" },         // 标签栏显示别名（键 = 插件 id；缺键 = 用插件自己的 title）
+  "homeLabel": "我的工作台",                      // 顶栏品牌链接（首页 /home）的显示名；空串 = 内置名 comfyui-web
   "globals": { "comfyuiBaseUrl": "http://10.0.0.5:8188" }  // 宿主全局设置
 }
 ```
 
 - 读：文件缺失 / JSON 坏掉 / 类型不对 **一律退默认，不抛**；写：先写 `.tmp` 再 `rename`（原子替换）。
+- `tabAliases` / `homeLabel` 是**外壳的显示名**：只影响顶栏渲染（`apps/web/src/App.vue`），
+  插件自己声明的 title 一个字都不动 —— 所以改别名既不用重挂插件，也不用插件配合。
+  清洗规则：内部空白折成一个空格、截断到 40 字符、空值等于没配（回落 title / 内置名）。
 - `globals.comfyuiBaseUrl` 是**只读默认值**：宿主不把它写进任何插件，插件可以拿它当兜底
   （自己的设置留空），也可以自己配（D16）。
 - **`data/plugins/<包名>/`** —— 每个插件的私有空间（SQLite、缓存、缩略图、设置…），核不解析内容；
   空间按**包名**分配（`@comfyui-web+anima-plus`）。删它 = 重置该插件的运行期数据。
+- **`data/plugins/<包名>/last-state.json`**（anima-plus）—— 上次提交的出图参数快照（**运行期状态**，不是配置：
+  所以它不进 `settings.json`，也不触发重挂）。点「开始生成」覆盖一次，页面加载时回填；删掉 = 回到模板默认值。
 
 ## 4. 插件自己的设置：默认值存两份
 
@@ -152,6 +160,7 @@
 |---|---|
 | 换宿主端口 | `data/host.json` 的 `port` + `docker-compose.yml` healthcheck 的 URL + `nginx.conf` 的 upstream，然后重启 |
 | 统一各插件的 ComfyUI 地址 | 设置页的"统一 ComfyUI 地址"（写 `data/host.json` 的偏好段）—— 它只是**只读默认值**，宿主不下发；**今天没有插件读它**，等于一份备忘录 |
+| 给 tab 换个顶栏显示名 | 设置页「标签页」里的别名输入框（写 `data/host.json` 的 `tabAliases`；顶栏品牌链接的名字是 `homeLabel`）—— 只改外壳显示，插件自己的 title 不动，也不用重挂 |
 | 给某个插件单独地址 | 在那个插件自己的设置界面里改（值存在 `data/plugins/<包名>/`） |
 | 加 / 删插件 | 把编译好的目录放进 / 移出 `tabs/`（源码工程走 `pnpm build:plugins`）—— **不用装、不用改清单**；增删目录与改代码都热（见 `tabs/README.md`） |
 | tab 的配置 / 数据存哪儿 | tab 插件自己写 `ctx.space`（→ `data/plugins/<包名>/`）：宿主不代管、不迁移、不清理 |

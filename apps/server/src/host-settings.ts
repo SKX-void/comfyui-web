@@ -36,6 +36,10 @@ export interface HostSettings {
   tabOrder: string[];
   /** 默认首页（插件 id）；null = 第一个可用标签页 */
   home: string | null;
+  /** tab 的显示别名（插件 id → 顶栏上的名字）；没有这个键 = 用插件自己的 title */
+  tabAliases: Record<string, string>;
+  /** 顶栏品牌链接（首页 `/home`）的显示名；空串 = 用外壳内置名 */
+  homeLabel: string;
   /** 被停用的插件 id（**要落盘**：重启后仍然停用；D21） */
   disabled: string[];
   globals: HostGlobals;
@@ -48,6 +52,8 @@ export const DEFAULT_HOST_SETTINGS: HostSettings = {
   tabsDir: 'tabs',
   tabOrder: [],
   home: null,
+  tabAliases: {},
+  homeLabel: '',
   disabled: [],
   globals: { ...EMPTY_HOST_GLOBALS },
 };
@@ -59,6 +65,8 @@ const MAX_ID = 200;
 /** 地址长度上限 */
 const MAX_GLOBAL_TEXT = 300;
 const MAX_TEXT = 200;
+/** 显示名（别名 / 品牌名）的长度上限 */
+const MAX_ALIAS = 40;
 
 function sanitizeIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -93,6 +101,33 @@ function sanitizeText(value: unknown, fallback: string, max = MAX_TEXT): string 
   return text === '' || text.length > max ? fallback : text;
 }
 
+/**
+ * 显示名是**顶栏上的一行文字**：内部换行/连续空白会把它撑变形，所以折成一个空格；
+ * 超长截断而不是丢弃 —— 截断后的值会立刻回显到设置页，丢弃只会让人以为没保存上。
+ * 空串 = 没有别名（回落到插件自己的 title / 外壳内置品牌名）。
+ */
+function sanitizeAlias(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim().slice(0, MAX_ALIAS);
+}
+
+/** 别名表：键是插件 id、值是显示名；值洗成空的条目直接丢掉（= 没有别名） */
+function sanitizeAliasMap(value: unknown): Record<string, string> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  let count = 0;
+  for (const [rawKey, rawValue] of Object.entries(value as Record<string, unknown>)) {
+    if (count >= MAX_LIST) break;
+    const id = rawKey.trim();
+    if (id === '' || id.length > MAX_ID) continue;
+    const alias = sanitizeAlias(rawValue);
+    if (alias === '') continue;
+    out[id] = alias;
+    count += 1;
+  }
+  return out;
+}
+
 /** 把任意输入洗成合法设置；**不抛异常**，任何怪值都退化成默认 */
 export function sanitizeHostSettings(value: unknown): HostSettings {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -117,6 +152,8 @@ export function sanitizeHostSettings(value: unknown): HostSettings {
     tabsDir: sanitizeText(source.tabsDir, DEFAULT_HOST_SETTINGS.tabsDir, MAX_GLOBAL_TEXT),
     tabOrder: sanitizeIdList(source.tabOrder),
     home,
+    tabAliases: sanitizeAliasMap(source.tabAliases),
+    homeLabel: sanitizeAlias(source.homeLabel),
     disabled: sanitizeIdList(source.disabled),
     globals: sanitizeHostGlobals(source.globals),
   };
@@ -126,8 +163,8 @@ export function sanitizeHostSettings(value: unknown): HostSettings {
 export function settingsView(
   settings: HostSettings,
 ): Omit<HostSettings, 'host' | 'port' | 'logLevel' | 'tabsDir'> {
-  const { tabOrder, home, disabled, globals } = settings;
-  return { tabOrder, home, disabled, globals };
+  const { tabOrder, home, tabAliases, homeLabel, disabled, globals } = settings;
+  return { tabOrder, home, tabAliases, homeLabel, disabled, globals };
 }
 
 export interface LoadedHostSettings {
