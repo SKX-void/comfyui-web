@@ -27,7 +27,7 @@ pnpm dev:web                           # 外壳（vite :5173，代理 /api 与 /
 pnpm dev:plugins                       # 插件产物 watcher（pack.mjs --watch → tabs/）：改源码边写边出产物
 pnpm dev                               # 先 build:plugins 垫一次产物，再 apps/* dev（新克隆用这个）
 pnpm build                             # → dist/app/{server.mjs,web/} + dist/tabs/ + dist/data/（完整可搬，不入库）
-pnpm verify                            # typecheck → smoke → build → tabs-sync → contract（日志 .cache/verify/）
+pnpm verify                            # typecheck → isolation → smoke → build → tabs-sync → contract（日志 .cache/verify/）
 pnpm -r typecheck
 ```
 

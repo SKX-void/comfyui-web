@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { RouterLink, RouterView, useRoute } from 'vue-router';
 import Icon from './components/Icon.vue';
+import { PluginBoundary } from './plugin-boundary';
 import { homeLabel, manifestError, orderedTabs, plugins, tabLabel } from './store';
 
 const route = useRoute();
@@ -54,7 +55,10 @@ const wideContent = computed(() => route.path.startsWith('/w/'));
     </div>
 
     <main class="content" :class="{ wide: wideContent }">
-      <RouterView />
+      <!-- 插件页面崩了不许带走整个外壳（白屏 + 切 tab 没反应）：见 plugin-boundary.ts -->
+      <PluginBoundary :reset-key="route.fullPath">
+        <RouterView />
+      </PluginBoundary>
     </main>
 
   </div>

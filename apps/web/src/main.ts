@@ -69,6 +69,19 @@ async function mountPlugin(router: Router, plugin: PluginInfo): Promise<TabEntry
 
 async function bootstrap(): Promise<void> {
   const app = createApp(App);
+
+  /**
+   * 最后一道网：**只记录，不重抛**。
+   *
+   * dev 构建的 Vue 对没人接住的组件错误是 `throw err`，抛出点在调度器的 flush 里 ——
+   * 一个插件页面抛错就能让整个外壳的渲染停摆（切 tab 没反应，只能刷新，实测复现过）。
+   * 第一道网是 `PluginBoundary`（包住 RouterView），这里兜住边界之外的那些：
+   * 事件回调、watcher、异步任务，以及边界还没挂上的首屏。
+   */
+  app.config.errorHandler = (err, _instance, info) => {
+    console.error(`[host] 未捕获的组件错误（${info}）：`, err);
+  };
+
   const router = createRouter({
     history: createWebHistory(),
     routes: [
