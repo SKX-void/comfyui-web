@@ -44,20 +44,22 @@ ComfyUI 自带（缺了说明版本太老，装插件包解决不了）：`CLIPL
 ```
 plugins/anima-plus/
 ├── server/                 # 后端（从旧服务 apps/server 逐字搬来）
-│   ├── index.ts            # 组装根：句柄接线 + 路由 + 生命周期
+│   ├── index.ts            # 组装根：接线 + 生命周期
+│   ├── host.ts             # 宿主句柄的最小类型 + fastify 适配层（createRouteHost / sendError）
 │   ├── config.ts           # 本插件的配置（5 个设置项；填错回默认、越界收敛）
-│   ├── comfy/              # ComfyUI 客户端（HTTP + WS）
+│   ├── comfy/              # ComfyUI 客户端：http.ts 传输 · ws.ts 连接/重连 · real.ts 业务方法
 │   ├── templates/          # 模板加载 / 渲染 / 值变换（含 seed 随机：-1 → 具体种子）
-│   ├── safety/             # 显存护栏 + 配额（搬家时最不能丢的一段）
-│   ├── jobs/manager.ts     # 任务编排（内存表 + SSE 事件总线）
-│   ├── weilin/             # LoRA 目录/元数据/缩略图、标签树、翻译
+│   ├── safety/             # 显存护栏 + 配额（limits 规则表 · scan 扫描 · hits 命中 · describe 断言 · effective 边界）
+│   ├── jobs/               # 任务编排：manager.ts 状态机 + sweep/finalize/retention/event-bus/asset-id 等
+│   ├── weilin/             # LoRA 目录/元数据/缩略图、标签树、翻译（client 入口 + http/normalize/mock/types）
 │   │   └── thumb-codec.ts  # 缩略图编解码：纯 JS（purejsimage）、阈值透传、JPEG q74
 │   ├── store/              # 插件私有 SQLite（预设）+ 自己的迁移
 │   ├── state.ts            # 上次提交的参数快照（last-state.json）：读写 + 原子替换
 │   ├── deps.ts             # 依赖检查：工作流要的节点类 vs 上游 /object_info（带缓存）
 │   ├── help.ts             # 帮助文档：读包内 readme.md（读不到返回 text:null，界面降级）
-│   └── http/routes.ts      # 32 条路由（逐字搬来 + SSE hijack + /api/deps + /api/help + /api/state）
-├── client/                 # 前端源码（v1 的 App.vue + 8 个组件，含依赖提示与帮助面板）
+│   └── http/routes.ts      # 薄装配层；各域实现在 http/routes/*.ts（含 SSE hijack、/api/deps、/api/help）
+├── client/                 # 前端源码：App.vue（只做装配）+ 8 个组件 + composables/（状态与流程）
+│   └── src/                # 每个组件的 scoped 样式在同名 .css（`<style scoped src>`），不塞在 .vue 里
 ├── assets/form.json        # 表单声明（inputs / bindings / outputs / requirements）
 ├── scripts/
 │   ├── build-server.mjs    # esbuild 打包 → lib/server.js
@@ -201,10 +203,10 @@ LoRA 预览图与产出图都走服务端缩略图，编解码是**纯 JS**（`p
 
 1. **`store/db.ts` 零改动**：它本来就只接受一个文件路径，改成传空间里的路径即可。
 2. **`comfy/real.ts` 零改动**：仍然用 `ws` 包（打包时 bundle 进产物）。
-3. **`http/routes.ts` 加 1 行**：SSE 前 `reply.hijack()`。宿主只用**一条** `/api/p/*`
+3. **SSE 加 1 行**：`server/http/routes/jobs.ts` 里 SSE 前 `reply.hijack()`。宿主只用**一条** `/api/p/*`
    兜底路由接住所有插件请求，所以必须显式告诉 fastify「这个响应我自己写」。
 4. **错误映射移到适配层**：旧服务在 fastify 的 `setErrorHandler` 里把 `AppError`
-   映射成 404/413/422/429/502/503；插件不能碰宿主的全局错误处理，所以 `server/index.ts`
+   映射成 404/413/422/429/502/503；插件不能碰宿主的全局错误处理，所以 `server/host.ts`
    造了一个"假 fastify"包住每个 handler —— 顺带让 462 行的路由表**原样可用**
    （`app.get<{Params…}>` 的泛型运行期不存在，适配层把它吃掉）。
 
@@ -221,5 +223,6 @@ LoRA 预览图与产出图都走服务端缩略图，编解码是**纯 JS**（`p
 - **能力（comfy / weilin / jobs / quota）没有拆成独立包**：D19 之后不存在"库形态插件"，
   宿主也只 provide `routes` 与 `space` 两个句柄 —— 跨插件只有 HTTP 路由一条路。
   模块边界按旧服务的目录原样保留；将来要复用就抽成共享源码包、**构建时 bundle** 进各插件产物。
-- **`safety/limits.ts` 是唯一的安全收口**：改模板/加字段之后务必跑 `smoke`，
+- **`safety/` 是唯一的安全收口**（`limits.ts` 规则表 · `scan.ts` 扫描/夹紧 · `describe.ts` 出口断言 ·
+  `effective.ts` 生效边界）：改模板/加字段之后务必跑 `smoke`，
   里面 12 项断言专门盯护栏（越界拒绝、夹紧、数量超限、取值不明 fail closed）。

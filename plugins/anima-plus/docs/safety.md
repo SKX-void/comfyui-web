@@ -1,6 +1,6 @@
 # 硬件安全护栏
 
-> 本文是 `plugins/anima-plus` 的**设计记录**（写得比代码早）。真相源是代码：`server/safety/limits.ts`、`server/safety/quota.ts`；数值不一致时以代码为准。
+> 本文是 `plugins/anima-plus` 的**设计记录**（写得比代码早）。真相源是代码：`server/safety/`（`limits.ts` 常量与规则表 · `scan.ts` 扫描/夹紧 · `hits.ts` 命中形状 · `describe.ts` 描述与出口断言 · `effective.ts` 生效边界 · `quota.ts` 配额）；数值不一致时以代码为准。
 
 > 目标读者：维护这个服务的自己。
 > 背景：这套轻前端**要给其他人用**（`10.2.3.14:5180`），而 ComfyUI 那台机器只有一块卡。
@@ -28,7 +28,7 @@
 
 ## 2. 三道闸门
 
-规范位置：`plugins/anima-plus/server/safety/limits.ts`（规则表 + 扫描/夹紧/断言）。
+规范位置：`plugins/anima-plus/server/safety/`（`limits.ts` 规则表 · `scan.ts` 扫描/夹紧 · `describe.ts` 出口断言 · `effective.ts` 生效边界）。
 这段代码是从已删除的 `apps/server/src/safety/limits.ts` **逐字**搬过来的，规则一条没动。
 
 ```

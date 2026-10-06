@@ -9,7 +9,8 @@ import { computed } from 'vue';
 import type { TemplateInput } from '@comfyui-web/shared';
 import { drawSeed } from '@/form';
 import TagSelector from '@/components/TagSelector.vue';
-import LoraSelector, { type LoraValue } from '@/components/LoraSelector.vue';
+import LoraSelector from '@/components/LoraSelector.vue';
+import type { LoraValue } from '@/composables/useLoraSelection';
 import SelectMenu from '@/components/SelectMenu.vue';
 
 const props = defineProps<{

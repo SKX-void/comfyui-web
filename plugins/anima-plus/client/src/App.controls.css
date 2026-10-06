@@ -1,0 +1,177 @@
+.control {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.status-line {
+  font-size: 13px;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.status-line.small {
+  font-size: 12px;
+  color: #94a3b8;
+}
+.dim {
+  color: #64748b;
+}
+.dim.small {
+  font-size: 11px;
+}
+.progress-bar {
+  height: 10px;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4f46e5, #06b6d4);
+  transition: width 0.2s ease;
+}
+.error {
+  color: #fca5a5;
+  font-size: 13px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+/* 产出图：自适应缩放（宽度跟随容器，高度跟随视口），不再写死 520px */
+.results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+.result-img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+}
+/* 列表缩略图：随视口等比缩放 */
+.thumb {
+  width: clamp(44px, 10vw, 72px);
+  height: clamp(44px, 10vw, 72px);
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #1f2937;
+}
+.thumb-link {
+  margin-right: 6px;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #1f2937;
+  vertical-align: middle;
+}
+.mono {
+  font-family: ui-monospace, monospace;
+}
+.logbox summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #94a3b8;
+}
+.logbox pre {
+  max-height: 200px;
+  overflow: auto;
+  background: #0b1220;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+}
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/**
+ * 窄屏（手机）：整页不再依赖横向滚动，需要横向排的东西一律改成竖向堆叠。
+ *
+ * 「本次会话」那张表格是主要元凶：任务号/状态/缩略图/按钮的最小内容宽度
+ * 在 360px 屏上必然超过视口，表格不会自己换行，于是把整页撑宽。
+ * 这里不复制一份 DOM（缩略图会请求两次），而是同一个表格换皮：
+ * 隐藏表头，td 变块，字段名由 td[data-label] 用 ::before 生成 —— 每行就是一张卡片。
+ */
+@media (max-width: 640px) {
+  .page {
+    padding: 12px;
+  }
+
+  /* --- 历史记录：表格 → 卡片 --- */
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+  .table thead {
+    display: none;
+  }
+  .table tr {
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+  .table tr:last-child {
+    margin-bottom: 0;
+  }
+  .table td {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 3px 0;
+    border-bottom: none;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .table td::before {
+    content: attr(data-label);
+    flex: none;
+    width: 3em;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .table .mono {
+    word-break: break-all;
+  }
+  /* 缩略图行：按中线对齐，去掉 flex gap 之外的多余右间距 */
+  .table td.cell-assets {
+    align-items: center;
+  }
+  .table td.cell-assets .thumb-link {
+    margin-right: 0;
+  }
+  /* 操作行没有字段名，按钮靠右 */
+  .table td.cell-action {
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
+  .table td.cell-action::before {
+    content: none;
+  }
+}

@@ -1,59 +1,32 @@
-import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import type {
   CreateJobRequest,
   Job,
-  JobAsset,
   JobEvent,
 } from '@comfyui-web/shared';
 import { AppError } from '../errors.js';
-import type { ComfyClient, ComfyEvent } from '../comfy/types.js';
 import type { DepsService } from '../deps.js';
+import type { TriggerResolver } from '../triggers/resolve.js';
+import type { ComfyClient, ComfyEvent } from '../comfy/types.js';
 import type { WorkflowDefinition } from '../templates/loader.js';
 import { renderTemplate } from '../templates/render.js';
-import type { TriggerResolver } from '../triggers/resolve.js';
 import { MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../safety/quota.js';
+import { applyComfyEvent } from './comfy-events.js';
+import { JobEventBus } from './event-bus.js';
+import { finalizeJob } from './finalize.js';
+import type { ManagerOptions } from './options.js';
+import { clearFinishedJobs, countInFlightJobs, evictOldJobsOverLimit } from './retention.js';
+import { sweepJobs } from './sweep.js';
+import { TERMINAL } from './terminal.js';
 
-/** 把「产出图片」编码成可逆的 assetId，避免额外持久化 */
-export function encodeAssetId(a: { type: string; subfolder: string; filename: string }): string {
-  return Buffer.from(`${a.type}\u0000${a.subfolder}\u0000${a.filename}`).toString('base64url');
-}
-
-export function decodeAssetId(id: string): {
-  type: string;
-  subfolder: string;
-  filename: string;
-} {
-  const raw = Buffer.from(id, 'base64url').toString('utf8');
-  const [type, subfolder, filename] = raw.split('\u0000');
-  if (!type || !filename) throw AppError.badRequest(`非法 assetId: ${id}`);
-  return { type, subfolder: subfolder ?? '', filename };
-}
-
-interface ManagerOptions {
-  /** 本仓所有任务共用一个 clientId（原因见 server/comfy/real.ts 的注释），靠 prompt_id 区分归属 */
-  clientId: string;
-  /** 依赖检查服务：提交前查节点用它的缓存（object_info 很贵，缓存策略见 server/deps.ts） */
-  deps: DepsService;
-  /** 触发词解析（覆盖表 → WeiLin 标签库 → 不注入）；渲染前调用，见 submit */
-  triggers: TriggerResolver;
-  log: (msg: string, meta?: unknown) => void;
-  /** 对账周期（毫秒），默认 10s */
-  sweepIntervalMs?: number;
-  /** 判定"上游已丢失该任务"的静默时长（毫秒），默认 120s */
-  staleJobMs?: number;
-  /** 在途任务上限，默认 MAX_QUEUE_DEPTH（可注入便于测试） */
-  maxQueueDepth?: number;
-  /** 任务表保留条数，默认 MAX_JOBS_RETAINED（可注入便于测试） */
-  maxJobsRetained?: number;
-}
-
-const TERMINAL: ReadonlySet<Job['status']> = new Set(['succeeded', 'failed', 'canceled']);
+// assetId 的编解码仍从这个模块路径对外（server/http/** 从这里 import，实现见 jobs/asset-id.ts）
+export { decodeAssetId, encodeAssetId } from './asset-id.js';
+export type { AssetRef } from './asset-id.js';
 
 export class JobManager {
   private readonly jobs = new Map<string, Job>();
   private readonly promptToJob = new Map<string, string>();
-  private readonly bus = new EventEmitter();
+  private readonly events = new JobEventBus();
   private unsubscribe: (() => void) | null = null;
   private sweepTimer: NodeJS.Timeout | null = null;
   private readonly sweepIntervalMs: number;
@@ -68,7 +41,6 @@ export class JobManager {
     private readonly workflow: WorkflowDefinition,
     private readonly opts: ManagerOptions,
   ) {
-    this.bus.setMaxListeners(0);
     this.deps = opts.deps;
     this.triggers = opts.triggers;
     this.sweepIntervalMs = opts.sweepIntervalMs ?? 10_000;
@@ -93,59 +65,16 @@ export class JobManager {
     }
   }
 
-  /**
-   * 对账：把非终态任务与上游 /history + /queue 对齐。
-   *
-   * 存在的必要性（已实测）：
-   * WS 事件可能因断线或客户端 bug 丢失，此时任务会永久停在 queued/running。
-   */
+  /** 周期性对账：把非终态任务与上游 /history + /queue 对齐（原因见 jobs/sweep.ts） */
   private async sweep(): Promise<void> {
-    const candidates = [...this.jobs.values()].filter(
-      (j) => j.promptId !== null && !TERMINAL.has(j.status),
-    );
-    if (candidates.length === 0) return;
-
-    let queueIds: Set<string> | null = null;
-    try {
-      const q = await this.client.getQueue();
-      queueIds = new Set(
-        [...q.running, ...q.pending]
-          .map((r) => r.promptId)
-          .filter((id): id is string => typeof id === 'string'),
-      );
-    } catch {
-      // 上游不可达：本轮跳过，不误判
-    }
-
-    for (const job of candidates) {
-      const promptId = job.promptId;
-      if (!promptId) continue;
-      try {
-        const history = await this.client.getHistory(promptId);
-        if (history?.completed) {
-          this.opts.log('对账：任务已完成，补发终态', { jobId: job.jobId, status: job.status });
-          await this.finalize(job);
-          continue;
-        }
-        const inQueue = queueIds?.has(promptId) ?? false;
-        const ageMs = Date.now() - new Date(job.startedAt ?? job.createdAt).getTime();
-        if (queueIds !== null && !inQueue && !history && ageMs > this.staleJobMs) {
-          job.status = 'failed';
-          job.error = {
-            code: 'EXECUTION_FAILED',
-            message: '任务在上游既不在队列也无历史记录（可能被 ComfyUI 重启清除）',
-          };
-          job.finishedAt = new Date().toISOString();
-          this.opts.log('对账：任务已丢失', { jobId: job.jobId, promptId });
-          this.emit(job, 'error', {
-            code: job.error.code,
-            message: job.error.message,
-          });
-        }
-      } catch {
-        // 单次对账失败不影响其它任务
-      }
-    }
+    await sweepJobs({
+      jobs: this.jobs,
+      client: this.client,
+      staleJobMs: this.staleJobMs,
+      log: this.opts.log,
+      events: this.events,
+      finalize: (job) => this.finalize(job),
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -268,35 +197,12 @@ export class JobManager {
 
   /** 在途任务数（created / queued / running） */
   private countInFlight(): number {
-    let n = 0;
-    for (const j of this.jobs.values()) {
-      if (!TERMINAL.has(j.status)) n += 1;
-    }
-    return n;
+    return countInFlightJobs(this.jobs);
   }
 
-  /**
-   * 任务表按条数淘汰：超过上限时**从最旧的开始丢**（Map 保持插入顺序，
-   * 也就是"从前舍弃"）。只丢已终态的任务 —— 在途任务被丢掉就意味着
-   * 它永远收不到终态事件，还会一直占着队列名额。
-   */
+  /** 任务表按条数淘汰（规则与为什么见 jobs/retention.ts） */
   private evictOldJobs(): void {
-    if (this.jobs.size <= this.maxJobsRetained) return;
-    let dropped = 0;
-    for (const [id, j] of this.jobs) {
-      if (this.jobs.size <= this.maxJobsRetained) break;
-      if (!TERMINAL.has(j.status)) continue;
-      this.jobs.delete(id);
-      if (j.promptId) this.promptToJob.delete(j.promptId);
-      dropped += 1;
-    }
-    if (dropped > 0) {
-      this.opts.log('任务表超出上限，已从最旧的开始淘汰', {
-        dropped,
-        retained: this.jobs.size,
-        max: this.maxJobsRetained,
-      });
-    }
+    evictOldJobsOverLimit(this.jobs, this.promptToJob, this.maxJobsRetained, this.opts.log);
   }
 
   get(jobId: string): Job {
@@ -317,23 +223,12 @@ export class JobManager {
    * 用户还会以为"什么都没在跑"，而 GPU 其实正忙着 —— 所以留着，并把数量回报给前端。
    */
   clearFinished(): { cleared: number; kept: number } {
-    let cleared = 0;
-    for (const [id, job] of this.jobs) {
-      if (!TERMINAL.has(job.status)) continue;
-      this.jobs.delete(id);
-      if (job.promptId) this.promptToJob.delete(job.promptId);
-      cleared += 1;
-    }
-    const kept = this.countInFlight();
-    this.opts.log('已清空历史记录', { cleared, kept });
-    return { cleared, kept };
+    return clearFinishedJobs(this.jobs, this.promptToJob, this.opts.log);
   }
 
   /** 订阅某任务的领域事件，返回取消订阅函数 */
   subscribe(jobId: string, handler: (evt: JobEvent) => void): () => void {
-    const channel = `job:${jobId}`;
-    this.bus.on(channel, handler);
-    return () => this.bus.off(channel, handler);
+    return this.events.subscribe(jobId, handler);
   }
 
   async cancel(jobId: string): Promise<Job> {
@@ -353,191 +248,26 @@ export class JobManager {
   // -------------------------------------------------------------------------
 
   private emit(job: Job, type: JobEvent['type'], data: Record<string, unknown>): void {
-    const evt: JobEvent = { type, data };
-    this.bus.emit(`job:${job.jobId}`, evt);
+    this.events.emit(job, type, data);
   }
 
   private onComfyEvent(evt: ComfyEvent): void {
-    const promptId = typeof evt.data.prompt_id === 'string' ? evt.data.prompt_id : null;
-    if (!promptId) return;
-    const jobId = this.promptToJob.get(promptId);
-    if (!jobId) return; // 不属于本服务器的任务（WS 会广播部分事件）
-    const job = this.jobs.get(jobId);
-    if (!job) return;
-
-    switch (evt.type) {
-      case 'execution_start': {
-        job.status = 'running';
-        job.startedAt = new Date().toISOString();
-        this.emit(job, 'started', { status: job.status });
-        break;
-      }
-
-      case 'executing': {
-        const node = evt.data.node;
-        if (node === null) {
-          // 执行结束：以 /history 为准落最终状态（WS 只用于进度）
-          void this.finalize(job);
-        } else {
-          this.emit(job, 'node', { node: String(node) });
-        }
-        break;
-      }
-
-      case 'progress': {
-        const value = Number(evt.data.value ?? 0);
-        const max = Number(evt.data.max ?? 0);
-        job.progress = { value, max, node: (evt.data.node as string) ?? null };
-        if (job.status !== 'running') {
-          job.status = 'running';
-        }
-        this.emit(job, 'progress', { ...job.progress });
-        break;
-      }
-
-      case 'progress_state': {
-        // 新式多节点进度：取当前 running 节点作为主进度
-        const nodes = evt.data.nodes as
-          | Record<string, { value: number; max: number; state: string }>
-          | undefined;
-        if (!nodes) break;
-        const running = Object.entries(nodes).find(([, s]) => s.state === 'running');
-        if (running) {
-          job.progress = { value: running[1].value, max: running[1].max, node: running[0] };
-          this.emit(job, 'progress', { ...job.progress });
-        }
-        break;
-      }
-
-      case 'executed': {
-        const output = evt.data.output as
-          | { images?: Array<{ filename: string; subfolder: string; type: string }> }
-          | undefined;
-        for (const img of output?.images ?? []) {
-          this.addAsset(job, img);
-        }
-        break;
-      }
-
-      case 'execution_error': {
-        job.status = 'failed';
-        job.error = {
-          code: 'EXECUTION_FAILED',
-          message:
-            typeof evt.data.exception_message === 'string'
-              ? evt.data.exception_message
-              : '执行失败',
-          node: (evt.data.node_id as string) ?? null,
-          detail: evt.data.traceback,
-        };
-        job.finishedAt = new Date().toISOString();
-        this.emit(job, 'error', {
-          code: job.error.code,
-          message: job.error.message,
-          node: job.error.node,
-        });
-        break;
-      }
-
-      case 'execution_interrupted': {
-        job.status = 'canceled';
-        job.finishedAt = new Date().toISOString();
-        this.emit(job, 'canceled', { status: job.status });
-        break;
-      }
-
-      default:
-        break;
-    }
+    applyComfyEvent(
+      {
+        jobs: this.jobs,
+        promptToJob: this.promptToJob,
+        events: this.events,
+        finalize: (job) => this.finalize(job),
+      },
+      evt,
+    );
   }
 
-  private addAsset(
-    job: Job,
-    img: { filename: string; subfolder: string; type: string },
-  ): void {
-    const assetId = encodeAssetId(img);
-    if (job.assets.some((a) => a.assetId === assetId)) return;
-    const asset: JobAsset = {
-      assetId,
-      url: `/api/assets/${assetId}/raw`,
-      filename: img.filename,
-      subfolder: img.subfolder ?? '',
-      type: img.type ?? 'output',
-    };
-    job.assets.push(asset);
-  }
-
-  /**
-   * 读取 history，带短重试。
-   *
-   * 必要性：`executing node=null`（结束信号）与 ComfyUI 落盘 history 之间存在竞态，
-   * 首次读取可能拿到 `completed: false`。真实环境同样会有这个窗口。
-   */
-  private async readHistorySettled(promptId: string): Promise<Awaited<ReturnType<ComfyClient['getHistory']>>> {
-    const attempts = 5;
-    const delayMs = 120;
-    let last = null as Awaited<ReturnType<ComfyClient['getHistory']>>;
-    for (let i = 0; i < attempts; i++) {
-      last = await this.client.getHistory(promptId);
-      if (last?.completed) return last;
-      if (i < attempts - 1) {
-        await new Promise((r) => setTimeout(r, delayMs));
-      }
-    }
-    return last;
-  }
-
-  /** 终态对账：状态真相源是 ComfyUI /history，不是 WS */
+  /** 终态对账：状态真相源是 ComfyUI /history，不是 WS（重试与原因见 jobs/finalize.ts） */
   private async finalize(job: Job): Promise<void> {
-    if (TERMINAL.has(job.status)) {
-      return;
-    }
-    let completed = false;
-    let historyAssets: Array<{ filename: string; subfolder: string; type: string }> = [];
-    let statusStr = 'unknown';
-
-    try {
-      const history = job.promptId ? await this.readHistorySettled(job.promptId) : null;
-      if (history) {
-        completed = history.completed;
-        statusStr = history.statusStr;
-        const wanted = new Set(this.workflow.get().def.outputs.nodes);
-        for (const [nodeId, output] of Object.entries(history.outputs)) {
-          if (wanted.size > 0 && !wanted.has(nodeId)) continue;
-          for (const img of output.images ?? []) historyAssets.push(img);
-        }
-        if (historyAssets.length === 0) {
-          for (const output of Object.values(history.outputs)) {
-            for (const img of output.images ?? []) historyAssets.push(img);
-          }
-        }
-      }
-    } catch (err) {
-      this.opts.log('读取 history 失败', { jobId: job.jobId, err: String(err) });
-    }
-
-    for (const img of historyAssets) this.addAsset(job, img);
-
-    job.finishedAt = new Date().toISOString();
-    if (completed && job.assets.length > 0) {
-      job.status = 'succeeded';
-      this.emit(job, 'completed', {
-        status: job.status,
-        assets: job.assets,
-        historyStatus: statusStr,
-      });
-    } else if (completed) {
-      job.status = 'succeeded';
-      this.emit(job, 'completed', { status: job.status, assets: [], historyStatus: statusStr });
-    } else {
-      job.status = 'failed';
-      job.error = {
-        code: 'EXECUTION_FAILED',
-        message: `执行未成功完成 (history status: ${statusStr})`,
-      };
-      this.emit(job, 'error', { code: job.error.code, message: job.error.message });
-    }
-
-    this.opts.log('任务终态', { jobId: job.jobId, status: job.status, assets: job.assets.length });
+    await finalizeJob(
+      { client: this.client, workflow: this.workflow, log: this.opts.log, events: this.events },
+      job,
+    );
   }
 }
