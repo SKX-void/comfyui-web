@@ -72,22 +72,31 @@ plugins/mine/
 
 ```ts
 // plugins/mine/server/index.ts
+import fs from 'node:fs';
+
 export const name = 'mine';                 // 插件 id（= 目录名）
 export const inject = ['routes', 'space'];  // 只 inject 你真正要用的句柄
 
 export function apply(ctx, config) {
-  const store = ctx.space.for('@comfyui-web/mine');   // → data/plugins/@comfyui-web+mine/
+  // 路由表**一个插件只能领一次**：宿主每调用一次 for() 就换一张新表，领两次会把先前注册的
+  // 整张覆盖掉（表现出来是一部分端点 404）。多模块就把这张表传下去。
+  const routes = ctx.routes.for('mine');             // → /api/p/mine/*
+  const space = ctx.space.for('@comfyui-web/mine');  // → data/plugins/@comfyui-web+mine/
+  const settingsFile = space.resolve('settings.json');  // 空间内相对路径 → 绝对路径（越界直接抛）
 
-  ctx.routes.get('/api/settings', async () => store.readJson('settings.json', {}));
-  ctx.routes.put('/api/settings', async (req) => store.writeJson('settings.json', req.body));
-  ctx.routes.post('/api/run', async (req) => { /* 提交工作流、返回 prompt_id */ });
+  routes.get('/settings', async () => JSON.parse(fs.readFileSync(settingsFile, 'utf8')));
+  routes.put('/settings', async (req) => {
+    fs.writeFileSync(settingsFile, JSON.stringify(req.body));
+    return { ok: true };
+  });
 
   // 收尾：定时器 / 连接 / 子进程都在这里关（重挂时会调用它）
   ctx.effect(() => () => { /* cleanup */ });
 }
 ```
 
-路由在宿主侧统一挂在 `/api/p/<id>` 下：上面的 `/api/settings` 对外就是 `GET /api/p/mine/api/settings`。
+路由在宿主侧统一挂在 `/api/p/<id>` 下：上面的 `/settings` 对外就是 `GET /api/p/mine/settings`。
+存什么格式（JSON？SQLite？图片？）由你定，宿主只给你一块目录、不解析也不清理（§5）。
 **不要** `import 'cordis'`（宿主已经把它打进自己的产物，再引一份就是两个实例）。
 
 ### 2.3 前端入口

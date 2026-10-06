@@ -290,8 +290,11 @@ pnpm verify                                          # 仓级：typecheck → is
 ## 构建
 
 ```bash
-pnpm --filter @comfyui-web/prompt-editor build     # 或 pnpm build:plugins
+pnpm --filter @comfyui-web/prompt-editor build          # 或 pnpm build:plugins
+pnpm --filter @comfyui-web/prompt-editor build:server   # 只打后端，改 server/ 时更快
+pnpm --filter @comfyui-web/prompt-editor typecheck      # vue-tsc，含 server/**
 ```
 
-产物写进 `tabs/prompt-editor/`（`client.js` + `client.css` + `server.js` + `package.json`），
-宿主设置页点一次「重新扫描插件目录」即可装载。
+服务端源码分成 13 个 `server/*.ts`（每个 ≤300 行），`scripts/build-server.mjs` 用 esbuild 打成**一个** `server.js`
+（重挂只给入口加 `?v=`，多文件会命中 Node 的 ESM 缓存，见 `plugins/README.md` §2.4）；`tsconfig.json` 的
+`include` 含 `server/**/*.ts`，所以 typecheck 连服务端一起查。产物写进 `tabs/prompt-editor/`，设置页点一次「重新扫描插件目录」即可装载。

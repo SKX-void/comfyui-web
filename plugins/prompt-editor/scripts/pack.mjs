@@ -2,17 +2,23 @@
 /**
  * 打包成目录型 tab：产物写进 tabs/prompt-editor/（宿主真正加载的就是它）。
  *
- * 服务端**不需要打包**：server.js 只 import node 内置模块和宿主句柄，拷过去就能装载。
+ * 两步：① esbuild 把 server/ 那十来个模块打成**一个** server.js ——
+ * 重挂时宿主只给入口说明符加 `?v=<token>`，多文件的话兄弟模块会命中 Node 的 ESM 缓存
+ * （理由见 build-server.mjs）；② vite 打前端 client.js + client.css（vue 走页面 import map，必须 external）。
  */
 import { fileURLToPath } from 'node:url';
 
 import { packTab } from '../../../scripts/pack-tab.mjs';
 
 const pluginDir = fileURLToPath(new URL('..', import.meta.url));
+const watch = process.argv.includes('--watch');
 
 await packTab({
   pluginDir,
-  build: [['vite', ['build']]],
-  extras: ['server.js', 'README.md'],
-  watch: process.argv.includes('--watch'),
+  build: [
+    ['node', ['scripts/build-server.mjs', ...(watch ? ['--watch'] : [])]],
+    ['vite', ['build']],
+  ],
+  extras: ['README.md'],
+  watch,
 });
