@@ -6,7 +6,7 @@
  *   pnpm --filter @comfyui-web/anima-plus build:server
  *   → tabs/anima-plus/server.js    （宿主按 tab 的 package.json 的 main 加载它）
  *
- * ## 为什么本插件要打包（anima-example 就没有这一步）
+ * ## 为什么本插件要打包（"多文件 → 单文件"的共性说明见 anima-example 的同名脚本）
  *
  * 这里搬进来的是旧服务的一整套后端（~2800 行 / 14 个文件），逐字搬运比照着重写一遍
  * 安全得多 —— 尤其是 `safety/limits.ts` 那份 657 行的显存护栏。打包让这些文件保持原状

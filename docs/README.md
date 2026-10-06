@@ -81,8 +81,8 @@ pnpm build:plugins            # 插件源码（plugins/<id>/）→ tabs/<id>/
 ```
 plugins/myflow/
 ├── package.json   # name + plugin{ contract, title, client, settings[] }
-├── server.js      # export name / inject / apply(ctx, config)
-└── client/        # 前端源码（vite 构建成 lib/client.js，或像 demo 那样手写单文件 ESM）
+├── server/        # 服务端源码（构建成 tabs/myflow/server.js；单文件也行，多文件必须打包）
+└── client/        # 前端源码（vite 构建成 client.js）
 ```
 
 后端只有一个入口 `apply(ctx, config)`，句柄按需 `inject`。**核只给文件空间**，

@@ -20,7 +20,7 @@
 ```text
 plugins/mine/
 ├── package.json          源码 manifest：plugin 段会被原样派生到 tabs/mine/package.json
-├── server/index.ts       服务端源码 → tabs/mine/server.js（入口名固定）
+├── server/index.ts       服务端源码 → tabs/mine/server.js（入口名固定；`.js`/`.ts` 都行）
 ├── client/index.ts       前端源码   → tabs/mine/client.js（+ 可选 client.css）
 ├── client/App.vue
 ├── scripts/pack.mjs      构建入口：pnpm build:plugins 起来就是跑它
@@ -108,10 +108,14 @@ export default {
 ### 2.4 构建脚本 `scripts/pack.mjs`
 
 它只做两件事：调构建工具（vite / esbuild），然后把**运行期资产**拷到产物根。照
-`plugins/anima-example/scripts/pack.mjs`（最小）或 `plugins/anima-plus/scripts/pack.mjs`（带服务端 bundle + watch）抄：
+`plugins/anima-example/scripts/pack.mjs`（最小：esbuild 打后端 + vite 打前端）或
+`plugins/anima-plus/scripts/pack.mjs`（同一套，多了 `assets/` 与原生模块的 external 处理）抄：
 
 - 产物目录由 `scripts/pack-tab.mjs` 决定（→ `tabs/<id>/`）；插件里所有 `new URL('./x', import.meta.url)` 都按**产物在 tab 根**来写。
 - 在 `extras` 里声明要一起拷过去的资产（模板、图片、帮助文本…）。
+- **服务端多文件就必须打成单文件**（esbuild）：重挂只给**入口**说明符加 `?v=`，入口里
+  `import './x.js'` 解析出来的 URL 不带 query，不打包就会命中 Node 的 ESM 缓存 ——
+  "改完点重新扫描"看到的还是旧代码。`server/` 只有一个文件时可以省掉这一步。
 - `--watch` 模式供 `pnpm dev:plugins` 常驻使用：改源码边写边出产物；产物变了还要在设置页点一次
   「重新扫描插件目录」才会重挂（D20）。
 
@@ -125,7 +129,7 @@ export default {
 - **工作流模板**：把 API 格式的 workflow JSON 放工程里（构建时作为 extra 拷进 tab 根），运行时按表单值改节点输入；
   表单字段 ↔ 模板节点的对应关系是插件自己的约定，写在插件里（别指望宿主理解工作流）。
 - **产物存放**：出图、缩略图、缓存都放 `ctx.space` 目录下；宿主不代管、不迁移、不清理。
-- 参考实现：`plugins/anima-plus/`（进度、模板、缓存、帮助页都有）· `plugins/anima-example/`（单文件最小形态）。
+- 参考实现：`plugins/anima-plus/`（进度、模板、缓存、帮助页都有）· `plugins/anima-example/`（最小形态：一个 tab、一个自建库、一套设置项）。
 - （待补：错误重试 / 取消 / 并发上限 / 断线重连 —— 把你自己的调用约定写在这几条下面。）
 
 ## 4. 前端 tab 的约定
@@ -150,6 +154,9 @@ export default {
 | `pnpm build:plugins` | 一次性构建 → `tabs/<id>/` |
 | `pnpm --filter <包名> test:contract` | 契约测试（从 `tabs/<id>/` 读产物做断言） |
 | `pnpm verify` | typecheck → isolation → smoke → build → tabs-sync → contract |
+
+服务端源码写 `.ts` 的话，别忘了把 `server/**/*.ts` 挂进本包的 `tsconfig.json` 的 `include`：
+esbuild **只剥类型、不做类型检查**，漏挂就等于服务端从来没被 typecheck 过（`anima-example` 是这么挂的）。
 
 生效时机（D20，详见 `tabs/README.md`）：**宿主不监听目录** —— 装进去 / 改完在设置页点一次
 「重新扫描插件目录」（= `POST /api/tabs/rescan`）才装载或重挂；改 `plugins/*` 的**源码**不会自动生效，

@@ -2,7 +2,7 @@
  * 插件的接口层。
  *
  * 前缀只有一个常量：`/api/p/anima-example`（宿主统一给插件加的前缀）；
- * 后端就在本插件里（`server.js`），没有反代。
+ * 后端就在本插件里（源码 `server/`，构建成 tab 根的 `server.js`），没有反代。
  */
 
 export const API_BASE = '/api/p/anima-example';
@@ -125,7 +125,7 @@ export interface PluginStatus {
 export interface PluginSettingsResponse {
   /** 存下来的值（原样，没做范围收敛） */
   values: Record<string, unknown>;
-  /** 本次装载真正生效的值（越界已收敛，见 server.js §3.3） */
+  /** 本次装载真正生效的值（越界已收敛，见 server/settings.js） */
   effective: Record<string, unknown>;
   /** 设置文件的位置，排障用 */
   file: string;
@@ -158,7 +158,7 @@ export const api = {
   status: () => request<PluginStatus>('/status'),
   options: () => request<PluginOptions>('/options'),
 
-  // --- 设置：设置归插件自己（server.js §2.5），宿主既不读也不写 ---
+  // --- 设置：设置归插件自己（server/settings.js），宿主既不读也不写 ---
   settings: () => request<PluginSettingsResponse>('/settings'),
   /** 存下来的只是值；生效要宿主重挂本插件（`POST /api/tabs/<id>/reload`，见 SettingsPanel.vue） */
   saveSettings: (values: Record<string, unknown>) =>

@@ -24,7 +24,7 @@
 | `data/host.json`（偏好段：`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals` / `disabled`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写；手改也行，重扫后生效） | ❌ |
 | `data/plugins/<包名>/…` | 各插件自己（如 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
 | `data/plugins/<包名>/last-state.json` | anima-plus 自己（`plugins/anima-plus/server/state.ts`；`GET/PUT /api/p/anima-plus/api/state`） | 运行期 | ✅ 纯 JSON（点「开始生成」自动写，手改或删掉也行） | ❌ |
-| `data/plugins/<包名>/presets.json`·`draft.json` | prompt-editor 自己（`plugins/prompt-editor/server.js`；`GET/PUT /api/p/prompt-editor/*`） | 运行期 | ✅ 纯 JSON（预设库 / 当前草稿；删掉＝回到首屏三个空区块） | ❌ |
+| `data/plugins/<包名>/presets.json`·`draft.json`·`tags.json`·`settings.json`·`usage.json` | prompt-editor 自己（`plugins/prompt-editor/server.js`；`GET/PUT /api/p/prompt-editor/*`） | 运行期 | ✅ 纯 JSON（预设库 / 当前草稿——草稿分"组结构 + 条目"两段，编辑时按改动粒度增量写；`tags.json` = 词库（一张表两用：翻译按 en/别名命中、面板按分类分组），进库的都是手动存过的（手改译文 / 点「机」/ 面板里改），现翻结果只进会话缓存；老 `dict.json` 读到即自动迁移并改名成 `dict.json.migrated`；老 `dict.json` 读到即自动迁移、原文件保留；`settings.json` = provider 与护栏（每日上限、超时、两次调用最小间隔）；`usage.json` = 当日调用次数。删掉＝回到首屏三个空区块 / 空词库 / 默认设置） | ❌ |
 | `plugins/<pkg>/package.json` 的 `plugin.settings[]` | 宿主 → `GET /api/plugins` → 插件自己的设置界面 | 包 | ✅（改包） | ✅ |
 | `plugins/<pkg>/server/config.ts` | 插件自己（运行期默认值 / 范围） | 包 | ✅（改包） | ✅ |
 | `tabs/<id>/package.json` | 宿主扫描（`apps/server/src/tabs.ts` → `scanTabs()`） | 目录 | ✅ 改完点「重新扫描插件目录」（= `POST /api/tabs/rescan`，D20） | ❌（产物） |
@@ -105,7 +105,7 @@
 
 ⚠️ **`plugin.settings[].default` 只是表单占位提示，不是运行期默认值**。两个真实例子：
 
-- `anima-example`：表单 `defaultSteps: 6`，但**不填**时运行期取工作流里 KSampler 的实际值（`plugins/anima-example/server.js` 的 `bindings.current.steps`）。
+- `anima-example`：表单 `defaultSteps: 6`，但**不填**时运行期取工作流里 KSampler 的实际值（`plugins/anima-example/server/workflow.ts` 的 `bindings.current.steps`）。
 - `anima-plus`：表单 `comfyuiBaseUrl` 默认 `http://localhost:8188`，运行期默认在 `plugins/anima-plus/server/config.ts` 的 `DEFAULT_COMFY_BASE_URL`。
 
 改默认值要**两处都改**，否则会出现"设置页显示 8188、实际连别处"。

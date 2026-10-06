@@ -117,7 +117,7 @@
 ```
 plugins/<id>/                # 源码工程：devDependencies / vite / tsconfig 都在这
 ├── package.json             # 源码侧 manifest：plugin 段（§4.2）原样派生给 tab
-├── server/**.ts             # 服务端源码（cordis 插件：name / inject / apply）
+├── server/**.ts|js          # 服务端源码（cordis 插件：name / inject / apply）
 ├── client/src/**.vue|ts     # 前端源码（入口 client/index.ts）
 ├── scripts/pack.mjs         # 构建：pnpm build:plugins → tabs/<id>/
 └── vite.config.ts
@@ -130,6 +130,9 @@ tabs/<id>/                   # 交付物 = 宿主唯一装载的东西（目录�
 ```
 
 - 入口名固定 `server.js` / `client.js`，就在 tab 根；插件里 `new URL('./x', import.meta.url)` 按此写。
+- **服务端多文件就必须打成单文件**（esbuild）：重挂只给**入口**说明符加 `?v=<token>`
+  （`apps/server/src/tabs-loader.ts`），入口里 `import './x.js'` 解析出来的 URL 不带 query ——
+  Node 的 ESM 缓存按 URL 记，于是"改完点重新扫描"看到的还是旧模块。
 - `tabs/` **不入库**（构建产物、可复现）：仓库里只留 `tabs/README.md`（`.gitignore`：`/tabs/*/`）。
   `pnpm verify` 的 `tabs-sync` 步（`scripts/check-tabs-sync.mjs`）只做结构性检查：每个带
   `scripts/pack.mjs` 的 `plugins/<id>/` 都必须有能装载的 `tabs/<id>/`（`main` / `plugin.client`
@@ -561,11 +564,19 @@ comfyui-web/
 │   │   ├── src/
 │   │   │   ├── index.ts         进程入口：装配、信号、静态产物托管
 │   │   │   ├── kernel.ts        Loader 引导、句柄、tab 扫描与热重挂装配
-│   │   │   ├── core-plugin.ts   内置 core 插件（/api/plugins、/api/ui、/api/host、/plugins/* 托管）
+│   │   │   ├── core-plugin.ts   内置 core 插件入口（装配下面四块，/api/* 与 /plugins/* 托管）
+│   │   │   ├── core-host.ts     core 的配置 / 共享上下文（TabsFacade、host.json 路径）
+│   │   │   ├── core-rows.ts     清单行（phase 判定、manifest → PluginRow）
+│   │   │   ├── core-routes.ts   宿主级端点：/api/{host,plugins,ui,tabs/*}
+│   │   │   ├── core-assets.ts   /plugins/:id/* 产物直送（不复制进 dist）
 │   │   │   ├── config.ts        data/host.json + 环境变量（dataDir 走 env/内置默认）
 │   │   │   ├── host-settings.ts 唯一配置文件：部署段 + 偏好段（D16，读侧永不抛 / 坏文件不重写）
 │   │   │   ├── plugin-package.ts 插件包 manifest 解析（含说明符 `?query` 剥离）
-│   │   │   ├── tabs.ts          目录型插件扫描 / 热重挂（D14）
+│   │   │   ├── tabs.ts          目录型插件模块出口（D14；实现见下面三个）
+│   │   │   ├── tabs-scan.ts     扫目录 / 目录指纹（纯 fs）
+│   │   │   ├── tabs-loader.ts   与 Loader/routes 打交道（挂 / 卸一行）
+│   │   │   ├── tabs-service.ts  装载状态机（TabsService：重扫、重挂、清单）
+│   │   │   ├── loader-entries.ts  Loader 行查找（`shortId` / `findEntry`）
 │   │   │   └── handles/{space,routes}.ts   两个句柄
 │   │   └── scripts/build.mjs               打包后端（esbuild → dist/app/server.mjs）
 │   └── web/                 宿主前端（Vue 壳 + tab 栏 + 设置页 + import map）
@@ -651,8 +662,8 @@ comfyui-web/
 
 | 位置 | 内容 |
 |---|---|
-| `apps/server/` | 宿主后端：`config.ts` 配置、`kernel.ts` 装配（Loader + tabs）、`core-plugin.ts` 宿主端点、`host-settings.ts` 唯一配置文件（D16）、`handles/{space,routes}.ts` 两个句柄、`plugin-package.ts` 包清单解析、`scripts/build.mjs` |
-| `apps/web/` | 宿主前端：`index.html`（import map 是核心）、`src/main.ts` 插件装载器、`App.vue` tab 栏壳、`views/SettingsView.vue`（设置页只读展示插件设置，D15） |
+| `apps/server/` | 宿主后端：`config.ts` 配置、`kernel.ts` 装配（Loader + tabs）、`core-plugin.ts` + `core-{host,rows,routes,assets}.ts` 宿主端点、`tabs.ts` + `tabs-{scan,loader,service}.ts` 目录型插件、`host-settings.ts` 唯一配置文件（D16）、`handles/{space,routes}.ts` 两个句柄、`plugin-package.ts` 包清单解析、`scripts/build.mjs` |
+| `apps/web/` | 宿主前端：`index.html`（import map 是核心）、`src/main.ts` 插件装载器、`App.vue` tab 栏壳、`views/SettingsView.vue` + `views/settings/*`（设置页只读展示插件设置，D15）、`styles/*.css`（`style.css` 只是 `@import` 入口） |
 | `tabs/` | 工作流插件交付物（D14/D15/D16）：一个子目录一个插件、目录名即 id、自包含；装载时机见 D20（启动 + 手动重扫） |
 | `plugins/anima-plus/` | **v1 整体搬完**：前端是 v1 的 `App.vue` + 8 个组件，后端是 v1 那 14 个模块逐字搬进 `server/`（渲染/显存护栏/任务编排/LoRA/标签/预设），反代已删；另加依赖检查（`server/deps.ts`，见 §14.1f）。工作流定义形状见 D22（`workflow.json` + `assets/form.json`）。见 §13 与 `plugins/anima-plus/README.md` |
 | `data/host.json` | 宿主唯一配置文件（部署段 + 偏好段）；不存在时宿主写默认值，挂空 data 卷即可启动（D16） |

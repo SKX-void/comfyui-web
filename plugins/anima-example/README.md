@@ -16,7 +16,7 @@
 浏览器表单
    │  POST /api/p/anima-example/jobs      {description, positive, negative, steps, cfg, seed, 尺寸, LoRA…}
    ▼
-插件 server.js
+插件 server/（构建成 tab 根的 server.js）
    │  ⓪ 拼接提示词：描述词 + ", " + 正向词 → 写进正向 CLIPTextEncode
    │  ① 把表单值写进 workflow.json 的图（derive 出来的节点号）
    │  ② POST {comfyui}/prompt            → prompt_id
@@ -46,7 +46,7 @@ data/plugins/@comfyui-web+anima-example/   ← 核只给这一个目录，里面
 拼接结果 = 描述词 + ", " + 正向词
 ```
 
-- 拼接发生在**后端**（`server.js` 的 `joinPrompt()`），因为它和"改图"是同一件事，且
+- 拼接发生在**后端**（`server/util.ts` 的 `joinPrompt()`），因为它和"改图"是同一件事，且
   API 直接调用时也走同一条规则；前端只做**同样规则的预览**（`App.vue` 的 `joinedPrompt`），
   让你在提交前就能看到真正发出去的那串文本。**两处必须同步改**。
 - 拼接前会清掉两侧的空格与逗号：工作流自带的正向文本末尾就有一个逗号，
@@ -99,7 +99,7 @@ data/plugins/@comfyui-web+anima-example/   ← 核只给这一个目录，里面
 | GET | `/jobs/:id` | 单个作业 |
 | GET | `/jobs/:id/events` | **SSE**：`snapshot → started → progress… → node… → completed/error/canceled` |
 | POST | `/jobs/:id/cancel` | 排队中→从队列删；在跑→`/interrupt` |
-| DELETE | `/jobs` | 清空记录（**不动** `buffer.files` 里的图片） |
+| DELETE | `/jobs` | 清空记录（**不动**空间里的 `images/`） |
 | GET | `/assets/:jobId/:idx` | 产出图（`?download=1` 加下载头） |
 
 SSE 是**连接即发 snapshot**，所以断线重连不需要回放历史；终态时服务端主动关流，
@@ -114,7 +114,7 @@ SSE 是**连接即发 snapshot**，所以断线重连不需要回放历史；终
 | `jobs` | 作业 + 全部参数 + `prompt_id` + 状态 + 错误 |
 | `assets` | 产出图：`job_id, idx, file, mime, bytes`（`file` 是**相对空间根**的路径） |
 
-表名不加前缀，版本用 `PRAGMA user_version`，迁移数组写在 `server.js` 里（只追加不回改）。
+表名不加前缀，版本用 `PRAGMA user_version`，迁移数组写在 `server/store.ts` 里（只追加不回改）。
 `assets` 对 `jobs` 有真外键（`ON DELETE CASCADE`）。卸载 = 把 `tabs/anima-example/` 目录删掉；
 数据留在 `data/plugins/@comfyui-web+anima-example/`，宿主不代管 —— 要删自己删。
 
@@ -124,7 +124,7 @@ SSE 是**连接即发 snapshot**，所以断线重连不需要回放历史；终
 ## 配置
 
 `package.json` 的 `plugin.settings[]` 只是**元数据**（字段形状）；值由插件自己持有
-（`data/plugins/<包名>/settings.json`，见 `settings.ts`），在插件自己的设置界面里改，
+（`data/plugins/<包名>/settings.json`，见 `server/settings.ts`），在插件自己的设置界面里改，
 存完由插件请求 `POST /api/tabs/anima-example/reload` 就地重挂：
 
 | key | 默认 | 说明 |
@@ -158,7 +158,7 @@ GPU 上的裸奔版本。ComfyUI 不会替你拦，显存打满就是整个队�
 | 批量 | 1 ~ 8 | |
 | 提示词长度 | ≤ 8000 字符 | |
 
-上下限常量只有一份（`server.js` 末尾的 `SAFETY`），三道闸都用它：
+上下限常量只有一份（`server/safety.ts` 的 `SAFETY`），三道闸都用它：
 
 1. **请求校验**：越界直接 **400**（`INVALID_INPUT`），**不夹紧** —— 静默改小会让用户
    以为出的是自己要的那张图。
@@ -173,11 +173,22 @@ GPU 上的裸奔版本。ComfyUI 不会替你拦，显存打满就是整个队�
 ## 构建与验证
 
 ```bash
-pnpm --filter @comfyui-web/anima-example build          # → lib/client.js + lib/client.css
+pnpm --filter @comfyui-web/anima-example build          # → tabs/anima-example/（server.js + client.js + client.css）
+pnpm --filter @comfyui-web/anima-example build:server   # 只打后端，改 server/ 时更快
 pnpm --filter @comfyui-web/anima-example typecheck      # vue-tsc
 pnpm --filter @comfyui-web/anima-example test:contract  # 产物契约测试（无浏览器时用）
 ```
 
-后端不加构建步骤：`server.js` 是纯 ESM，宿主直接 import。它**只 import node 内置模块**，
-不 import cordis —— 宿主已经把 cordis 打进自己的产物，插件再引一份就是两个实例。
+服务端源码分成 13 个 `server/*.ts`（model 数据形状 / types 宿主句柄与载荷 / meta / util / safety /
+workflow / comfy / store / settings / jobs / params / routes / index，每个都在 300 行以内），
+由 `scripts/build-server.mjs` 用 esbuild 打成**一个** `tabs/anima-example/server.js`。
+`tsconfig.json` 的 `include` 里有 `server/**/*.ts`，所以 `pnpm typecheck`（vue-tsc）会连服务端一起查
+—— esbuild 只剥类型，不做类型检查。
+
+**为什么必须打成单文件**：重挂时宿主只给**入口**说明符加 `?v=<token>`，入口里 `import './x.js'`
+解析出来的 URL 不带 query —— 不打包就会命中 Node 的 ESM 缓存，"改完点重新扫描"看到的是旧代码（D20 当场失效）。
+
+产物仍然**只 import node 内置模块**（`node:sqlite` 也是内置）：没有第三方依赖、没有 external 清单，
+也不 import cordis —— 宿主已经把 cordis 打进自己的产物，插件再引一份就是两个实例。
 WebSocket 用的是 node 自带的全局 `WebSocket`，所以本插件没有任何运行时依赖。
+`workflow.json` **不进 bundle**（运行期按 `import.meta.url` 定位），换工作流不用重新打包。
