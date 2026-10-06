@@ -65,6 +65,19 @@ export interface PluginSettingsPayload {
   error?: string;
 }
 
+/**
+ * 上次提交的参数快照（`<space>/last-state.json`，见 server/state.ts）。
+ * 值由前端按模板 input 判定后回填（`restoreValues`），服务端只做原样读写。
+ */
+export interface LastStatePayload {
+  values: Record<string, unknown>;
+  /** 上次保存时刻（ISO）；没存过为 null */
+  savedAt: string | null;
+  /** 快照文件的位置，排障用 */
+  file: string;
+  error?: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // ⚠️ 只在有 body 时才带 Content-Type。
   // DELETE 这类无 body 的请求若声明 application/json，Fastify 会直接拒绝：
@@ -184,6 +197,16 @@ export const api = {
 
   autocompleteTags: (q: string) =>
     request<{ items: TagItem[] }>(`/api/tags/autocomplete?q=${encodeURIComponent(q)}`),
+
+  // --- 上次提交的参数（每次点「开始生成」记一次；刷新页面回填） ---
+
+  getLastState: () => request<LastStatePayload>('/api/state'),
+
+  saveLastState: (values: Record<string, unknown>) =>
+    request<LastStatePayload>('/api/state', {
+      method: 'PUT',
+      body: JSON.stringify({ values }),
+    }),
 
   // --- 预设 ---
 

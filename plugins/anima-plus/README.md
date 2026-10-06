@@ -53,15 +53,16 @@ plugins/anima-plus/
 │   ├── weilin/             # LoRA 目录/元数据/缩略图、标签树、翻译
 │   │   └── thumb-codec.ts  # 缩略图编解码：纯 JS（purejsimage）、阈值透传、JPEG q74
 │   ├── store/              # 插件私有 SQLite（预设）+ 自己的迁移
+│   ├── state.ts            # 上次提交的参数快照（last-state.json）：读写 + 原子替换
 │   ├── deps.ts             # 依赖检查：工作流要的节点类 vs 上游 /object_info（带缓存）
 │   ├── help.ts             # 帮助文档：读包内 readme.md（读不到返回 text:null，界面降级）
-│   └── http/routes.ts      # 23 条路由（逐字搬来 + SSE hijack + /api/deps + /api/help）
+│   └── http/routes.ts      # 32 条路由（逐字搬来 + SSE hijack + /api/deps + /api/help + /api/state）
 ├── client/                 # 前端源码（v1 的 App.vue + 8 个组件，含依赖提示与帮助面板）
 ├── assets/form.json        # 表单声明（inputs / bindings / outputs / requirements）
 ├── scripts/
 │   ├── build-server.mjs    # esbuild 打包 → lib/server.js
 │   ├── gen-deps.mjs        # 从 requirements 生成 readme.md / README 的依赖段
-│   └── smoke.ts            # 自检：不需要 ComfyUI/网络（63 项）
+│   └── smoke.ts            # 自检：不需要 ComfyUI/网络（108 项）
 ├── workflow.json           # 工作流本体（唯一基准，与 package.json 并列）
 └── lib/                    # 构建产物：server.js + client.js + client.css
 ```
@@ -102,7 +103,7 @@ plugins/anima-plus/
 
 ```bash
 pnpm --filter @comfyui-web/anima-plus build       # 后端 esbuild + 前端 vite → lib/
-pnpm --filter @comfyui-web/anima-plus smoke       # 纯函数级自检（100 项，含护栏、触发词三态、提示词整理、配置解析与缩略图转码）
+pnpm --filter @comfyui-web/anima-plus smoke       # 纯函数级自检（108 项，含护栏、触发词三态、参数快照回填、提示词整理、配置解析与缩略图转码）
 pnpm --filter @comfyui-web/anima-plus typecheck
 pnpm --filter @comfyui-web/anima-plus test:contract   # 产物契约（含依赖声明覆盖度、文档同步）
 pnpm --filter @comfyui-web/anima-plus deps:sync       # 改过 requirements 后重新生成依赖清单
@@ -125,9 +126,23 @@ curl -s -X POST localhost:8087/api/p/anima-plus/api/jobs \
 |---|---|
 | `anima-plus.sqlite` | 4 类用户预设（`preset_prompt` / `preset_quality_pos` / `preset_quality_neg` / `preset_size`），`PRAGMA user_version` 记迁移版本 |
 | `cache/loras-thumbs/` | 缩略图磁盘缓存；键里带引擎 tag（`purejs-jpeg-v1`），换引擎/阈值就换一套，直接删掉即可重建 |
+| `last-state.json` | **上次提交的出图参数快照**：每次点「开始生成」覆盖一次（值 = 这次真正提交出去的那一份，含刚抽定的种子），页面加载时回填到表单。删掉 = 回到模板默认值 |
 
 任务列表在**内存**里（与旧服务一致：重启丢历史，产图仍在 ComfyUI 的 output 目录）。
 只有手工删掉 `data/plugins/@comfyui-web+anima-plus/` 才会清掉数据（宿主从不代管）。
+
+### 参数快照（`last-state.json`）
+
+「刷新页面就归零」这件事的解法：表单值不再只活在浏览器内存里。
+
+- **写入时机是唯一的一个**：按下「开始生成」。中途改表单、套预设、复用历史参数都**不**写盘 ——
+  所以回填出来的永远是"真正跑过的那一套"，而不是"你上次顺手改到一半的草稿"。
+- **它不进 `settings.json`**：那是本插件的**配置**（改完要重挂才生效、在设置界面里编辑），
+  这是**运行期状态**（随手覆盖、读坏了只该退回模板默认值）。两者生命周期不同，混一个文件里写状态会把配置一起重写。
+- **回填有两道过滤**（`client/src/form.ts` 的 `restoreValues`）：只认当前模板还存在的字段；
+  且按控件类型验一次 —— 手改过的文件里"字符串住进 switch"这种值宁可退回默认值，也不让界面显示得莫名其妙。
+- 读写走 `GET/PUT /api/p/anima-plus/api/state`（`server/state.ts`，先写 `.tmp` 再 rename）。
+  存快照失败**不拦出图**，只在运行日志里记一条。
 
 ## 配置
 
