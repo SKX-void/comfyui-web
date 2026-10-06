@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import type { DepsReport, HealthResponse, Job, JobProgress, TemplateDetail } from '@comfyui-web/shared';
 import { api, apiUrl, assetUrl, subscribeJob } from '@/api';
-import { defaultValues, drawSeed, normalizeValues, type FieldModel } from '@/form';
+import { defaultValues, drawSeed, normalizeValues, restoreValues, type FieldModel } from '@/form';
 import TemplateForm from '@/components/TemplateForm.vue';
 import DependencyNotice from '@/components/DependencyNotice.vue';
 import HelpPanel from '@/components/HelpPanel.vue';
@@ -20,6 +20,8 @@ const settingsOpen = ref(false);
 const template = ref<TemplateDetail | null>(null);
 const values = ref<FieldModel>({});
 const models = ref<Record<string, string[]>>({});
+/** 参数快照的状态说明（回填 / 已保存），显示在「参数」卡右上角 */
+const stateNote = ref<string | null>(null);
 
 const submitting = ref(false);
 const activeJobId = ref<string | null>(null);
@@ -125,6 +127,8 @@ async function loadTemplate(): Promise<void> {
     `工作流已加载: ${tpl.name}（${tpl.graphNodeCount} 个节点 / ${tpl.inputs?.length ?? 0} 个输入）`,
   );
 
+  await restoreLastState(tpl);
+
   // 预取 model-select 需要的模型列表
   const folders = new Set(
     (tpl.inputs ?? [])
@@ -140,6 +144,54 @@ async function loadTemplate(): Promise<void> {
       models.value[folder] = [];
       pushLog(`模型目录 ${folder} 读取失败: ${(err as Error).message}`);
     }
+  }
+}
+
+/** 时间戳 → 本地可读（快照里存的是 ISO，直接显示太丑） */
+function formatMoment(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('zh-CN', { hour12: false });
+}
+
+/**
+ * 回填上次提交的参数（每次点「开始生成」写一次，见 `submit()`）。
+ *
+ * 读不到**不是错误**：快照本来就可能还没写过（第一次用），模板默认值照用就行。
+ * 所以这里只记一条日志，不设 fatalError。
+ */
+async function restoreLastState(tpl: TemplateDetail): Promise<void> {
+  try {
+    const saved = await api.getLastState();
+    if (saved.error !== undefined) {
+      pushLog(`参数快照读不出来，改用模板默认值: ${saved.error}`);
+    }
+    const filled = restoreValues(tpl.inputs, saved.values);
+    const count = Object.keys(filled).length;
+    if (count === 0) return;
+    values.value = { ...values.value, ...filled };
+    const at = formatMoment(saved.savedAt);
+    stateNote.value = at ? `已回填上次参数 · ${at}` : '已回填上次参数';
+    pushLog(`已回填上次提交的参数 ${count} 项${at ? `（${at}）` : ''}`);
+  } catch (err) {
+    // 后端不在 / 老版本没有这个端点 —— 都只影响"回填"，不影响出图
+    pushLog(`参数快照读取失败（改用模板默认值）: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * 存快照：**以每次按下生成按钮为准**（值就是这次真正提交出去的那一份）。
+ * 不 await —— 存不上不该拦住出图，失败只在日志里说一声。
+ */
+async function saveLastState(payload: Record<string, unknown>): Promise<void> {
+  try {
+    const res = await api.saveLastState(payload);
+    const at = formatMoment(res.savedAt);
+    stateNote.value = at ? `已保存本次参数 · ${at}` : '已保存本次参数';
+    pushLog(`参数快照已保存（${Object.keys(payload).length} 项）`);
+  } catch (err) {
+    pushLog(`参数快照保存失败: ${(err as Error).message}`);
   }
 }
 
@@ -184,9 +236,10 @@ async function submit(): Promise<void> {
       values.value = { ...values.value, seed: drawn };
       pushLog(`随机种子: ${drawn}`);
     }
-    const res = await api.createJob({
-      values: normalizeValues(template.value.inputs, values.value),
-    });
+    const payload = normalizeValues(template.value.inputs, values.value);
+    // 快照就是这次提交出去的那一份（含刚抽定的种子）：刷新页面回填的必须是"跑过的参数"
+    void saveLastState(payload);
+    const res = await api.createJob({ values: payload });
     activeJobId.value = res.jobId;
     pushLog(`任务已创建 ${res.jobId} · promptId=${res.promptId ?? '-'}`);
 
@@ -376,6 +429,8 @@ onMounted(() => {
       <section class="card">
         <div class="card-head">
           <h2>参数</h2>
+          <!-- 快照状态：让人看得见"刷新不会归零"这件事真的生效了（值来自 last-state.json） -->
+          <span v-if="stateNote" class="dim small">{{ stateNote }}</span>
         </div>
 
         <TemplateForm
@@ -436,7 +491,7 @@ onMounted(() => {
         <div class="card-head">
           <h2>本次会话</h2>
           <div class="head-right">
-            <span class="dim small">不持久化 · 后端重启即清空</span>
+            <span class="dim small">任务历史不持久化 · 后端重启即清空</span>
             <button
               class="btn ghost small"
               :disabled="clearing || history.length === 0"
@@ -489,7 +544,8 @@ onMounted(() => {
           </tbody>
         </table>
         <p v-else class="dim">
-          本次会话还没有任务。出图参数不会长期保存 —— 需要留档时把「输出格式」切到
+          本次会话还没有任务。出图参数会在每次点「开始生成」时记进插件空间（
+          <code>last-state.json</code>），刷新页面自动回填；要留档整套工作流时，把「输出格式」切到
           <strong>PNG</strong>，完整工作流会写进图片元数据。
         </p>
       </section>

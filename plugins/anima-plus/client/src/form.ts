@@ -43,6 +43,53 @@ export function defaultValues(inputs: TemplateInput[] | undefined): FieldModel {
   return out;
 }
 
+/**
+ * 回填「上次提交的参数」（`<space>/last-state.json`，写入时机见 App.vue 的 submit）。
+ *
+ * 两道过滤，都是必要的：
+ *
+ * 1. **只认模板里现在还有的字段** —— 换过模板的机器上，文件里可能躺着早就删掉的键；
+ * 2. **按控件类型验一次** —— 文件是普通 JSON，手改过就可能出现"字符串住进 switch"
+ *    这种键；这种值宁可退回模板默认值，也不要让界面显示得莫名其妙。
+ *
+ * 返回值只含"要覆盖的键"，由调用方 merge 到 `defaultValues()` 之上。
+ */
+export function restoreValues(inputs: TemplateInput[] | undefined, saved: unknown): FieldModel {
+  const out: FieldModel = {};
+  if (!Array.isArray(inputs) || saved === null || typeof saved !== 'object') return out;
+  const source = saved as Record<string, unknown>;
+  for (const input of inputs) {
+    if (!Object.prototype.hasOwnProperty.call(source, input.key)) continue;
+    const value = source[input.key];
+    if (acceptsValue(input, value)) out[input.key] = value;
+  }
+  return out;
+}
+
+/** 这个值配得上这个控件吗（JSON 里只有 string / number / boolean / array / object） */
+function acceptsValue(input: TemplateInput, value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  switch (input.type) {
+    case 'switch':
+      return typeof value === 'boolean';
+    case 'lora-select':
+      return Array.isArray(value);
+    case 'number':
+    case 'slider':
+    case 'seed':
+      return typeof value === 'number' && Number.isFinite(value);
+    case 'text':
+    case 'textarea':
+    case 'select':
+    case 'model-select':
+    case 'tag-selector':
+    case 'image-upload':
+      return typeof value === 'string';
+    default:
+      return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+  }
+}
+
 export function isVisible(input: TemplateInput, values: FieldModel): boolean {
   const cond = input.visibleIf;
   if (!cond) return true;

@@ -31,6 +31,7 @@ import { WeilinClient } from './weilin/client.js';
 import { ThumbnailCache } from './weilin/thumb.js';
 import { closeDatabase, openDatabase } from './store/db.js';
 import { PresetStore } from './store/presets.js';
+import { LastStateStore } from './state.js';
 import { TriggerStore } from './triggers/store.js';
 import { TriggerResolver } from './triggers/resolve.js';
 import { registerRoutes } from './http/routes.js';
@@ -254,6 +255,12 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
     warn(`${msg} ${meta === undefined ? '' : JSON.stringify(meta)}`),
   );
 
+  // 上次提交的参数快照（`<space>/last-state.json`）：每次点「开始生成」覆盖一次。
+  // 内存里不留副本 —— 它就是"刷新页面要回填的那一份"，直接以文件为准（读盘只在页面加载时）。
+  const lastState = new LastStateStore(space, (msg, meta) =>
+    warn(`${msg} ${meta === undefined ? '' : JSON.stringify(meta)}`),
+  );
+
   const jobs = new JobManager(client, workflow, {
     clientId,
     deps,
@@ -278,6 +285,7 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
     weilin,
     thumbs,
     presets,
+    state: lastState,
     triggers: { store: triggerStore, resolver: triggers },
     deps,
   });

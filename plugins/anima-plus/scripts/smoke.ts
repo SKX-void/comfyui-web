@@ -20,6 +20,7 @@ import { crc32, deflateSync } from 'node:zlib';
 
 import { createImageLibrary } from 'purejsimage';
 import { jpegCodec } from 'purejsimage/codecs/jpeg';
+import type { TemplateInput } from '@comfyui-web/shared';
 
 import { WorkflowDefinition } from '../server/templates/loader.js';
 import { buildConfig, normalizeBaseUrl } from '../server/config.js';
@@ -39,9 +40,11 @@ import { MAX_BODY_BYTES, MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../server/sa
 import { PRESET_KINDS, PresetStore } from '../server/store/presets.js';
 import { closeDatabase, openDatabase, userVersion } from '../server/store/db.js';
 import { TriggerStore } from '../server/triggers/store.js';
+import { LastStateStore, stateFile } from '../server/state.js';
 import { TriggerResolver } from '../server/triggers/resolve.js';
 import type { WeilinClient } from '../server/weilin/client.js';
 import { cleanupPrompt } from '../client/src/prompt-cleanup.js';
+import { restoreValues } from '../client/src/form.js';
 import {
   RESIZER_TAG,
   THUMB_QUALITY,
@@ -556,6 +559,79 @@ async function main(): Promise<void> {
       thumbStats.lastError !== null,
     `transcoded=${thumbStats.transcoded} passthrough=${thumbStats.passthrough} failed=${thumbStats.failed} lastError=${thumbStats.lastError}`,
   );
+
+  section('参数快照（last-state.json）与回填');
+  const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'anima-state-'));
+  const stateSpace = { root: stateDir, resolve: (rel: string) => path.join(stateDir, rel) };
+  const lastState = new LastStateStore(stateSpace);
+  const firstRead = lastState.read();
+  check(
+    '没存过 = 空快照（不是错误）',
+    Object.keys(firstRead.values).length === 0 &&
+      firstRead.savedAt === null &&
+      firstRead.error === undefined,
+    JSON.stringify(firstRead),
+  );
+
+  // 只落模板认得的键：换过模板的机器上，文件里不该留着一批早就没有的字段
+  lastState.write({ prompt: '1girl', steps: 28, 早就没有的键: 'x' }, ['prompt', 'steps']);
+  const afterWrite = lastState.read();
+  check(
+    '写入按模板 key 过滤',
+    afterWrite.values.prompt === '1girl' &&
+      afterWrite.values.steps === 28 &&
+      !('早就没有的键' in afterWrite.values),
+    JSON.stringify(afterWrite.values),
+  );
+  check(
+    'savedAt 落盘（界面要显示"上次保存于…"）',
+    typeof afterWrite.savedAt === 'string' && !Number.isNaN(Date.parse(afterWrite.savedAt)),
+    String(afterWrite.savedAt),
+  );
+  check(
+    '原子写：不留 .tmp 残留',
+    await fs
+      .access(`${stateFile(stateSpace)}.tmp`)
+      .then(() => false)
+      .catch(() => true),
+  );
+
+  await fs.writeFile(stateFile(stateSpace), '{ 这不是 JSON');
+  const broken = lastState.read();
+  check(
+    '文件读坏 → 空值 + error（页面退回模板默认值，不炸）',
+    Object.keys(broken.values).length === 0 && typeof broken.error === 'string',
+    String(broken.error),
+  );
+
+  const stateInputs: TemplateInput[] = [
+    { key: 'prompt', label: '提示词', type: 'text' },
+    { key: 'steps', label: '步数', type: 'number' },
+    { key: 'randomSeed', label: '随机', type: 'switch' },
+    { key: 'loras', label: 'LoRA', type: 'lora-select' },
+  ];
+  const restored = restoreValues(stateInputs, {
+    prompt: '1girl',
+    steps: 28,
+    randomSeed: true,
+    loras: [{ name: 'a', weight: 1 }],
+    早就没有的键: 'x',
+  });
+  check(
+    '回填：认识且类型对得上的键全部回填，不认识的键丢掉',
+    restored.prompt === '1girl' &&
+      restored.steps === 28 &&
+      restored.randomSeed === true &&
+      Array.isArray(restored.loras) &&
+      !('早就没有的键' in restored),
+    JSON.stringify(restored),
+  );
+  check(
+    '回填：类型对不上的键丢掉（字符串不许住进 switch，界面会显示得莫名其妙）',
+    Object.keys(restoreValues(stateInputs, { randomSeed: 'true', steps: '28' })).length === 0,
+  );
+  check('回填：坏输入（不是对象）不炸，返回空', Object.keys(restoreValues(stateInputs, null)).length === 0);
+  await fs.rm(stateDir, { recursive: true, force: true });
 
   section('预设');
   const db = openDatabase(':memory:');
