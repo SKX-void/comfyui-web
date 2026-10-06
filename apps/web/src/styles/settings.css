@@ -1,0 +1,155 @@
+/* 插件清单卡片 + 设置页的偏好表单（顺序列表、别名、品牌名） */
+
+.plugin-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+.plugin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.plugin-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.version {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plugin-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.badge.active {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.badge.failed,
+.badge.unresolved,
+.badge.rejected {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.plugin-body {
+  border-top: 1px solid var(--line);
+  padding: 12px 14px;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  color: var(--muted);
+}
+
+.schema-form .field {
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schema-form label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.notice {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* 设置页的标签页排序列表 */
+.tab-order {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.tab-order li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.tab-order li:first-child {
+  border-top: none;
+}
+
+.tab-order .pos {
+  min-width: 1.4em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tab-order .spacer {
+  flex: 1 1 auto;
+}
+
+.tab-order button {
+  padding: 3px 8px;
+}
+
+/*
+ * 别名输入框：全局规则给的 220px 会把「名字 + id + 状态 + 三个按钮」挤到下一行，
+ * 所以这里按行内窄输入收窄。
+ */
+.tab-order .alias {
+  min-width: 110px;
+  width: 130px;
+}
+
+/* 品牌名输入：标签与输入框同行，其余按全局输入框规则 */
+.home-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.ui-prefs h3 {
+  margin: 0;
+  font-size: 15px;
+}

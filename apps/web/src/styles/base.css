@@ -1,0 +1,28 @@
+:root {
+  --bg: #14161a;
+  --panel: #1b1e24;
+  --panel-2: #22262e;
+  --line: #2e333d;
+  --fg: #e6e8ec;
+  --muted: #9aa3b2;
+  --accent: #6ea8fe;
+  --danger: #ff7b72;
+  --ok: #4ac38a;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.6 system-ui, -apple-system, "Segoe UI", "Noto Sans SC", sans-serif;
+}
+
+code,
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
