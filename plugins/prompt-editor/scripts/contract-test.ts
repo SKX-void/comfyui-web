@@ -21,7 +21,17 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 
-import { newId, reflow, renderOutput, splitSentences, splitTags, type Doc, type Item } from '../client/src/model.ts';
+import {
+  canDropItem,
+  moveItem,
+  newId,
+  reflow,
+  renderOutput,
+  splitSentences,
+  splitTags,
+  type Doc,
+  type Item,
+} from '../client/src/model.ts';
 
 let failed = 0;
 function check(label: string, ok: boolean, detail?: unknown): void {
@@ -233,6 +243,76 @@ check(
 check(
   '往返稳：自然语言 → tag → 自然语言 还是那两句',
   same(reflow(reflow([item('a cat sits.'), item('a dog runs.')], 'text', 'tag'), 'tag', 'text').map((i) => i.text), ['a cat sits.', 'a dog runs.']),
+);
+
+console.log('拖拽：块内排序 + 跨块搬家（只认类型相同的块）');
+const dragDoc = (): Doc => ({
+  version: 1,
+  blocks: [
+    { id: 'b1', title: '质量', color: '#6ea8fe', mode: 'tag', items: [item('a'), item('b'), item('c')] },
+    { id: 'b2', title: '主体', color: '#4ac38a', mode: 'tag', items: [item('x'), item('y')] },
+    { id: 'b3', title: '场景', color: '#f2b84b', mode: 'text', items: [item('A girl.')] },
+  ],
+});
+const texts = (d: Doc, id: string) => d.blocks.find((b) => b.id === id)?.items.map((i) => i.text) ?? [];
+
+check(
+  '块内排序：摘掉再插入（沿用原来的落点语义）',
+  (() => {
+    const d = dragDoc();
+    return moveItem(d, { blockId: 'b1', index: 0 }, { blockId: 'b1', index: 2 }) && same(texts(d, 'b1'), ['b', 'c', 'a']);
+  })(),
+);
+check(
+  '跨块搬家：源块少一条、目标块按落点插入、搬的还是同一个条目（id 不变）',
+  (() => {
+    const d = dragDoc();
+    const movedId = d.blocks[0]!.items[0]!.id;
+    const ok = moveItem(d, { blockId: 'b1', index: 0 }, { blockId: 'b2', index: 1 });
+    return ok && same(texts(d, 'b1'), ['b', 'c']) && same(texts(d, 'b2'), ['x', 'a', 'y'])
+      && d.blocks[1]!.items[1]!.id === movedId;
+  })(),
+);
+check(
+  '落点 = items.length 就是追加到末尾（拖到块体空白）',
+  (() => {
+    const d = dragDoc();
+    return moveItem(d, { blockId: 'b1', index: 0 }, { blockId: 'b2', index: 2 }) && same(texts(d, 'b2'), ['x', 'y', 'a']);
+  })(),
+);
+check(
+  '类型不同（tag → 自然语言）不落地，两边都原样',
+  (() => {
+    const d = dragDoc();
+    return !moveItem(d, { blockId: 'b1', index: 0 }, { blockId: 'b3', index: 1 })
+      && same(texts(d, 'b1'), ['a', 'b', 'c']) && same(texts(d, 'b3'), ['A girl.']);
+  })(),
+);
+check(
+  '拖回原位是空操作（不白写一次草稿）',
+  (() => {
+    const d = dragDoc();
+    return !moveItem(d, { blockId: 'b1', index: 1 }, { blockId: 'b1', index: 1 }) && same(texts(d, 'b1'), ['a', 'b', 'c']);
+  })(),
+);
+check(
+  '块 / 条目不存在时一律不落地（拖拽期间别的操作删了它）',
+  (() => {
+    const d = dragDoc();
+    return !moveItem(d, { blockId: 'nope', index: 0 }, { blockId: 'b1', index: 0 })
+      && !moveItem(d, { blockId: 'b1', index: 9 }, { blockId: 'b2', index: 0 })
+      && !moveItem(d, { blockId: 'b1', index: 0 }, { blockId: 'nope', index: 0 });
+  })(),
+);
+check(
+  'canDropItem：同类型接得住（含自己那块），跨类型不接',
+  (() => {
+    const d = dragDoc();
+    return canDropItem(d, { blockId: 'b1', index: 0 }, 'b2')
+      && canDropItem(d, { blockId: 'b1', index: 0 }, 'b1')
+      && !canDropItem(d, { blockId: 'b1', index: 0 }, 'b3')
+      && !canDropItem(d, { blockId: 'b1', index: 0 }, 'nope');
+  })(),
 );
 
 console.log('输出拼接（风格按区块走）');

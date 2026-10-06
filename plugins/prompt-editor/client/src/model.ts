@@ -55,6 +55,13 @@ export interface Doc {
  */
 export type BlockMeta = Omit<Block, 'items'>;
 
+/** 条目在文档里的位置：拖拽是跨块的，只记索引不够，得连"哪一块"一起记 */
+export interface ItemRef {
+  blockId: string;
+  /** 目标块里的插入位置；等于 `items.length` 就是追加到末尾 */
+  index: number;
+}
+
 export const MODE_LABEL: Record<Mode, string> = { tag: 'tag', text: '自然语言' };
 
 /** 区块色板：够区分即可，不做取色器 */
@@ -208,6 +215,42 @@ export function reflow(items: Item[], from: Mode, to: Mode): Item[] {
     index === 0 ? { id: head.id, text, enabled: true, translation: '', source: '' } : newItem(text),
   );
   return [...rebuilt, ...items.filter((item) => !item.enabled)];
+}
+
+// ===========================================================================
+// 拖拽：块内排序 + 跨块搬家（只认类型相同的块）
+// ===========================================================================
+
+/**
+ * 这块能不能接住从 `from` 拖来的条目 —— **只认块类型（mode）相同的块**。
+ *
+ * 条目是"按块自己的规则切出来的碎片"：tag 的一条是逗号段，自然语言的一条是句子。
+ * 把 tag 段拖进自然语言块，它立刻变成一条没有句号的"句子"；反过来拖，句子会被
+ * 逗号规则当成一个超长 tag。两种切分视图之间**没有无损的单条映射**（要映射就得整块重切，
+ * 那是 reflow 的事），所以跨类型直接不接 —— 要换类型就整块换风格。
+ */
+export function canDropItem(doc: Doc, from: ItemRef, toBlockId: string): boolean {
+  const src = doc.blocks.find((block) => block.id === from.blockId);
+  const dst = doc.blocks.find((block) => block.id === toBlockId);
+  return src !== undefined && dst !== undefined && src.mode === dst.mode;
+}
+
+/**
+ * 把条目从 `from` 搬到 `to`，返回这次拖拽**有没有落地**（false = 调用方什么都别做）。
+ *
+ * 落点是"插入位置"：先摘出来再插进去，所以同一块内往前拖时 `to.index` 用的是**摘掉之后**的
+ * 坐标系 —— 这就是原来块内排序的行为，跨块沿用同一套，免得两种落点语义打架。
+ */
+export function moveItem(doc: Doc, from: ItemRef, to: ItemRef): boolean {
+  const src = doc.blocks.find((block) => block.id === from.blockId);
+  const dst = doc.blocks.find((block) => block.id === to.blockId);
+  if (src === undefined || dst === undefined || src.mode !== dst.mode) return false;
+  if (src === dst && from.index === to.index) return false;
+  const moved = src.items[from.index];
+  if (moved === undefined) return false;
+  src.items.splice(from.index, 1);
+  dst.items.splice(to.index, 0, moved);
+  return true;
 }
 
 // ===========================================================================

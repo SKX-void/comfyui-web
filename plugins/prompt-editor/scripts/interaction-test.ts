@@ -845,5 +845,114 @@ console.log('词库面板：关掉');
 await nextTick();
 check('关掉后面板不在了', pick('.pe-lib-row') === null);
 
+console.log('跨块拖条目：块类型相同才接');
+const dragStart = (el: Element): void => dispatch(el, new window.DragEvent('dragstart', { bubbles: true }));
+const dragOver = (el: Element): void =>
+  dispatch(el, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+const dragEnd = (el: Element): void => dispatch(el, new window.DragEvent('dragend', { bubbles: true }));
+const dropOn = (el: Element): void => dispatch(el, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+const chipAt = (blockIndex: number, chipIndex: number): HTMLElement =>
+  blockOf(blockIndex).querySelectorAll('.pe-chip')[chipIndex] as HTMLElement;
+const bodyOf = (blockIndex: number): HTMLElement => blockOf(blockIndex).querySelector('.pe-block-body') as HTMLElement;
+
+// 第 3 块在风格开关那节末尾又切回了 tag；这里再切回自然语言，拿它当"类型不同"的靶子
+// （重切出来的条目会排进自动译，等那一波走完再往下测）
+(blockOf(2).querySelectorAll('.pe-block-modes button')[1] as HTMLButtonElement).click();
+await new Promise((resolve) => setTimeout(resolve, 500));
+await settle(12);
+check(
+  '前置条件：第 1、2 块 tag，第 3 块自然语言',
+  blockOf(0).querySelector('.pe-block-body-text') === null &&
+    blockOf(1).querySelector('.pe-block-body-text') === null &&
+    blockOf(2).querySelector('.pe-block-body-text') !== null,
+);
+
+// ① 同类块：第 1 块的第 1 条 → 第 2 块的第 1 条（落点 = 插到那一条前面）
+const srcText = chips(0)[0] ?? '';
+const dstBefore = chips(1);
+dragStart(chipAt(0, 0));
+await nextTick();
+check('起手后源条目进入拖拽态', chipAt(0, 0).className.includes('pe-chip-dragging') === true, chipAt(0, 0).className);
+dragOver(chipAt(1, 0));
+await nextTick();
+check(
+  '悬停在同类块的条目上会亮',
+  blockOf(1).querySelectorAll('.pe-chip-over').length === 1,
+  String(blockOf(1).querySelectorAll('.pe-chip-over').length),
+);
+const markMove = calls.length;
+dropOn(chipAt(1, 0));
+await nextTick();
+await settle();
+dragEnd(chipAt(1, 0));
+await nextTick();
+check('条目搬到了目标块的落点上', sameTexts(chips(1), [srcText, ...dstBefore]), chips(1).join('|'));
+check('源块里不再有它', chips(0).includes(srcText) === false, chips(0).join('|'));
+const movedWrites = writesSince(markMove).filter((call) => ITEMS_URL.test(call.url));
+check(
+  '源块与目标块各落盘一次（草稿是按组存的）',
+  movedWrites.length === 2 && new Set(movedWrites.map((call) => call.url)).size === 2,
+  JSON.stringify(movedWrites.map((call) => call.url)),
+);
+
+// ② 类型不同：tag 的一条拖进自然语言块 —— 不落地，一个写请求都不该发
+const crossText = chips(0)[0] ?? '';
+const textBefore = chips(2);
+const markCross = calls.length;
+dragStart(chipAt(0, 0));
+await nextTick();
+dragOver(chipAt(2, 0));
+await nextTick();
+check('类型不同的块不亮（拖过去也不会落地）', blockOf(2).querySelectorAll('.pe-chip-over').length === 0);
+dropOn(chipAt(2, 0));
+await nextTick();
+await settle();
+dragEnd(chipAt(0, 0));
+await nextTick();
+check('类型不同：条目留在原块', chips(0)[0] === crossText, chips(0).join('|'));
+check('类型不同：目标块原样', sameTexts(chips(2), textBefore), chips(2).join('|'));
+check(
+  '类型不同：一个写请求都不发',
+  writesSince(markCross).length === 0,
+  JSON.stringify(writesSince(markCross).map((call) => call.url)),
+);
+
+// ③ 拖到块体空白 = 追加到末尾（落点是 items.length）
+const tailText = chips(0)[0] ?? '';
+const tailBefore = chips(1);
+dragStart(chipAt(0, 0));
+await nextTick();
+dragOver(bodyOf(1));
+await nextTick();
+check('拖到块体空白：整块亮起来（落点是末尾）', blockOf(1).querySelector('.pe-block-body-drop') !== null);
+dropOn(bodyOf(1));
+await nextTick();
+await settle();
+dragEnd(bodyOf(1));
+await nextTick();
+check('拖到块体空白 = 追加到末尾', sameTexts(chips(1), [...tailBefore, tailText]), chips(1).join('|'));
+
+// ④ 区块排序的落点也是块体/条目：条目那套处理器**不能把 drop 吞掉**（没在拖条目就放行）
+const titleOf = (blockIndex: number): string =>
+  (blockOf(blockIndex).querySelector('.pe-block-title') as HTMLInputElement).value;
+const firstTitle = titleOf(0);
+const markReorder = calls.length;
+const grip = blockOf(0).querySelector('.pe-block-grip') as HTMLElement;
+dragStart(grip);
+await nextTick();
+dragOver(bodyOf(1));
+await nextTick();
+dropOn(bodyOf(1));
+await nextTick();
+await settle();
+dragEnd(grip);
+await nextTick();
+check('拖区块把手到别的块体上：区块真的换位了', titleOf(1) === firstTitle, `${firstTitle} → ${titleOf(0)}|${titleOf(1)}`);
+check(
+  '区块换位只发结构（不含条目）',
+  writesSince(markReorder).length === 1 && writesSince(markReorder)[0]?.url === STRUCTURE_URL,
+  JSON.stringify(writesSince(markReorder).map((call) => call.url)),
+);
+
 console.log(failed === 0 ? '\n✅ 交互测试通过' : `\n❌ ${failed} 项不通过`);
 process.exit(failed === 0 ? 0 : 1);
