@@ -142,6 +142,27 @@ importers:
         specifier: ^8.18.0
         version: 8.21.3
 
+  plugins/prompt-editor:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.3
+      '@vitejs/plugin-vue':
+        specifier: ^5.2.1
+        version: 5.2.4(vite@6.4.3(@types/node@22.20.3)(tsx@4.23.13))(vue@3.5.43(typescript@5.9.3))
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.9
+        version: 6.4.3(@types/node@22.20.3)(tsx@4.23.13)
+      vue:
+        specifier: ^3.5.13
+        version: 3.5.43(typescript@5.9.3)
+      vue-tsc:
+        specifier: ^2.2.0
+        version: 2.2.12(typescript@5.9.3)
+
 packages:
 
   '@babel/helper-string-parser@7.29.7':

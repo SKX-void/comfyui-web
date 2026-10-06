@@ -1,0 +1,37 @@
+/**
+ * 插件的全局样式：**必须收敛到根元素作用域下**。
+ *
+ * 宿主把插件组件挂进它自己的组件树，任何写 `html, body, #app` 的规则都会把宿主外壳一起改掉。
+ * 这里只做两件事：给根元素一个自己的底色与字体，让表单控件跟随主题变量
+ * （`--panel` / `--line` / `--accent` 等都是宿主 :root 上已有的值，带兜底）。
+ */
+.cw-prompt-editor {
+  color-scheme: dark;
+  padding: 16px 18px 28px;
+  border-radius: 10px;
+  background: #0b1220;
+  color: var(--fg, #e6e8ec);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cw-prompt-editor input,
+.cw-prompt-editor textarea,
+.cw-prompt-editor button,
+.cw-prompt-editor pre {
+  font: inherit;
+  color: inherit;
+}
+
+.cw-prompt-editor input,
+.cw-prompt-editor textarea {
+  min-width: 0;
+  max-width: 100%;
+}
