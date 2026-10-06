@@ -288,14 +288,16 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
 行的**值**不住在宿主里（配置归插件自己，D15/D19）：设置页不渲染表单，也不再有任何 `config` /
 `sources` 回传。错误原因分两类字段：`error`（装载或激活失败）与 `phase: "rejected"`（目录检查没过）。
 
-### 5.5 外壳偏好：标签栏顺序 + 默认首页
+### 5.5 外壳偏好：标签栏顺序 + 默认首页 + 显示别名
 
-设置页负责这两件事，偏好存 `<dataDir>/host.json` 的偏好段：
+设置页负责这几件事，偏好存 `<dataDir>/host.json` 的偏好段：
 
 ```jsonc
 {
   "tabOrder": ["anima-example", "anima-plus"],
   "home": "anima-plus",
+  "tabAliases": { "anima-plus": "画图" },
+  "homeLabel": "我的工作台",
   "globals": { "comfyuiBaseUrl": "" },
   "disabled": ["anima-example"]
 }
@@ -313,6 +315,10 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
   - 默认首页 = 偏好里的 id（且当前真有这个 tab、且它没坏）→ 第一个没坏的 tab →
     第一个 tab（哪怕坏了：至少把失败原因摆出来，比白屏强）→ 一个 tab 都没有就留在欢迎页。
   - 根路径 `/` 按这条链重定向；偏好不可用时，设置页会把「已回退到谁」显式写出来。
+- **显示别名是纯外壳的**：`tabAliases`（插件 id → 顶栏上的名字）与 `homeLabel`（顶栏品牌链接 =
+  首页 `/home` 的显示名）只改**渲染出来的文字**，插件自己声明的 `title` 一个字都不动 ——
+  所以改别名不用重挂插件、也不用插件配合。缺键 / 空值 = 回落到插件 title / 内置品牌名
+  （`comfyui-web`），回退在外壳（`apps/web/src/store.ts` 的 `tabLabel` / `homeLabel`）。
 - **后端只保证三件事**：读得到、写得进、坏文件不炸。文件缺失 / 不是 JSON / 类型不对
   一律退化成默认值；写入先写 `.tmp` 再 `rename`（原子替换）；清洗规则 = 去重、丢非字符串、
   限长限条数。测试口径见 §14.1e。
@@ -341,6 +347,8 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
 {
   "tabOrder": ["anima-example", "anima-plus"],
   "home": "anima-plus",
+  "tabAliases": { "anima-plus": "画图" },
+  "homeLabel": "我的工作台",
   "globals": { "comfyuiBaseUrl": "http://10.2.3.22:8188" }
 }
 ```
@@ -353,20 +361,21 @@ D19 删掉的正是「宿主写进插件行配置 + `following` 名单 + `fallba
 
 - 语义只有一条：**设置页改它 = 改一份可读的全局默认值**；插件用不用、什么时候用，是插件的事（今天没人用，见上）。
 - 核不认识 ComfyUI：`globals` 就是一个字符串字典（键随意），宿主不解释。
-- 用户偏好（tab 排序 / 默认首页 / 统一地址）都在 `data/host.json` 的偏好段；`PUT /api/ui` 只认这三个键。
+- 用户偏好（tab 排序 / 默认首页 / 显示别名 / 统一地址）都在 `data/host.json` 的偏好段；
+  `PUT /api/ui` 只认这几个键（`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals`）。
 
 ## 6. 配置分层（D16/D19 之后）
 
 ```
 插件包 plugin.settings[].default           ← 随包发布：字段形状 + 表单默认值（不改运行期行为）
   → data/plugins/<包名>/settings.json      ← 随机器：插件自己持有、自己读写（D12/D15）
-  → data/host.json 的偏好段                ← 随用户：tab 排序 / 默认首页 / 统一地址
+  → data/host.json 的偏好段                ← 随用户：tab 排序 / 默认首页 / 显示别名 / 统一地址
 ```
 
 - **随包发布**的东西在 `plugins/<id>/package.json`：`plugin.contract/title/order/client/settings`，
   构建时**原样派生**到 `tabs/<id>/package.json`（宿主只读派生后的那份）。
 - **随机器**的东西在 `data/plugins/<包名>/`：插件自己的空间，宿主不代管、不迁移、不清理（D12）。
-- **随用户**的东西在 `data/host.json` 的偏好段：`tabOrder` / `home` / `globals`。
+- **随用户**的东西在 `data/host.json` 的偏好段：`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals`。
 - **没有「部署层」配置了**：`plugins.yml` 的 `config` 段、`profiles/`、`pnpm plugin` 全随 D19 删除 ——
   需要配置的插件自己给端点、自己存（§5.6），宿主不再替任何插件持有一份「它的配置」。
 
@@ -688,8 +697,8 @@ comfyui-web/
   + `config.ts` 的"先定 dataDir 再读文件"。宿主启动即初始化：建 `data/plugins/`、没有 `host.json`
   就写默认（端口 / 日志级别 / `tabsDir` / 偏好段），旧的 `data/ui-prefs.json` 会被一次性搬进来。
 - **已删**（D16）：根目录 `host.config.json`、`ui-prefs.ts`、`host-globals.ts`；
-  `PUT /api/ui` 只认偏好段的 `tabOrder` / `home` / `globals`（`following` 随 D19 删了；`disabled`
-  由启停端点单独写，见 D21），
+  `PUT /api/ui` 只认偏好段的 `tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals`
+  （`following` 随 D19 删了；`disabled` 由启停端点单独写，见 D21），
   设置页不会连带改掉端口等部署段。
 - **已落地（Step 2）**：`tabs/<id>/` 放**编译完的产物**（源码与构建留在 `plugins/*`，
   `scripts/pack-tab.mjs` 直接输出到 `tabs/<id>/`）；`tabs/` **不入库**（D17），`verify` 补了

@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { RouterLink, RouterView, useRoute } from 'vue-router';
 import Icon from './components/Icon.vue';
-import { manifestError, orderedTabs, plugins } from './store';
+import { homeLabel, manifestError, orderedTabs, plugins, tabLabel } from './store';
 
 const route = useRoute();
 
@@ -16,7 +16,7 @@ const wideContent = computed(() => route.path.startsWith('/w/'));
 <template>
   <div class="shell">
     <header class="topbar">
-      <RouterLink class="brand" to="/home">comfyui-web</RouterLink>
+      <RouterLink class="brand" to="/home">{{ homeLabel }}</RouterLink>
 
       <nav class="tabs">
         <RouterLink
@@ -27,7 +27,8 @@ const wideContent = computed(() => route.path.startsWith('/w/'));
           :to="`/w/${tab.id}`"
           :title="tab.error ?? tab.title"
         >
-          {{ tab.title }}
+          <!-- 显示别名（设置页配），悬停仍旧给出插件自己的 title -->
+          {{ tabLabel(tab) }}
           <span v-if="tab.error !== undefined" class="dot">!</span>
         </RouterLink>
         <span v-if="orderedTabs.length === 0 && manifestError === null" class="empty">还没有插件</span>

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { putJSON } from '../api';
 import {
   fetchHostInfo,
   fetchPlugins,
   fetchUiPrefs,
+  HOME_FALLBACK_LABEL,
   hostInfo,
   orderedTabs,
   orderTabs,
@@ -12,9 +13,10 @@ import {
   resolveHome,
   rescanTabs,
   saveUiPrefs,
+  tabLabel,
   uiPrefs,
 } from '../store';
-import type { PluginInfo } from '../types';
+import type { PluginInfo, UiPrefs } from '../types';
 
 const busy = ref<Record<string, string>>({});
 const notice = ref<Record<string, string>>({});
@@ -29,7 +31,7 @@ function toggleOpen(plugin: PluginInfo): void {
   expanded.value[plugin.id] = !isOpen(plugin);
 }
 
-// ---- 标签页顺序 / 默认首页 ----------------------------------------------
+// ---- 标签页顺序 / 默认首页 / 显示别名 -----------------------------------
 
 const uiBusy = ref(false);
 const uiNotice = ref('');
@@ -50,11 +52,7 @@ async function saveGlobal(): Promise<void> {
   globalBusy.value = true;
   globalNotice.value = '';
   try {
-    await saveUiPrefs({
-      tabOrder: uiPrefs.value.tabOrder,
-      home: uiPrefs.value.home,
-      globals: { comfyuiBaseUrl: globalDraft.value },
-    });
+    await saveUiPrefs({ globals: { comfyuiBaseUrl: globalDraft.value } });
     syncGlobalDraft();
     await fetchPlugins();
     globalNotice.value =
@@ -79,13 +77,41 @@ function canBeHome(plugin: PluginInfo): boolean {
   return orderedTabs.value.some((tab) => tab.id === plugin.id && tab.error === undefined);
 }
 
-/** 把"当前看得见的顺序"整体存下去 —— 顺带把已卸载插件的残留 id 清掉 */
-async function persist(tabOrder: string[], home: string | null, note: string): Promise<void> {
+// ---- 显示别名（插件 tab + 顶栏品牌链接）--------------------------------
+
+/** 别名草稿（插件 id → 输入框内容）；品牌名同理。保存后由后端清洗的结果回填 */
+const aliasDrafts = ref<Record<string, string>>({});
+const homeLabelDraft = ref('');
+
+/** 把后端清洗后的值同步回输入框（保存之后 / 重新读取时） */
+function syncDrafts(): void {
+  aliasDrafts.value = Object.fromEntries(
+    orderedPlugins.value.map((plugin) => [plugin.id, uiPrefs.value.tabAliases[plugin.id] ?? '']),
+  );
+  homeLabelDraft.value = uiPrefs.value.homeLabel;
+}
+
+function sameAliases(a: Record<string, string>, b: Record<string, string>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
+
+// 首屏进设置页就把已存的值填进输入框：偏好是 bootstrap 时读的，不点「重新读取」也该看到真实值
+onMounted(() => {
+  syncGlobalDraft();
+  syncDrafts();
+});
+
+/**
+ * 存一次偏好：**只发改动的键**（后端按合并语义处理 —— 见 store 的 saveUiPrefs），
+ * 所以这里不需要把整份镜像拼进去，两次并发的保存也不会互相覆盖。
+ */
+async function persist(patch: Partial<UiPrefs>, note: string): Promise<void> {
   uiBusy.value = true;
   uiNotice.value = '';
   try {
-    // 必须带上 globals：后端按这次提交重写整个偏好文件，少传就等于把统一地址清空
-    await saveUiPrefs({ tabOrder, home, globals: uiPrefs.value.globals });
+    await saveUiPrefs(patch);
+    syncDrafts();
     uiNotice.value = note;
   } catch (err) {
     uiNotice.value = `保存失败：${err instanceof Error ? err.message : String(err)}`;
@@ -103,25 +129,53 @@ async function move(id: string, delta: number): Promise<void> {
   const [moved] = next.splice(from, 1);
   if (moved === undefined) return;
   next.splice(to, 0, moved);
-  await persist(next, uiPrefs.value.home, `顺序已保存：${id} → 第 ${to + 1} 位`);
+  await persist({ tabOrder: next }, `顺序已保存：${id} → 第 ${to + 1} 位`);
 }
 
-async function setHome(id: string): Promise<void> {
+async function setHome(plugin: PluginInfo): Promise<void> {
   await persist(
-    orderedPlugins.value.map((plugin) => plugin.id),
-    id,
-    `默认首页已设为 ${id}`,
+    { tabOrder: orderedPlugins.value.map((item) => item.id), home: plugin.id },
+    `默认首页已设为 ${tabLabel(plugin)}`,
+  );
+}
+
+/**
+ * 保存别名：把**当前列表里所有**输入框一起提交（和顺序一样是"整体存"），
+ * 顺带清掉已卸载插件留下的残留键。没改动就不写盘（失焦也会走到这里）。
+ */
+async function saveAlias(): Promise<void> {
+  const next: Record<string, string> = {};
+  for (const plugin of orderedPlugins.value) {
+    const alias = (aliasDrafts.value[plugin.id] ?? '').trim();
+    if (alias !== '') next[plugin.id] = alias;
+  }
+  if (sameAliases(next, uiPrefs.value.tabAliases)) return;
+  await persist({ tabAliases: next }, '显示别名已保存（只改顶栏显示，插件自己的 title 不动）');
+}
+
+async function saveHomeLabel(): Promise<void> {
+  const next = homeLabelDraft.value.trim();
+  if (next === uiPrefs.value.homeLabel) return;
+  await persist(
+    { homeLabel: next },
+    next === ''
+      ? `品牌名已清空：回落到内置名 ${HOME_FALLBACK_LABEL}`
+      : `品牌名已保存：${next}`,
   );
 }
 
 async function resetUi(): Promise<void> {
-  await persist([], null, '已恢复默认：按清单顺序，落到第一个可用标签页');
+  await persist(
+    { tabOrder: [], home: null, tabAliases: {}, homeLabel: '' },
+    '已恢复默认：按清单顺序、落到第一个可用标签页，显示别名与品牌名一并清空',
+  );
 }
 
 async function refresh(): Promise<void> {
   await fetchHostInfo();
   await fetchUiPrefs();
   syncGlobalDraft();
+  syncDrafts();
   await fetchPlugins();
 }
 
@@ -235,12 +289,27 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
 
       <p class="hint">
         顺序决定顶部标签栏的排列，默认首页决定打开站点时落在哪一页。
-        当前生效：<strong>{{ effectiveHome?.title ?? '（没有可用标签页，先落在欢迎页）' }}</strong>
+        <strong>显示别名</strong>只改顶栏上的文字（存在 <code>data/host.json</code> 的偏好段），
+        插件自己声明的 title 一个字都不动，也不用重挂插件。
+        当前生效：<strong>{{ effectiveHome === null ? '（没有可用标签页，先落在欢迎页）' : tabLabel(effectiveHome) }}</strong>
       </p>
       <p v-if="uiPrefs.home !== null && effectiveHome?.id !== uiPrefs.home" class="hint">
         偏好里的首页 <code>{{ uiPrefs.home }}</code> 当前不可用，已回退到
-        <strong>{{ effectiveHome?.title ?? '欢迎页' }}</strong>。
+        <strong>{{ effectiveHome === null ? '欢迎页' : tabLabel(effectiveHome) }}</strong>。
       </p>
+
+      <label class="home-label">
+        顶栏品牌链接（首页）的显示名
+        <input
+          v-model="homeLabelDraft"
+          type="text"
+          :placeholder="HOME_FALLBACK_LABEL"
+          title="留空 = 用内置名"
+          @keyup.enter="saveHomeLabel"
+          @blur="saveHomeLabel"
+        />
+        <span class="hint">留空 = 内置名 <code>{{ HOME_FALLBACK_LABEL }}</code></span>
+      </label>
 
       <ul class="tab-order">
         <li v-for="(plugin, index) in orderedPlugins" :key="plugin.id">
@@ -249,6 +318,15 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
           <code class="key">{{ plugin.id }}</code>
           <span class="badge" :class="plugin.phase">{{ plugin.phase }}</span>
           <span v-if="uiPrefs.home === plugin.id" class="badge active">默认首页</span>
+          <input
+            v-model="aliasDrafts[plugin.id]"
+            class="alias"
+            type="text"
+            :placeholder="plugin.title"
+            title="顶栏上的显示别名；留空 = 用插件自己的 title"
+            @keyup.enter="saveAlias"
+            @blur="saveAlias"
+          />
           <span class="spacer"></span>
           <button :disabled="uiBusy || index === 0" title="上移" @click="move(plugin.id, -1)">↑</button>
           <button
@@ -261,7 +339,7 @@ async function setEnabled(plugin: PluginInfo, enabled: boolean): Promise<void> {
           <button
             :disabled="uiBusy || !canBeHome(plugin)"
             :title="canBeHome(plugin) ? '设为默认首页' : '现在没有可用标签页（未启用 / 未激活 / 加载失败）'"
-            @click="setHome(plugin.id)"
+            @click="setHome(plugin)"
           >
             设为首页
           </button>

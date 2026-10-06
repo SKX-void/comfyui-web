@@ -74,6 +74,10 @@ export interface UiPrefs {
   tabOrder: string[];
   /** 默认首页（插件 id）；null = 第一个可用标签页 */
   home: string | null;
+  /** tab 的显示别名（插件 id → 顶栏上的名字）；没有这个键 = 用插件自己的 title */
+  tabAliases: Record<string, string>;
+  /** 顶栏品牌链接（首页 `/home`）的显示名；空串 = 用外壳内置名 */
+  homeLabel: string;
   globals: HostGlobals;
 }
 

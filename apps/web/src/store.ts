@@ -24,18 +24,35 @@ export const hostInfo = ref<HostInfo | null>(null);
  */
 export const manifestError = ref<string | null>(null);
 
-// ---- 外壳偏好：标签栏顺序 + 默认首页 ------------------------------------
+// ---- 外壳偏好：标签栏顺序 + 默认首页 + 显示别名 --------------------------
+
+/** 偏好读不到 / 被清空时的样子：顺序=清单顺序、首页=第一个可用 tab、没有别名 */
+function emptyUiPrefs(): UiPrefs {
+  return {
+    tabOrder: [],
+    home: null,
+    tabAliases: {},
+    homeLabel: '',
+    globals: { comfyuiBaseUrl: '' },
+  };
+}
 
 /** 后端 `<dataDir>/host.json` 偏好段的镜像；读不到时保持默认值 */
-export const uiPrefs = ref<UiPrefs>({
-  tabOrder: [],
-  home: null,
-  globals: { comfyuiBaseUrl: '' },
-});
+export const uiPrefs = ref<UiPrefs>(emptyUiPrefs());
+
+/** 别名表只取"非空字符串"的条目 —— 宿主已经洗过一遍，这里只是不信任任何网络输入 */
+function readAliases(value: unknown): Record<string, string> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [id, alias] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof alias === 'string' && alias !== '') out[id] = alias;
+  }
+  return out;
+}
 
 /**
- * 读外壳偏好。**读失败不算错误**：偏好只决定"顺序和落点"，
- * 拿不到就按默认走（清单顺序 + 第一个可用 tab），不该把整个外壳一起拖下水。
+ * 读外壳偏好。**读失败不算错误**：偏好只决定"顺序、落点和显示名"，
+ * 拿不到就按默认走（清单顺序 + 第一个可用 tab + 插件自己的名字），不该把整个外壳一起拖下水。
  */
 export async function fetchUiPrefs(): Promise<void> {
   try {
@@ -44,6 +61,8 @@ export async function fetchUiPrefs(): Promise<void> {
     uiPrefs.value = {
       tabOrder: Array.isArray(prefs?.tabOrder) ? prefs.tabOrder : [],
       home: typeof prefs?.home === 'string' && prefs.home !== '' ? prefs.home : null,
+      tabAliases: readAliases(prefs?.tabAliases),
+      homeLabel: typeof prefs?.homeLabel === 'string' ? prefs.homeLabel : '',
       // 宿主全局设置：拿不到就是空（= 不统一），不该把外壳一起拖下水
       globals: {
         comfyuiBaseUrl:
@@ -52,17 +71,19 @@ export async function fetchUiPrefs(): Promise<void> {
     };
   } catch (err) {
     console.warn('[host] 读取外壳偏好失败，按默认处理：', err);
-    uiPrefs.value = { tabOrder: [], home: null, globals: { comfyuiBaseUrl: '' } };
+    uiPrefs.value = emptyUiPrefs();
   }
 }
 
 /**
- * 写偏好：后端返回**清洗后**的值，用它回填，保证界面显示的就是真存下来的那份。
+ * 写偏好：**只发改动的键**。后端把 `undefined` 的键当"这次没提"，其余键保持原样
+ * （`PUT /api/ui` 的合并语义），所以两次并发保存不会互相覆盖 —— 别改成"整份镜像发过去"。
+ * 返回的是**清洗后**的完整偏好，用它回填，保证界面显示的就是真存下来的那份。
  *
  * 统一地址只是宿主给的只读默认值：宿主不把它写进任何插件，所以这里没有"谁跟着变了"要回报。
  */
-export async function saveUiPrefs(next: UiPrefs): Promise<void> {
-  const data = await putJSON<{ prefs: UiPrefs }>('/api/ui', next);
+export async function saveUiPrefs(patch: Partial<UiPrefs>): Promise<void> {
+  const data = await putJSON<{ prefs: UiPrefs }>('/api/ui', patch);
   uiPrefs.value = data.prefs;
 }
 
@@ -98,6 +119,23 @@ export function orderTabs<T extends { id: string }>(items: T[], tabOrder: string
 
 /** tab 栏的实际顺序（响应式）：设置页改完顺序，顶栏不用刷新就跟上 */
 export const orderedTabs = computed(() => orderTabs(tabs.value, uiPrefs.value.tabOrder));
+
+/** 顶栏品牌链接（首页 `/home`）的内置显示名：偏好留空时用它 */
+export const HOME_FALLBACK_LABEL = 'comfyui-web';
+
+/** 顶栏品牌链接的显示名：偏好优先，留空回落到内置名 */
+export const homeLabel = computed(() => uiPrefs.value.homeLabel || HOME_FALLBACK_LABEL);
+
+/**
+ * tab 在顶栏上的显示名：别名优先，没配就用插件自己声明的 title。
+ *
+ * 别名是**外壳的**东西（`data/host.json` 的偏好段），插件自己的 title 一个字都不动 ——
+ * 所以改别名既不用重挂插件，也不用插件配合。
+ */
+export function tabLabel(tab: { id: string; title: string }): string {
+  const alias = uiPrefs.value.tabAliases[tab.id];
+  return alias === undefined || alias === '' ? tab.title : alias;
+}
 
 /**
  * 默认首页的**回退链**（根路由与设置页共用，保证两处口径一致）：
