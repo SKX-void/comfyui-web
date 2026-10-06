@@ -1,0 +1,27 @@
+{
+  "name": "@comfyui-web/prompt-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "提示词编写 tab（不负责绘图）：区块式工作区 + tag/自然语言两种切分视图 + 纯文本输出；预设库与草稿存在插件自己的空间里",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/pack.mjs",
+    "dev": "node scripts/pack.mjs --watch",
+    "typecheck": "vue-tsc --noEmit",
+    "test:contract": "node scripts/contract-test.ts"
+  },
+  "plugin": {
+    "contract": 1,
+    "title": "提示词编辑器",
+    "order": 3,
+    "client": "client.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.9",
+    "vue": "^3.5.13",
+    "vue-tsc": "^2.2.0"
+  }
+}
