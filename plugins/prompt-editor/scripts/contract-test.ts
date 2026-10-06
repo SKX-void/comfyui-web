@@ -22,24 +22,6 @@ import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 
 import { newId, reflow, renderOutput, splitSentences, splitTags, type Doc, type Item } from '../client/src/model.ts';
-import {
-  PROVIDERS,
-  docFromStored,
-  maskPromptSyntax,
-  queryTags,
-  rawFromStored,
-  removeTag,
-  sanitizeDoc,
-  sanitizeSettings,
-  sanitizeTags,
-  sanitizeUsage,
-  storedFromDoc,
-  storedFromRaw,
-  tagKey,
-  tagsLookup,
-  translateTexts,
-  upsertTag,
-} from '../server.js';
 
 let failed = 0;
 function check(label: string, ok: boolean, detail?: unknown): void {
@@ -73,10 +55,82 @@ const tabDir =
   process.env.TAB_OUT_DIR ?? fileURLToPath(new URL('../../../tabs/prompt-editor/', import.meta.url));
 const artifact = (name: string) => pathToFileURL(path.join(tabDir, name));
 
+// 服务端也按产物进：拆成多模块后源码不再是入口（server.js 由 scripts/build-server.mjs 打出来）。
+// 动态说明符给不出类型，所以按源码入口的形状收一下 —— 产物与源码同源，这正是契约测试要断言的事。
+const server = (await import(artifact('server.js').href)) as typeof import('../server/index.ts');
+const {
+  PROVIDERS,
+  docFromStored,
+  maskPromptSyntax,
+  queryTags,
+  rawFromStored,
+  removeTag,
+  sanitizeDoc,
+  sanitizeSettings,
+  sanitizeTags,
+  sanitizeUsage,
+  storedFromDoc,
+  storedFromRaw,
+  tagKey,
+  tagsLookup,
+  translateTexts,
+  upsertTag,
+} = server;
+
 const plugin = (await import(artifact('client.js').href)).default as {
   tabs?: { id: string; title: string; order: number }[];
   routes?: { path: string; component: unknown }[];
 };
+
+// ── 3. 服务端装配：apply() 挂到宿主上的路由必须一条不少 ──────────────────────
+// 假 ctx 照宿主的语义来：`ctx.routes.for(id)` **每调用一次就换一张新表**
+// （apps/server/src/handles/routes.ts），所以一个插件只能领一次、再传下去。
+// 领两次的话先注册的那批会被整张覆盖 —— 端点 404，而纯函数级断言一点都看不出来
+// （把服务端拆成多模块时真踩过：预设 / 草稿那 9 条全丢）。
+{
+  const tables: string[][] = [];
+  const newTable = (): Record<string, (p: string) => void> => {
+    const paths: string[] = [];
+    tables.push(paths);
+    const record = (method: string) => (p: string) => {
+      paths.push(`${method} ${p}`);
+    };
+    return { get: record('GET'), post: record('POST'), put: record('PUT'), delete: record('DELETE') };
+  };
+  let effects = 0;
+  server.apply({
+    routes: { for: newTable },
+    space: { for: () => ({ packageName: 'x', root: '/tmp', resolve: (f: string) => f }) },
+    effect: () => {
+      effects += 1;
+    },
+  } as unknown as Parameters<typeof server.apply>[0]);
+
+  const expected = [
+    'GET /presets',
+    'GET /presets/:id',
+    'POST /presets',
+    'PUT /presets/:id',
+    'DELETE /presets/:id',
+    'GET /draft',
+    'PUT /draft/structure',
+    'PUT /draft/blocks/:id/items',
+    'PUT /draft',
+    'GET /settings',
+    'PUT /settings',
+    'POST /translate',
+    'GET /tags',
+    'PUT /tags/entry',
+    'DELETE /tags/entry',
+  ];
+  const registered = tables.at(-1) ?? []; // 宿主最终留下的是最后领的那张表
+  check(
+    `宿主留下的路由表里 ${expected.length} 条全在`,
+    expected.every((r) => registered.includes(r)),
+    registered.join(' '),
+  );
+  check('apply 注册了收尾（ctx.effect）', effects === 1, effects);
+}
 
 console.log('产物契约');
 check('产物默认导出是对象', plugin !== null && typeof plugin === 'object');
@@ -306,7 +360,7 @@ const raw = rawFromStored(stored!);
 check(
   '落盘格式：blocks 是纯属性、items 是按区块分组的条目',
   raw.version === 1 &&
-    raw.blocks.every((meta: Record<string, unknown>) => !('items' in meta)) &&
+    raw.blocks.every((meta) => !('items' in meta)) &&
     Object.keys(raw.items).length === 2,
   JSON.stringify(raw).slice(0, 120),
 );
@@ -403,7 +457,7 @@ check(
   '老平表（dict.json）读进来：缺分类/别名补空，老 source 归到 import',
   (() => {
     const d = sanitizeTags({ version: 1, entries: { a: { zh: '甲', source: 'api' }, b: { zh: '' }, c: 'nope' } });
-    const kept = Object.values(d.entries) as { source?: string; categories?: string[]; aliases?: string[] }[];
+    const kept = Object.values(d.entries);
     return (
       Object.keys(d.entries).length === 1 &&
       kept[0]?.source === 'import' &&
@@ -496,9 +550,6 @@ check('越界收敛到范围内', (() => {
 check('用量跨天清零', sanitizeUsage({ date: '2000-01-01', calls: 999 }, '2026-01-01').calls === 0);
 check('当天用量保留', sanitizeUsage({ date: '2026-01-01', calls: 12 }, '2026-01-01').calls === 12);
 
-/** server.js 是 JS，返回类型推得比较松；测试里显式收一下形状 */
-type Outcome = { text: string; translation: string; source: string };
-
 /** 有道体验版的 stub：记下每次发出的 q，按 map 回译文 */
 function youdaoStub(map: Record<string, string>, { ok = true, errorCode = '0' } = {}) {
   const calls: string[] = [];
@@ -525,7 +576,7 @@ console.log('翻译编排：词库优先 → provider 兜底 → 现翻结果不
   check('词库命中的不发请求', same(stub.calls, ['youdao|best quality']), JSON.stringify(stub.calls));
   check(
     '结果按入参顺序对齐，来源标清楚（命中=dict / 现翻=api）',
-    same((first.results as Outcome[]).map((r: Outcome) => `${r.text}=${r.translation}/${r.source}`), ['masterpiece=杰作/dict', 'best quality=译(best quality)/api']),
+    same(first.results.map((r) => `${r.text}=${r.translation}/${r.source}`), ['masterpiece=杰作/dict', 'best quality=译(best quality)/api']),
     JSON.stringify(first.results),
   );
   check(

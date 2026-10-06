@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/pack.mjs",
+    "build:server": "node scripts/build-server.mjs",
     "dev": "node scripts/pack.mjs --watch",
     "typecheck": "vue-tsc --noEmit",
     "test:contract": "node scripts/contract-test.ts && node scripts/interaction-test.ts",
@@ -22,7 +23,7 @@
         "type": "string",
         "label": "翻译服务",
         "default": "youdao-demo",
-        "description": "译文由插件后端统一去拿，浏览器不接触任何凭据。youdao-demo = 有道体验版（免费、无需 key，有隐性限流）。加一家 = 在 server.js 的 PROVIDERS 里加一个对象。"
+        "description": "译文由插件后端统一去拿，浏览器不接触任何凭据。youdao-demo = 有道体验版（免费、无需 key，有隐性限流）。加一家 = 在 server/providers.ts 的 PROVIDERS 里加一个对象。"
       },
       {
         "key": "autoTranslate",
@@ -63,6 +64,7 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@vitejs/plugin-vue": "^5.2.1",
+    "esbuild": "0.25.12",
     "happy-dom": "^20.14.5",
     "typescript": "^5.7.2",
     "vite": "^6.0.9",
