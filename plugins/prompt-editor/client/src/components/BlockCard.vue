@@ -7,16 +7,22 @@
  * 每次都往上抬一层再传回来只会把代码变长。改的始终是父级那个对象，不是重新赋值 prop。
  * 头部（拖动 / 颜色 / 标题 / 风格开关）在 BlockHeader —— 它改的也是同一个 block。
  */
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import BlockHeader from './BlockHeader.vue';
 import ItemChip from './ItemChip.vue';
-import { BLOCK_COLORS, newItem, splitByMode, type Block, type Item } from '../model';
+import { BLOCK_COLORS, newItem, splitByMode, type Block, type Item, type ItemRef } from '../model';
 
 const props = defineProps<{
   block: Block;
   dragging: boolean;
   over: boolean;
+  /** 正在拖的条目（父级持有：拖拽是**跨块**的，状态不能留在某一张卡里） */
+  dragItem: ItemRef | null;
+  /** 当前悬停的条目落点 */
+  overItem: ItemRef | null;
+  /** 这块接不接得住：父级按"块类型相同"算好（见 model.canDropItem） */
+  dropOk: boolean;
   /** 正在翻 / 没翻成的条目 id：只是这一刻的界面状态，不进数据（父级持有） */
   busyIds: Set<string>;
   failedIds: Set<string>;
@@ -27,6 +33,11 @@ const emit = defineEmits<{
   (e: 'drag-over'): void;
   (e: 'drop'): void;
   (e: 'drag-end'): void;
+  /** 条目拖拽四件事：起手 / 悬停到第几条 / 落在第几条 / 收手（索引由这一层提供，落点判断在父级） */
+  (e: 'item-drag-start', index: number): void;
+  (e: 'item-drag-over', index: number): void;
+  (e: 'item-drop', index: number): void;
+  (e: 'item-drag-end'): void;
   /** 翻这一条（用户点了「译」） */
   (e: 'translate', index: number): void;
   /** 翻这一整块 */
@@ -45,8 +56,60 @@ const emit = defineEmits<{
 const paletteOpen = ref(false);
 const adding = ref('');
 const addInput = ref<HTMLInputElement | null>(null);
-const dragIndex = ref<number | null>(null);
-const overIndex = ref<number | null>(null);
+
+const isDragging = (index: number): boolean =>
+  props.dragItem !== null && props.dragItem.blockId === props.block.id && props.dragItem.index === index;
+
+/** 悬停在**块体空白**（不是某一条）上 = 落点是末尾，块体自己亮 */
+const overBody = computed(
+  () =>
+    props.dropOk &&
+    props.overItem !== null &&
+    props.overItem.blockId === props.block.id &&
+    props.overItem.index === props.block.items.length,
+);
+
+/**
+ * 取 dataTransfer。**合成事件可能压根没有这个属性**（测试里造的 DragEvent 就是），
+ * 所以按"可能为 undefined"取 —— 光标提示只是锦上添花，不该让拖拽本身炸掉。
+ */
+function transferOf(event: DragEvent): DataTransfer | null {
+  return (event as { dataTransfer?: DataTransfer | null }).dataTransfer ?? null;
+}
+
+function onItemDragStart(event: DragEvent, index: number): void {
+  // 不声明 move 的话，跨块拖到一半光标会变成"复制"，看着像要复制一份
+  const transfer = transferOf(event);
+  if (transfer !== null) transfer.effectAllowed = 'move';
+  emit('item-drag-start', index);
+}
+
+function onItemDragOver(event: DragEvent, index: number): void {
+  // 类型不同的块不接：光标得明确说"不行"，否则用户以为松手会成功
+  const transfer = transferOf(event);
+  if (props.dragItem !== null && !props.dropOk && transfer !== null) transfer.dropEffect = 'none';
+  emit('item-drag-over', index);
+}
+
+/**
+ * 悬停在块体上：**只认块体自己**（悬停在条目上时由条目的处理器接管，不然会被这里覆盖成"末尾"）。
+ * 落点索引用 `items.length`（追加到末尾），和条目用的"插入位置"是同一套坐标。
+ */
+function onBodyOver(event: DragEvent): void {
+  if (event.target !== event.currentTarget) return;
+  emit('item-drag-over', props.block.items.length);
+}
+
+/**
+ * 条目落地。**没在拖条目时必须放行**（不 stopPropagation）：区块排序的落点就是块体/条目，
+ * 事件要继续冒泡到 section 那个 `@drop` 才轮到区块换位。
+ */
+function onItemDrop(event: DragEvent, index: number): void {
+  if (props.dragItem === null) return;
+  event.preventDefault();
+  event.stopPropagation();
+  emit('item-drop', index);
+}
 
 function pickColor(color: string): void {
   props.block.color = color;
@@ -118,23 +181,6 @@ function removeItem(index: number): void {
   props.block.items.splice(index, 1);
   emit('items-committed');
 }
-
-function endDrag(): void {
-  dragIndex.value = null;
-  overIndex.value = null;
-}
-
-function dropItem(to: number): void {
-  const from = dragIndex.value;
-  if (from === null || from === to) {
-    endDrag();
-    return;
-  }
-  const moved = props.block.items.splice(from, 1)[0];
-  if (moved !== undefined) props.block.items.splice(to, 0, moved);
-  endDrag();
-  emit('items-committed');
-}
 </script>
 
 <template>
@@ -171,26 +217,34 @@ function dropItem(to: number): void {
       />
     </div>
 
-    <div class="pe-block-body" :class="{ 'pe-block-body-text': block.mode === 'text' }">
+    <div
+      class="pe-block-body"
+      :class="{ 'pe-block-body-text': block.mode === 'text', 'pe-block-body-drop': overBody }"
+      @dragover.prevent="onBodyOver($event)"
+      @drop="onItemDrop($event, block.items.length)"
+    >
       <ItemChip
         v-for="(item, index) in block.items"
         :key="item.id"
         :item="item"
         :mode="block.mode"
-        :dragging="dragIndex === index"
+        :dragging="isDragging(index)"
         :busy="busyIds.has(item.id)"
         :failed="failedIds.has(item.id)"
-        :class="{ 'pe-chip-over': overIndex === index && dragIndex !== null && dragIndex !== index }"
+        :class="{
+          'pe-chip-over':
+            overItem !== null && overItem.blockId === block.id && overItem.index === index && !isDragging(index),
+        }"
         @commit="(text: string) => commitItem(index, text)"
         @toggle="toggleItem(index)"
         @remove="removeItem(index)"
         @commit-translation="onTranslationCommitted(index)"
         @promote="emit('promote', index)"
         @translate="emit('translate', index)"
-        @dragstart="dragIndex = index"
-        @dragover.prevent="overIndex = index"
-        @drop.prevent="dropItem(index)"
-        @dragend="endDrag()"
+        @dragstart="onItemDragStart($event, index)"
+        @dragover.prevent="onItemDragOver($event, index)"
+        @drop="onItemDrop($event, index)"
+        @dragend="emit('item-drag-end')"
       />
       <input
         ref="addInput"
@@ -277,5 +331,11 @@ function dropItem(to: number): void {
 .pe-chip-over {
   outline: 1px dashed var(--accent, #6ea8fe);
   outline-offset: 2px;
+}
+
+/* 悬停在块体空白上 = 落点是末尾；类型不同的块不会亮（父级的 dropOk 就是这道闸） */
+.pe-block-body-drop {
+  outline: 1px dashed var(--accent, #6ea8fe);
+  outline-offset: -3px;
 }
 </style>
