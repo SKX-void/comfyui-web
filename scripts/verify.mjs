@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 统一验证入口：一条命令跑完 typecheck / smoke / build / tabs-sync / contract，每步只输出一行结论。
+ * 统一验证入口：一条命令跑完 typecheck / isolation / smoke / build / tabs-sync / contract，每步只输出一行结论。
  *
  * 为什么要有它：单独跑这几条命令，光 smoke 一次就 190+ 行、近 10 KB，
  * 全量日志灌进上下文/终端既慢又难看出到底哪步挂了。这里把各步完整输出
@@ -8,7 +8,7 @@
  * 失败行回显，需要细节再去看日志文件。
  *
  * 用法：
- *   pnpm verify                     # typecheck → smoke → build → tabs-sync → contract
+ *   pnpm verify                     # typecheck → isolation → smoke → build → tabs-sync → contract
  *   pnpm verify typecheck smoke     # 只跑指定步骤
  *   pnpm verify --no-build          # 跳过构建
  *   pnpm verify --verbose           # 额外把各步完整输出回显到终端
@@ -32,6 +32,15 @@ const STEPS = [
     args: ['-r', 'typecheck'],
     env: {},
     failRe: /error TS\d+|✘/,
+    failLimit: 12,
+  },
+  {
+    // 纯 Node 跑，不需要浏览器：用宿主 dev 态那份 Vue 复现"插件页面崩了带走整个外壳"
+    id: 'isolation',
+    cmd: 'node',
+    args: ['apps/web/scripts/isolation-test.mjs'],
+    env: {},
+    failRe: /❌/,
     failLimit: 12,
   },
   {

@@ -31,15 +31,14 @@ import {
   MAX_SIDE,
   MAX_STEPS,
   MIN_SIDE,
-  assertGraphSafe,
-  guardGraph,
-  narrowTemplateBounds,
-  scanGraph,
 } from '../server/safety/limits.js';
 import { MAX_BODY_BYTES, MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../server/safety/quota.js';
 import { PRESET_KINDS, PresetStore } from '../server/store/presets.js';
 import { closeDatabase, openDatabase, userVersion } from '../server/store/db.js';
 import { TriggerStore } from '../server/triggers/store.js';
+import { assertGraphSafe } from '../server/safety/describe.js';
+import { guardGraph, scanGraph } from '../server/safety/scan.js';
+import { narrowTemplateBounds } from '../server/safety/effective.js';
 import { LastStateStore, stateFile } from '../server/state.js';
 import { TriggerResolver } from '../server/triggers/resolve.js';
 import type { WeilinClient } from '../server/weilin/client.js';

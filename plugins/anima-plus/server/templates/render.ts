@@ -1,17 +1,15 @@
 import type { Graph, TemplateDef, TemplateInput } from '@comfyui-web/shared';
 import { AppError } from '../errors.js';
 import { SEED_RANDOM, applyTransform } from './transforms.js';
+import { describeCount, describeHit } from '../safety/describe.js';
+import { guardGraph } from '../safety/scan.js';
+import type { LimitHit } from '../safety/hits.js';
 import {
-  type EffectiveBounds,
-  type LimitHit,
-  describeCount,
-  describeHit,
   effectiveBounds,
-  guardGraph,
   userSourceOf,
   whenMatches,
-} from '../safety/limits.js';
-
+  type EffectiveBounds,
+} from '../safety/effective.js';
 export interface LoadedTemplate {
   def: TemplateDef;
   graph: Graph;

@@ -3,7 +3,9 @@ import path from 'node:path';
 import type { Graph, TemplateDef } from '@comfyui-web/shared';
 import type { LoadedTemplate } from './render.js';
 import { KNOWN_TRANSFORMS } from './transforms.js';
-import { describeCount, describeHit, effectiveBounds, scanGraph } from '../safety/limits.js';
+import { describeCount, describeHit } from '../safety/describe.js';
+import { scanGraph } from '../safety/scan.js';
+import { effectiveBounds } from '../safety/effective.js';
 
 /**
  * 校验插件唯一的那份定义（form.json）与 workflow.json 的一致性。

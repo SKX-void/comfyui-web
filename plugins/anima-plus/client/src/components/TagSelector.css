@@ -1,0 +1,185 @@
+.tagsel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.control {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.control:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+.prompt {
+  resize: vertical;
+  line-height: 1.5;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hint {
+  font-size: 11px;
+  color: #64748b;
+  margin: 0;
+}
+.tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.query-row {
+  display: flex;
+}
+.btn {
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.suggest {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  overflow: hidden;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.suggest-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: #0f172a;
+  border: none;
+  border-bottom: 1px solid #1e293b;
+  color: #e2e8f0;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.suggest-item:hover {
+  background: #1e293b;
+}
+.tr {
+  color: #94a3b8;
+}
+.browse {
+  display: grid;
+  /* minmax(0,…)：两列固定宽 + 1fr 的组合在窄屏上会溢出，给每列一个可收缩的下限 */
+  grid-template-columns: minmax(0, 130px) minmax(0, 130px) minmax(0, 1fr);
+  gap: 8px;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 8px;
+}
+.browse-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  max-height: 260px;
+  /* 列内长标签不参与"最小宽度"计算，否则会把窄屏撑出横向滚动条 */
+  min-width: 0;
+}
+.browse-col.wide {
+  border-left: 1px solid #1f2937;
+  padding-left: 8px;
+}
+.browse-title {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 3px;
+  position: sticky;
+  top: 0;
+  background: #111827;
+}
+.group-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+.group-btn:hover,
+.group-btn.active {
+  background: #1e293b;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.count {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 10px;
+}
+.tag-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tag-btn {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+.tag-btn:hover {
+  background: #1e293b;
+}
+
+/**
+ * 窄屏（手机）：浏览面板原本是 130px + 130px + 1fr 三列并排，
+ * 光两列固定宽度就 260px，加上间距/内边距已经超过手机内容宽度。
+ * 这里改成"分组 | 子组"两列，标签列表另起一行占满整行。
+ */
+@media (max-width: 640px) {
+  .browse {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .browse-col {
+    max-height: 160px;
+  }
+  .browse-col.wide {
+    grid-column: 1 / -1;
+    border-left: none;
+    border-top: 1px solid #1f2937;
+    padding-left: 0;
+    padding-top: 8px;
+    max-height: 220px;
+  }
+}

@@ -1,0 +1,161 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* 每一级容器都放开收缩下限：只要有一级是 min-width:auto，
+     里面的数字框（种子那种固有宽度 ~20 字符）就能把整行顶出视口 */
+  min-width: 0;
+}
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  white-space: nowrap;
+  /* 长标签不许把整行顶宽（窄屏上宁可省略号） */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.req {
+  color: #f87171;
+}
+/* 可折叠字段的标题行：把 button 的默认外观去掉，字号/粗细/颜色沿用 .field-label */
+.field-label.fold-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.field-label.fold-toggle:hover .fold-label {
+  color: #e2e8f0;
+}
+.caret {
+  flex: 0 0 auto;
+  color: #93c5fd;
+  font-size: 11px;
+  line-height: 1;
+}
+/* 两个 span 都是 flex 子项：不放开 min-width 的话长文本会把标题行顶宽 */
+.fold-label,
+.folded-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folded-value {
+  flex: 0 1 auto;
+  font-weight: 400;
+  color: #64748b;
+}
+.desc {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+/* 行内字段的说明：独占一行单字段的 .desc 同款观感，只是更小一号 */
+.row-desc {
+  font-size: 11px;
+  color: #64748b;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 同行布局：短数值字段并排。
+   flex-basis 取"刚好够放一个数字输入"的宽度：
+   - 3 个字段在 280px 宽的手机上仍能排成一行（3×76 + 2×10 = 248）
+   - 字段更多、或容器更窄时才换行，不会把 CFG 单独挤到下一行 */
+.row-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+/* 同一行里每个字段的标签行必须一样高：预设按钮比标签高 ~5px，只让带预设的那一格
+   变高的话，行是顶端对齐，另一个字段的输入框就会高 5px，两个输入框对不齐。 */
+.row-field .field-head {
+  min-height: 24px;
+}
+.row-pick {
+  flex: 0 0 auto;
+}
+.row {
+  display: flex;
+  /* 顶端对齐：每个字段是 [标签][控件][说明]，标签都是单行所以控件必然对齐，
+     说明只往下长，不会把带说明的那个控件顶起来（原来 flex-end 就会） */
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.row-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 76px;
+  min-width: 0;
+}
+.row-field .field-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 种子行：种子占满左侧，开关贴右。不换行 —— 换行会让开关漂到种子下面，主从关系又糊了 */
+.seed-row {
+  flex-wrap: nowrap;
+  align-items: flex-end;
+}
+.seed-field {
+  /* 吃掉所有剩余宽度，把开关推到最右 */
+  flex: 1 1 auto;
+}
+.seed-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.seed-toggle-label {
+  font-size: 12px;
+  color: #94a3b8;
+}
+.swap {
+  flex: 0 0 auto;
+  /* 行是顶端对齐，这个按钮要和控件底部齐平 */
+  align-self: flex-end;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #93c5fd;
+  font-size: 15px;
+  line-height: 1;
+  padding: 8px 10px;
+  cursor: pointer;
+  margin-bottom: 1px;
+}
+.swap:hover:not(:disabled) {
+  border-color: #6366f1;
+  color: #c7d2fe;
+}
+.swap:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

@@ -1,16 +1,14 @@
-import { EventEmitter } from 'node:events';
-import WebSocket from 'ws';
-import { AppError } from '../errors.js';
+import { ComfyHttp } from './http.js';
+import { ComfySocket } from './ws.js';
 import type {
   ComfyClient,
   ComfyEvent,
   HistoryEntry,
   QueueInfo,
   SubmitResult,
-  ViewParams,
 } from './types.js';
 import type { Graph } from '@comfyui-web/shared';
-import { assertGraphSafe } from '../safety/limits.js';
+import { assertGraphSafe } from '../safety/describe.js';
 
 interface RealClientOptions {
   baseUrl: string;
@@ -23,9 +21,6 @@ interface RealClientOptions {
   log?: (msg: string, meta?: unknown) => void;
 }
 
-const RECONNECT_BASE_MS = 500;
-const RECONNECT_MAX_MS = 10_000;
-
 /**
  * 真实 ComfyUI 客户端。
  *
@@ -34,185 +29,32 @@ const RECONNECT_MAX_MS = 10_000;
  * - progress / progress_state 只投递给提交时的 client_id
  * - 因此全服务只维护**一条**共享连接、所有任务共用一个 clientId，靠 prompt_id 区分归属
  */
-export class RealComfyClient implements ComfyClient {
+export class RealComfyClient extends ComfyHttp implements ComfyClient {
   readonly mode = 'real' as const;
 
-  private readonly baseUrl: string;
-  private readonly clientId: string;
   private readonly log: (msg: string, meta?: unknown) => void;
-  private readonly timeoutMs: number;
-  private readonly probeTimeoutMs: number;
-  private readonly emitter = new EventEmitter();
-
-  private ws: WebSocket | null = null;
-  private started = false;
-  private reconnectAttempts = 0;
-  private reconnectTimer: NodeJS.Timeout | null = null;
+  private readonly socket: ComfySocket;
 
   constructor(opts: RealClientOptions) {
-    this.baseUrl = opts.baseUrl;
-    this.clientId = opts.clientId;
+    super(opts);
     this.log = opts.log ?? (() => {});
-    this.timeoutMs = opts.timeoutMs ?? 30_000;
-    this.probeTimeoutMs = opts.probeTimeoutMs ?? 3_000;
-    this.emitter.setMaxListeners(0);
+    this.socket = new ComfySocket(opts.baseUrl, opts.clientId, this.log);
   }
 
   async start(): Promise<void> {
-    this.started = true;
-    await this.connect();
+    await this.socket.start();
   }
 
   async stop(): Promise<void> {
-    this.started = false;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    const ws = this.ws;
-    this.ws = null;
-    if (ws) {
-      await new Promise<void>((resolve) => {
-        ws.removeAllListeners();
-        ws.once('close', () => resolve());
-        ws.close();
-        // 兜底：避免 close 事件不触发时挂死
-        setTimeout(resolve, 500);
-      });
-    }
+    await this.socket.stop();
   }
 
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this.socket.isConnected();
   }
 
   subscribe(handler: (evt: ComfyEvent) => void): () => void {
-    this.emitter.on('event', handler);
-    return () => this.emitter.off('event', handler);
-  }
-
-  private wsUrl(): string {
-    const u = new URL(this.baseUrl);
-    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    u.pathname = '/ws';
-    u.search = `?clientId=${encodeURIComponent(this.clientId)}`;
-    return u.toString();
-  }
-
-  private connect(): Promise<void> {
-    return new Promise<void>((resolve) => {
-      let settled = false;
-      const done = (): void => {
-        if (!settled) {
-          settled = true;
-          resolve();
-        }
-      };
-
-      let ws: WebSocket;
-      try {
-        ws = new WebSocket(this.wsUrl());
-      } catch (err) {
-        this.log('WS 创建失败', { err: String(err) });
-        this.scheduleReconnect();
-        done();
-        return;
-      }
-      this.ws = ws;
-
-      ws.on('open', () => {
-        this.reconnectAttempts = 0;
-        this.log('WS 已连接', { url: this.wsUrl() });
-        done();
-      });
-
-      ws.on('message', (raw: WebSocket.RawData, isBinary: boolean) => {
-        // ⚠️ 关键：ws 库对**文本帧**同样以 Buffer 投递（不是 string），
-        // 因此必须显式转字符串。早期用 `typeof raw !== 'string'` 判断会丢弃所有消息。
-        if (isBinary) {
-          // ComfyUI 的预览图走二进制帧，v1 暂不处理
-          return;
-        }
-        const text = Array.isArray(raw)
-          ? Buffer.concat(raw).toString('utf8')
-          : Buffer.isBuffer(raw)
-            ? raw.toString('utf8')
-            : Buffer.from(raw as ArrayBuffer).toString('utf8');
-
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(text);
-        } catch {
-          return;
-        }
-        if (
-          parsed &&
-          typeof parsed === 'object' &&
-          'type' in parsed &&
-          'data' in parsed
-        ) {
-          const evt = parsed as ComfyEvent;
-          this.emitter.emit('event', evt);
-        }
-      });
-
-      ws.on('error', (err: Error) => {
-        this.log('WS 错误', { err: err.message });
-        done();
-      });
-
-      ws.on('close', () => {
-        if (this.ws === ws) this.ws = null;
-        if (this.started) this.scheduleReconnect();
-        done();
-      });
-    });
-  }
-
-  private scheduleReconnect(): void {
-    if (!this.started || this.reconnectTimer) return;
-    const delay = Math.min(
-      RECONNECT_BASE_MS * 2 ** this.reconnectAttempts,
-      RECONNECT_MAX_MS,
-    );
-    this.reconnectAttempts += 1;
-    this.log('WS 将在稍后重连', { delayMs: delay, attempt: this.reconnectAttempts });
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      void this.connect();
-    }, delay);
-  }
-
-  private async request<T>(
-    pathname: string,
-    init?: RequestInit & { timeoutMs?: number },
-  ): Promise<T> {
-    const timeout = init?.timeoutMs ?? this.timeoutMs;
-    let res: Response;
-    try {
-      res = await fetch(`${this.baseUrl}${pathname}`, {
-        ...init,
-        signal: AbortSignal.timeout(timeout),
-      });
-    } catch (err) {
-      const name = (err as Error).name;
-      if (name === 'TimeoutError' || name === 'AbortError') {
-        throw AppError.comfyUnreachable(
-          `ComfyUI (${this.baseUrl}) 请求超时（${timeout}ms）: ${pathname}`,
-        );
-      }
-      throw AppError.comfyUnreachable(
-        `无法连接 ComfyUI (${this.baseUrl}): ${String(err)}`,
-      );
-    }
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw AppError.comfyError(
-        `ComfyUI ${pathname} 返回 ${res.status}`,
-        text.slice(0, 2000),
-      );
-    }
-    return (await res.json()) as T;
+    return this.socket.subscribe(handler);
   }
 
   async submit(
@@ -292,37 +134,5 @@ export class RealComfyClient implements ComfyClient {
 
   async interrupt(): Promise<void> {
     await this.request<unknown>('/interrupt', { method: 'POST' });
-  }
-
-  async fetchImage(params: ViewParams): Promise<{ data: Buffer; contentType: string }> {
-    // 防路径穿越（docs/archive/v1-api.md §B.4）
-    if (params.filename.includes('..') || params.filename.startsWith('/')) {
-      throw AppError.badRequest(`非法文件名: ${params.filename}`);
-    }
-    const qs = new URLSearchParams({
-      filename: params.filename,
-      subfolder: params.subfolder ?? '',
-      type: params.type ?? 'output',
-    });
-    let res: Response;
-    try {
-      res = await fetch(`${this.baseUrl}/view?${qs.toString()}`, {
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
-    } catch (err) {
-      const name = (err as Error).name;
-      if (name === 'TimeoutError' || name === 'AbortError') {
-        throw AppError.comfyUnreachable(`取图超时（${this.timeoutMs}ms）`);
-      }
-      throw AppError.comfyUnreachable(`取图失败: ${String(err)}`);
-    }
-    if (!res.ok) {
-      throw AppError.comfyError(`取图返回 ${res.status}`);
-    }
-    const buf = Buffer.from(await res.arrayBuffer());
-    return {
-      data: buf,
-      contentType: res.headers.get('content-type') ?? 'image/png',
-    };
   }
 }
