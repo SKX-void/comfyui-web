@@ -5,9 +5,7 @@
  */
 import { computed, ref } from 'vue';
 
-import type { Mode } from '../model';
-
-const props = defineProps<{ text: string; mode: Mode; itemCount: number; blockCount: number }>();
+const props = defineProps<{ text: string; itemCount: number; blockCount: number }>();
 
 const copied = ref(false);
 let timer: number | null = null;
@@ -38,7 +36,7 @@ async function copy(): Promise<void> {
   <div class="pe-output">
     <div class="pe-output-head">
       <strong>输出</strong>
-      <span class="pe-output-mode">{{ mode === 'tag' ? '逗号连接 · 区块换行' : '空格连接 · 区块换行' }}</span>
+      <span class="pe-output-mode">tag 块逗号串成一行 · 自然语言块每句一行</span>
       <button class="pe-copy" :disabled="text === ''" @click="copy">{{ copied ? '已复制' : '复制' }}</button>
     </div>
     <pre v-if="text !== ''" class="pe-output-text">{{ text }}</pre>

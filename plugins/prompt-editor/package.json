@@ -8,17 +8,62 @@
     "build": "node scripts/pack.mjs",
     "dev": "node scripts/pack.mjs --watch",
     "typecheck": "vue-tsc --noEmit",
-    "test:contract": "node scripts/contract-test.ts"
+    "test:contract": "node scripts/contract-test.ts && node scripts/interaction-test.ts",
+    "test:interaction": "node scripts/interaction-test.ts"
   },
   "plugin": {
     "contract": 1,
     "title": "提示词编辑器",
     "order": 3,
-    "client": "client.js"
+    "client": "client.js",
+    "settings": [
+      {
+        "key": "provider",
+        "type": "string",
+        "label": "翻译服务",
+        "default": "youdao-demo",
+        "description": "译文由插件后端统一去拿，浏览器不接触任何凭据。youdao-demo = 有道体验版（免费、无需 key，有隐性限流）。加一家 = 在 server.js 的 PROVIDERS 里加一个对象。"
+      },
+      {
+        "key": "autoTranslate",
+        "type": "boolean",
+        "label": "新条目自动翻译",
+        "default": true,
+        "description": "条目编辑完（失焦）后自动去翻，连着敲几条会合并成一次请求。已有译文（手改的、之前翻好的）一律不覆盖。"
+      },
+      {
+        "key": "maxCallsPerDay",
+        "type": "number",
+        "label": "每日调用上限",
+        "default": 2000,
+        "min": 0,
+        "max": 100000,
+        "description": "护栏：体验版接口有隐性限流，烧光了只会让自动译停下（译文格上留个记号），不会阻塞写作。0 = 只查词库、永不联网。"
+      },
+      {
+        "key": "minIntervalMs",
+        "type": "number",
+        "label": "两次调用最小间隔（毫秒）",
+        "default": 6000,
+        "min": 0,
+        "max": 60000,
+        "description": "有道体验版限流很紧（实测约 6 次/窗口就返回「请求频率过快」，触发后几十秒到几分钟才恢复；间隔 6s 连打 8 次全过）。调小能翻得快，但更容易撞限流；撞上会自动退避重试两次。"
+      },
+      {
+        "key": "timeoutMs",
+        "type": "number",
+        "label": "翻译超时（毫秒）",
+        "default": 8000,
+        "min": 1000,
+        "max": 30000,
+        "description": "单次请求的超时。局域网里自建翻译服务可以调小。"
+      }
+    ]
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@vitejs/plugin-vue": "^5.2.1",
+    "happy-dom": "^20.14.5",
     "typescript": "^5.7.2",
     "vite": "^6.0.9",
     "vue": "^3.5.13",
