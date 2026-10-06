@@ -149,7 +149,7 @@ export default {
 | `pnpm dev:plugins` | 常驻 watcher：改 `plugins/*` 源码边写边出产物 |
 | `pnpm build:plugins` | 一次性构建 → `tabs/<id>/` |
 | `pnpm --filter <包名> test:contract` | 契约测试（从 `tabs/<id>/` 读产物做断言） |
-| `pnpm verify` | typecheck → smoke → build → tabs-sync → contract |
+| `pnpm verify` | typecheck → isolation → smoke → build → tabs-sync → contract |
 
 生效时机（D20，详见 `tabs/README.md`）：**宿主不监听目录** —— 装进去 / 改完在设置页点一次
 「重新扫描插件目录」（= `POST /api/tabs/rescan`）才装载或重挂；改 `plugins/*` 的**源码**不会自动生效，

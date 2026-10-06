@@ -69,6 +69,7 @@
 | D20 | 扫描时机 | **不监听、不轮询**：宿主只在**启动**与 `POST /api/tabs/rescan`（设置页/欢迎页的「重新扫描插件目录」按钮）时扫 `tabsDir`；重扫是**增量**的（只重挂指纹变了的），结果分项回报（`added`/`reloaded`/`removed`/`failed`），前端如实转述；`GET /api/plugins` 只列**已装载**的 tab（含没通过检查、已挂成 `rejected` 的）—— 不放"看得见但点不开"的条目 | 目录里什么时候有新东西，**改的人自己知道** —— 自动扫描换来的只有"改到一半被装成一份半成品"和一套没人看的 2s 心跳；顺带消掉"容器挂载 / 网络盘上 `fs.watch` 静默失聪"这个只有实测才会发现的坑（旧实现靠 2s 指纹轮询兜底，见 §14.5）。代价：放进去 / 改完必须点一下按钮（或 `curl -X POST /api/tabs/rescan`）才生效 |
 | D22 | 工作流定义的形状 | **一个插件 = 一份工作流定义，不存在"模板"这层抽象**：图是插件根的 `workflow.json`（与 `package.json` 并列、`pack.mjs` 按名打包，跟 `anima-example` 一致），表单/绑定/产出/依赖声明在 `assets/form.json`；没有 `source.file` 指针（图不存第二份），没有多模板注册表 / 按 id 查 / id 唯一性校验（D16/D19 之后一个工作流 = 一个 tab，多模板能力从未被用过），HTTP 也随之去 `templateId`：`GET /api/template`（单数）、`POST /api/jobs` 只收 `values` | v1 的「模板数据」层是单体应用的产物（§0），v2 用「一个工作流 = 一个 tab」（G1）取代了它：一个插件里再分"模板"是重复抽象，而它唯一独有的能力（一格挂多套表单/图）没有任何使用者。旧形状还实际制造过事故：`workflow.json` 与 `graph.json` 两份图靠 `source.file` 指针连着，改一份忘另一份就悄悄跑偏。见 §10、§14 |
 | D19 | profile 机制与示例 tab 的删除 | **`profiles/`、Include 装配、`apps/server/scripts/plugin.mjs`、清单落盘、契约 patch 层、`fallback`/`following` 全删**：插件唯一来源是 `tabs/<id>/`；统一地址只剩"只读默认值"（宿主不写进任何插件）；`tabs/hello/` 不再作为示例（写法见 `tabs/README.md`） | D16 已把落点定死（`data/host.json` + `tabs/`），留着 profile 只会多一条没人走的装配路径与一份"两个真源"的歧义；示例 tab 的内容已经并进 `tabs/README.md` 的三文件骨架。见 §6/§6.1/§14.5 |
+| D23 | 插件页面崩了怎么办 | **前端渲染错误隔离**：`PluginBoundary` 包住 `<RouterView>`（`onErrorCaptured` → `return false`，且 **slot 永远渲染**），`app.config.errorHandler` 只记录、**不重抛** | dev 构建的 Vue 对**没人接住**的组件错误是 `throw err`（`logError` 的 `throwInDev`），而抛出点在调度器 `flushJobs` 里 —— 一个插件页面抛错就能让整个外壳停摆：插件区域空白、之后每次切 tab 再抛 `Cannot read properties of null (reading 'component')`，只能刷新浏览器（实测复现过）。`return false` 与"slot 永远渲染"缺一不可（前者防 re-throw，后者保证切走后 RouterView 还在树上）。见 §7.2、§14.2 |
 
 ```
 ┌─────────────────────────── 浏览器 ───────────────────────────┐
@@ -460,6 +461,7 @@ deps 全在 `devDependencies`、由 esbuild inline 进 `lib/server.js`），所�
      defineAsyncComponent(() => import(plugin.clientUrl))
 4. 合并 tabs → 渲染 tab 栏；addRoute('/w/<id>', 插件的 routes)
 5. 失败的插件：tab 位显示错误态（含 Loader 报的原因），不影响其它 tab
+6. 页面**渲染期**抛错：`PluginBoundary` 接住并给出可读原因，外壳与其它 tab 不受影响（D23）
 ```
 
 ### 7.3 路由前缀
@@ -667,12 +669,16 @@ comfyui-web/
    （`get/post/put/patch/delete/all`，支持 `:param` 与 `*rest` ——
    透明反代要靠 `*rest` 接住任意深度的子路径）。
 
-### 14.2 装配期的两个关键机制
+### 14.2 装配期的三个关键机制
 
 - **契约闸门在扫描时判定**（D19 后没有 patch 层）：`tabs.ts` 比对 `plugin.contract`，不匹配的目录
   **不会进 Loader**，而是以 `disabled` 挂一行并把原因记在 `problem` 上 —— 文件本身自然不动（T5）。
 - **单插件失败隔离 + 可见**：模块导入失败/激活失败不会让宿主退出，而是记进日志并在
   `/api/plugins` 的 `error` 字段里露出，前端给它一个带 `!` 的 tab。装配期信息比"安静地少一个 tab"重要得多。
+- **前端渲染错误隔离（D23）**：`PluginBoundary` 包住 `<RouterView>`（`apps/web/src/plugin-boundary.ts`），
+  `app.config.errorHandler` 兜边界之外的错误。插件页面在渲染期抛错时，它那一块显示原因、外壳和其它 tab 照常，
+  切走再回来即恢复。验证在 `apps/web/scripts/isolation-test.mjs`（`pnpm verify` 的 `isolation` 步，
+  不需要浏览器：用宿主 dev 态那份 Vue + 自建 renderer 复现机制）。
 
 ### 14.3 已知限制
 

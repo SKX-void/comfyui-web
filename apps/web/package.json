@@ -9,6 +9,7 @@
     "build": "node scripts/vendor.mjs && vite build",
     "preview": "vite preview",
     "vendor": "node scripts/vendor.mjs",
+    "test:isolation": "node scripts/isolation-test.mjs",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
