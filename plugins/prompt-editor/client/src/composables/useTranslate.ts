@@ -81,8 +81,8 @@ export function useTranslate(options: {
         if (result === undefined) continue;
         if (result.translation !== '') {
           job.item.translation = result.translation;
-          // 词库命中：人认可的标 user（「我」），导入/内置的标 dict（「库」）；现翻的标 api（「机」）
-          job.item.source = result.source === 'api' ? 'api' : 'dict';
+          // 词库命中：导入的机翻标 import（「导」），其余标 dict（「库」）；现翻的标 api（「机」）
+          job.item.source = result.source === 'api' ? 'api' : result.source === 'import' ? 'import' : 'dict';
           touched.set(job.block.id, job.block);
           if (result.source !== 'api') hits += 1;
         } else if (result.source === 'skip') {

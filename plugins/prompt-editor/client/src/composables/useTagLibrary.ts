@@ -1,6 +1,19 @@
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
-import { deleteTagEntry, listTags, saveTagEntry, type TagEntry, type TagList } from '../api';
+import {
+  createCategory,
+  deleteCategory,
+  deleteTagEntry,
+  fetchBundledTags,
+  importBundledTags,
+  listTags,
+  renameCategory,
+  saveTagEntry,
+  saveTagOrder,
+  type BundledTags,
+  type TagEntry,
+  type TagList,
+} from '../api';
 
 /**
  * 词库面板的状态与请求：面板（TagLibraryPanel）只是它的视图，单行 / 分类树各自成组件。
@@ -26,6 +39,21 @@ export function useTagLibrary(props: {
   const editing = ref('');
   const busy = ref('');
   const form = ref({ zh: '', categories: '', aliases: '' });
+  /** 产物里那份内置机翻表；`null` = 还没问过，`available:false` = 产物里没有 */
+  const bundled = ref<BundledTags | null>(null);
+  const importing = ref(false);
+  /**
+   * 正被拖的那一行（key）。**不放 `dataTransfer`**：拖拽数据只在 dragstart 的处理器里能写，
+   * 而合成事件（测试造的 DragEvent）压根没有 `dataTransfer` —— 状态放组件里，两边都稳。
+   */
+  const dragKey = ref('');
+  /** 拖到哪个分类上了（`''` = 没在任何落点上；`__none__` = 「未分类」那个落点） */
+  const dropTarget = ref('');
+  /**
+   * 拖拽时的插入位置：`0..tags.length`，`-1` = 没有。
+   * 和"拖到分类上"是两件互不打扰的事 —— 一行既能拖到左边换分类，也能拖到两行之间挪位置。
+   */
+  const dropIndex = ref(-1);
 
   let searchTimer: number | null = null;
 
@@ -33,11 +61,42 @@ export function useTagLibrary(props: {
     loading.value = true;
     error.value = '';
     try {
-      data.value = await listTags({ q: query.value, category: category.value, limit: 300 });
+      data.value = await listTags({ q: query.value, category: category.value, limit: limit.value });
     } catch (err) {
       error.value = `读词库失败：${(err as Error).message}`;
     } finally {
       loading.value = false;
+    }
+  }
+
+  /** 问一下产物里有没有内置机翻表。失败就当没有（按钮不画），不打扰人 */
+  async function loadBundled(): Promise<void> {
+    try {
+      bundled.value = await fetchBundledTags();
+    } catch {
+      bundled.value = null;
+    }
+  }
+
+  /**
+   * 导入内置机翻表。**只有点了才写**：14 万行、几十 MB，不在打开面板时偷偷干。
+   * 解析与写库都在服务端（读的是产物自带的 CSV），这里只等结果。
+   */
+  async function importBundled(): Promise<void> {
+    importing.value = true;
+    error.value = '';
+    hint.value = '';
+    try {
+      const result = await importBundledTags();
+      hint.value =
+        `入库 ${result.written} 条` +
+        (result.skipped > 0 ? `（${result.skipped} 条是你改过的，没动）` : '') +
+        ` · 库内共 ${result.after} 条 · ${(result.elapsedMs / 1000).toFixed(1)}s`;
+      await load();
+    } catch (err) {
+      error.value = `导入失败：${(err as Error).message}`;
+    } finally {
+      importing.value = false;
     }
   }
 
@@ -71,15 +130,16 @@ export function useTagLibrary(props: {
     busy.value = entry.key;
     error.value = '';
     try {
-      // 改了译文 = 我认可了它 → 升成 user（导入的东西以后不许覆盖）；
-      // 只改分类/别名就不传 source（server 沿用原值）
-      const zh = form.value.zh.trim();
+      // 在面板里动过 = 你认领了它 → 升成 user（导入的东西以后不许覆盖它）。
+      // **任何**一处改动都算：导入十几万条之后，你把某条从「机翻-角色」挪进自己的分类、
+      // 或给它加个别名，都不该在下一次导入时被打回原形 —— 只认"改过译文"的话，
+      // 那批"只挪了分类"的会在重导时被冲回去。
       await saveTagEntry({
         en: entry.en,
-        zh,
+        zh: form.value.zh.trim(),
         categories: splitList(form.value.categories),
         aliases: splitList(form.value.aliases),
-        ...(zh !== entry.zh ? { source: 'user' as const } : {}),
+        source: 'user',
       });
       editing.value = '';
       hint.value = '已保存';
@@ -88,6 +148,308 @@ export function useTagLibrary(props: {
       error.value = `保存失败：${(err as Error).message}`;
     } finally {
       busy.value = '';
+    }
+  }
+
+  /** 拖拽收尾：清掉落点 / 插入位置 / 拖的那条（写完之后也要清） */
+  function dropHidden(): void {
+    dropTarget.value = '';
+    dropIndex.value = -1;
+    dragKey.value = '';
+  }
+
+  /**
+   * 把某条的分类**置成这一个**（`null` = 清空成未分类）。
+   *
+   * 只发一个分类是刻意的：一个 tag 只属于一个分类（实测库里 134346 行全是单分类）。
+   * 按"加一个"来写的话，某条历史数据带着多分类时拖一下就会变成两个，而拖拽这一路
+   * 表达的意思是"换成它"。
+   *
+   * 与 `saveEdit` 同一条写入路径：**面板里动过就升成 `user`**，所以拖完的分类
+   * 以后重导机翻表不会被冲回去。
+   */
+  async function setCategory(entry: TagEntry, name: string | null): Promise<void> {
+    const next = name === null || name === '__none__' ? [] : [name];
+    if (next.join() === entry.categories.join()) {
+      dropHidden();
+      return;
+    }
+    busy.value = entry.key;
+    error.value = '';
+    try {
+      await saveTagEntry({
+        en: entry.en,
+        zh: entry.zh,
+        categories: next,
+        aliases: entry.aliases,
+        source: 'user',
+      });
+      hint.value = next.length === 0 ? `「${entry.en}」已移到未分类` : `「${entry.en}」→ ${next[0]}`;
+      await load();
+    } catch (err) {
+      error.value = `改分类失败：${(err as Error).message}`;
+    } finally {
+      busy.value = '';
+      dropHidden();
+    }
+  }
+
+  /**
+   * 这一页能拖顺序：**只在「全部」且没搜索时**。
+   *
+   * 顺序是相对"一整页"说的（服务端取左右邻居的中点写 1 行；第一次拖要把这一页铺上序号）。
+   * 筛选 / 搜索出来的是一小撮，在那一小撮里拖一下就会把它们整批顶到全库最前面 ——
+   * 那不是"我在结果里挪了一下"，是个说不通的副作用。所以筛选态下不接排序（拖到左边换分类照旧）。
+   */
+  const sortable = computed(() => query.value.trim() === '' && category.value === '');
+
+  /** 一次要多少条：**从 300 起，「加载更多」每次 +300**（服务端夹到 1000） */
+  const PAGE = 300;
+  const limit = ref(PAGE);
+  /**
+   * 还有没有更多。`total` 是命中数但**最多报到 `limit + 1`**（精确值要全表再扫一遍，22ms），
+   * 所以"比手上这页多"就等于"还有"。
+   */
+  const hasMore = computed(() => data.value.total > data.value.tags.length);
+
+  /** 服务端上限 1000，到头了就别再给按钮（点了也不会变多） */
+  const canLoadMore = computed(() => hasMore.value && limit.value < 1000);
+
+  async function loadMore(): Promise<void> {
+    limit.value = Math.min(1000, limit.value + PAGE);
+    await load();
+  }
+
+  /**
+   * 头部那行字。**筛选时要显示命中数**（原来不管搜什么都写全库总数，容易被读成"搜到这么多"）。
+   * 命中数被 `limit + 1` 截断时只能写 `N+` —— 精确值要全表扫，是当初故意不做成精确的。
+   */
+  const headerLabel = computed(() => {
+    const all = data.value.counts.total;
+    const filtered = query.value.trim() !== '' || category.value !== '';
+    if (!filtered) return `共 ${all} 条 · 未分类 ${data.value.counts.uncategorized}`;
+    const hits = data.value.total > limit.value ? `${limit.value}+` : String(data.value.total);
+    return `命中 ${hits} 条 · 全库 ${all}`;
+  });
+
+  function onDragStart(entry: TagEntry): void {
+    dragKey.value = entry.key;
+  }
+
+  function onDragEnd(): void {
+    dragKey.value = '';
+    dropTarget.value = '';
+    dropIndex.value = -1;
+  }
+
+  function onDragOver(name: string): void {
+    if (dragKey.value === '') return;
+    dropTarget.value = name === '' ? '__all__' : name;
+  }
+
+  function onDrop(name: string): void {
+    const dragged = data.value.tags.find((one) => one.key === dragKey.value) ?? null;
+    if (dragged === null) {
+      dropHidden();
+      return;
+    }
+    void setCategory(dragged, name);
+  }
+
+  /**
+   * 拖到某一行的上/下半边 = 插到它前面/后面。用指针在行内的位置判断，
+   * 但**拿不到布局时（测试里 `getBoundingClientRect()` 全是 0）一律当"插到前面"** ——
+   * 判断光标提示是锦上添花，不该让拖拽本身炸掉（和 BlockCard 里 `transferOf` 一个道理）。
+   */
+  function onRowDragOver(index: number, event: DragEvent): void {
+    if (dragKey.value === '' || !sortable.value) return;
+    dropTarget.value = '';
+    const element = event.currentTarget as HTMLElement | null;
+    const rect = element?.getBoundingClientRect?.() ?? null;
+    const after = rect !== null && rect.height > 0 && event.clientY > rect.top + rect.height / 2;
+    dropIndex.value = after ? index + 1 : index;
+  }
+
+  /**
+   * 松手：把这一行从可见顺序里摘掉、插到落点上，整批写回。
+   *
+   * 写的是**这一页**的顺序（面板一次 300 条）—— 服务端按 `sort = 1..N` 记下，
+   * 有 `sort` 的排在前面，所以拖过的这页会稳定待在顶部，其余仍按热度。
+   */
+  async function onRowDrop(): Promise<void> {
+    const dragged = dragKey.value;
+    const to = dropIndex.value;
+    dropHidden();
+    if (dragged === '' || to < 0 || !sortable.value) return;
+    const keys = data.value.tags.map((one) => one.key);
+    const from = keys.indexOf(dragged);
+    if (from < 0) return;
+    // 落点在"自己原来的位置"或紧挨着它，等于没动 —— 不发请求（不然每点一下都写 300 行）
+    const moved = [...keys.slice(0, from), ...keys.slice(from + 1)];
+    const at = to > from ? to - 1 : to;
+    moved.splice(at, 0, dragged);
+    if (moved.join() === keys.join()) return;
+    busy.value = dragged;
+    error.value = '';
+    try {
+      const result = await saveTagOrder(moved, dragged);
+      // 服务端只在"序号还没铺过 / 切尽了"时才重铺整页，如实说出来（不然人会以为每次都这样写）
+      hint.value = result.rebuilt ? '顺序已记下（重排了序号）' : '顺序已记下';
+      await load();
+    } catch (err) {
+      error.value = `存顺序失败：${(err as Error).message}`;
+    } finally {
+      busy.value = '';
+    }
+  }
+
+  /** 行上分类标签旁边的「×」：从这一条上摘掉一个分类 */
+  async function removeCategory(entry: TagEntry, name: string): Promise<void> {
+    await setCategory(entry, entry.categories.filter((one) => one !== name).join(',') || null);
+  }
+
+  /**
+   * 编辑态里点一个分类标签：**切换**它在不在这一条上。
+   *
+   * 这一路允许攒出多分类（输入框也能）—— 拖拽那条路是"只留一个"，这里不是：
+   * 手点的时候"加上去"和"换掉"是两种意图，用输入框的人本来就该看见自己在拼什么。
+   * 真正的新分类名只有输入框能造（拖拽的落点只存在于已有名字里）。
+   */
+  function toggleCategory(name: string): void {
+    const list = splitList(form.value.categories);
+    const next = list.includes(name) ? list.filter((one) => one !== name) : [...list, name];
+    form.value.categories = next.join(', ');
+  }
+
+  /**
+   * 编辑模式：**插入和编辑互斥**，一个开关切。
+   *
+   * - 关着（浏览）：行上只有「插入」；左边分类树是纯筛选 + 拖拽落点，没有管理入口。
+   * - 开着（编辑）：行上是「改 / 删」，分类树上出现「＋ 新建分类」和每行的「改 / 删」，**「插入」藏起来**。
+   *
+   * 为什么收进模式里：「删」**没有二次确认**（直接把这条从库里删掉），而它原来就挨着「插入」——
+   * 想插一条手抖点偏一格，这条就没了。改和删都是"我要动手整理"时才会做的事，插入不是。
+   *
+   * 关掉/重开面板时会**把编辑态一起收干净**：不然会出现"模式关了、某一行却还是表单"
+   * 或者"分类树停在改名输入框上"这种自相矛盾的状态。
+   */
+  const editMode = ref(false);
+
+  /** 退出编辑模式：把这一层里所有"编辑中的半成品"一起收掉（关开关和重开面板都走它） */
+  function exitEditMode(): void {
+    editMode.value = false;
+    cancelEdit();
+    cancelCreateCategory();
+    cancelRenameCategory();
+    cancelRemoveCategory();
+  }
+
+  function toggleEditMode(): void {
+    if (editMode.value) exitEditMode();
+    else editMode.value = true;
+  }
+
+  /** 分类级管理（分类本身是一张表，跟"某个 tag 属于谁"分开） */
+  const creatingCategory = ref(false);
+  const newCategory = ref('');
+  const renamingCategory = ref('');
+  const renameTo = ref('');
+  const confirmRemove = ref<{ name: string; count: number } | null>(null);
+  const categoryBusy = ref(false);
+
+  function startCreateCategory(): void {
+    creatingCategory.value = true;
+    newCategory.value = '';
+    renamingCategory.value = '';
+    confirmRemove.value = null;
+  }
+
+  function cancelCreateCategory(): void {
+    creatingCategory.value = false;
+    newCategory.value = '';
+  }
+
+  async function submitCreateCategory(): Promise<void> {
+    const name = newCategory.value.trim();
+    if (name === '' || categoryBusy.value) return;
+    categoryBusy.value = true;
+    error.value = '';
+    try {
+      const created = await createCategory(name);
+      hint.value = created ? `已新建分类「${name}」` : `已经有一个叫「${name}」的分类了`;
+      creatingCategory.value = false;
+      newCategory.value = '';
+      await load();
+    } catch (err) {
+      error.value = `新建分类失败：${(err as Error).message}`;
+    } finally {
+      categoryBusy.value = false;
+    }
+  }
+
+  function startRenameCategory(name: string): void {
+    renamingCategory.value = name;
+    renameTo.value = name;
+    creatingCategory.value = false;
+    confirmRemove.value = null;
+  }
+
+  function cancelRenameCategory(): void {
+    renamingCategory.value = '';
+    renameTo.value = '';
+  }
+
+  async function submitRenameCategory(): Promise<void> {
+    const from = renamingCategory.value;
+    const to = renameTo.value.trim();
+    if (from === '' || to === '' || categoryBusy.value) return;
+    if (to === from) {
+      cancelRenameCategory();
+      return;
+    }
+    categoryBusy.value = true;
+    error.value = '';
+    try {
+      const moved = await renameCategory(from, to);
+      hint.value = `「${from}」已改名为「${to}」（${moved} 条词条跟着走）`;
+      // 正在筛这个分类：跟着改成新名字，不然筛选条件就指向一个不存在的名字了
+      if (category.value === from) category.value = to;
+      cancelRenameCategory();
+      await load();
+    } catch (err) {
+      error.value = `改名失败：${(err as Error).message}`;
+    } finally {
+      categoryBusy.value = false;
+    }
+  }
+
+  /** 删除是批量破坏性的（可能几万条），所以先摆出影响范围再让人确认 */
+  function askRemoveCategory(name: string, count: number): void {
+    confirmRemove.value = { name, count };
+    creatingCategory.value = false;
+    renamingCategory.value = '';
+  }
+
+  function cancelRemoveCategory(): void {
+    confirmRemove.value = null;
+  }
+
+  async function submitRemoveCategory(): Promise<void> {
+    const target = confirmRemove.value;
+    if (target === null || categoryBusy.value) return;
+    categoryBusy.value = true;
+    error.value = '';
+    try {
+      const removed = await deleteCategory(target.name);
+      hint.value = `已删掉分类「${target.name}」（${removed} 条词条变回未分类，词条本身没删）`;
+      // 正在筛这个分类的话，筛下去就是空的 —— 回到「全部」
+      if (category.value === target.name) category.value = '';
+      confirmRemove.value = null;
+      await load();
+    } catch (err) {
+      error.value = `删除分类失败：${(err as Error).message}`;
+    } finally {
+      categoryBusy.value = false;
     }
   }
 
@@ -113,6 +475,7 @@ export function useTagLibrary(props: {
       targetId.value = props.activeBlockId !== '' ? props.activeBlockId : (props.blocks[0]?.id ?? '');
       hint.value = '';
       void load();
+      void loadBundled();
     },
   );
 
@@ -135,6 +498,44 @@ export function useTagLibrary(props: {
     editing,
     busy,
     form,
+    bundled,
+    importing,
+    importBundled,
+    dragKey,
+    dropTarget,
+    dropIndex,
+    sortable,
+    editMode,
+    toggleEditMode,
+    exitEditMode,
+    limit,
+    hasMore,
+    canLoadMore,
+    loadMore,
+    headerLabel,
+    creatingCategory,
+    newCategory,
+    renamingCategory,
+    renameTo,
+    confirmRemove,
+    categoryBusy,
+    startCreateCategory,
+    cancelCreateCategory,
+    submitCreateCategory,
+    startRenameCategory,
+    cancelRenameCategory,
+    submitRenameCategory,
+    askRemoveCategory,
+    cancelRemoveCategory,
+    submitRemoveCategory,
+    onDragStart,
+    onDragEnd,
+    onDragOver,
+    onDrop,
+    onRowDragOver,
+    onRowDrop,
+    toggleCategory,
+    removeCategory,
     onSearchInput,
     pickCategory,
     startEdit,

@@ -24,9 +24,10 @@
 | `data/host.json`（偏好段：`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals` / `disabled`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写；手改也行，重扫后生效） | ❌ |
 | `data/plugins/<包名>/…` | 各插件自己（如 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
 | `data/plugins/<包名>/last-state.json` | anima-plus 自己（`plugins/anima-plus/server/state.ts`；`GET/PUT /api/p/anima-plus/api/state`） | 运行期 | ✅ 纯 JSON（点「开始生成」自动写，手改或删掉也行） | ❌ |
-| `data/plugins/<包名>/presets.json`·`draft.json`·`tags.json`·`settings.json`·`usage.json` | prompt-editor 自己（`plugins/prompt-editor/server/`；`GET/PUT /api/p/prompt-editor/*`） | 运行期 | ✅ 纯 JSON（预设库 / 当前草稿——草稿分"组结构 + 条目"两段，编辑时按改动粒度增量写；`tags.json` = 词库（一张表两用：翻译按 en/别名命中、面板按分类分组），进库的都是手动存过的（手改译文 / 点「机」/ 面板里改），现翻结果只进会话缓存；老 `dict.json` 读到即自动迁移并改名成 `dict.json.migrated`；老 `dict.json` 读到即自动迁移、原文件保留；`settings.json` = provider 与护栏（每日上限、超时、两次调用最小间隔）；`usage.json` = 当日调用次数。删掉＝回到首屏三个空区块 / 空词库 / 默认设置） | ❌ |
+| `data/plugins/<包名>/presets.json`·`draft.json`·`tags.db`·`settings.json`·`usage.json` | prompt-editor 自己（`plugins/prompt-editor/server/`；`GET/PUT /api/p/prompt-editor/*`） | 运行期 | ✅ 预设库 / 草稿 / 设置 / 用量是纯 JSON（草稿分"组结构 + 条目"两段，编辑时按改动粒度增量写）；**`tags.db` = 词库，SQLite**（一张表两用：翻译按 en/别名命中、面板按分类分组），进库的要么是你手改 / 点「机」存的（`source:'user'`），要么是导入的机翻表（`source:'import'`，重导不覆盖前者）—— 两条入口：面板的「导入内置机翻表」按钮（读产物自带的 `assets/danbooru-zh.csv`）与 `scripts/import-tags.ts`（任意 CSV）；现翻结果只进会话缓存；老 `tags.json` / `dict.json` 读到即自动迁进 `tags.db`、来源文件改名成 `*.migrated`（原件保留）；`settings.json` = provider 与护栏（每日上限、超时、两次调用最小间隔）；`usage.json` = 当日调用次数。删掉＝回到首屏三个空区块 / 空词库 / 默认设置 | ❌ |
 | `plugins/<pkg>/package.json` 的 `plugin.settings[]` | 宿主 → `GET /api/plugins` → 插件自己的设置界面 | 包 | ✅（改包） | ✅ |
 | `plugins/<pkg>/server/config.ts` | 插件自己（运行期默认值 / 范围） | 包 | ✅（改包） | ✅ |
+| `plugins/<pkg>/assets/…`（prompt-editor 的 `danbooru-zh.csv` = 内置机翻表，5.2MB） | 插件自己按 `import.meta.url` 读**产物里的副本**（`tabs/<id>/assets/`，构建时由 `scripts/pack.mjs` 的 `extras` 拷进去；`POST /api/p/prompt-editor/tags/import`） | 包 | ✅（改包；CSV 走 **git-lfs**，改完 `pnpm build:plugins` 重新拷进产物） | ✅（LFS） |
 | `tabs/<id>/package.json` | 宿主扫描（`apps/server/src/tabs.ts` → `scanTabs()`） | 目录 | ✅ 改完点「重新扫描插件目录」（= `POST /api/tabs/rescan`，D20） | ❌（产物） |
 | `tabs/<id>/server.js`、`client.js` | Loader 直接 `import()` 绝对路径 → 宿主 / 浏览器 | 目录 | ✅ 同上：重扫时指纹变了才**重挂**（前端再刷新浏览器） | ❌（产物） |
 

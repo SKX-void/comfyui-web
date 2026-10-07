@@ -21,14 +21,18 @@ export interface Item {
   /** 翻译位（下一步接入数据源）：这里只存结果，空串 = 没翻译 */
   translation: string;
   /**
-   * 译文是哪来的（视觉上要能分出来，因为只有"人认可的"才会进词库）：
-   * `''` 没译文或旧数据 · `api` 机器现翻的（**没进词库**）· `dict` 词库命中的 · `user` 手改/存过的
+   * 译文是哪来的（视觉上要能分出来 —— 徽章回答"这条能不能信、要不要再问接口"）：
+   * `''` 没译文或旧数据 · `api` 机器现翻的（**没进词库**）· `dict` 词库命中的（你改过的 / 内置的）·
+   * `import` 词库命中的（外部机翻表导入的）
    */
   source: ItemSource;
 }
 
-/** 译文来源：`dict` = 在词库里 · `api` = 机器现翻的、还没进库 · `''` = 没有译文/来路不明 */
-export type ItemSource = '' | 'api' | 'dict';
+/**
+ * 译文来源：`dict` = 在词库里 · `import` = 在库里但来自导入的机翻表 · `api` = 机器现翻的、还没进库 ·
+ * `''` = 没有译文/来路不明
+ */
+export type ItemSource = '' | 'api' | 'dict' | 'import';
 
 export interface Block {
   id: string;

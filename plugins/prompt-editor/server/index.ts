@@ -19,9 +19,12 @@ export function apply(ctx: PluginContext): void {
   registerRoutes(ctx);
 }
 
+export { LIMITS } from './constants.js';
 export { docFromStored, rawFromStored, sanitizeDoc, storedFromDoc, storedFromRaw } from './doc.js';
 export { maskPromptSyntax, tagKey } from './prompt.js';
 export { PROVIDERS } from './providers.js';
 export { sanitizeSettings, sanitizeUsage } from './settings.js';
-export { queryTags, removeTag, sanitizeTags, tagsLookup, upsertTag } from './tags.js';
+export { escapeLike, machineCategory, mergeTag, sanitizeTags, tagSearchBlob } from './tags.js';
+export { BUNDLED_CSV, looksLikeLfsPointer, parseTagCsv } from './tagcsv.js';
+export { openTagDb } from './tagdb.js';
 export { translateTexts } from './translate.js';

@@ -19,6 +19,8 @@ await packTab({
     ['node', ['scripts/build-server.mjs', ...(watch ? ['--watch'] : [])]],
     ['vite', ['build']],
   ],
-  extras: ['README.md'],
+  // assets/ = 运行期资产：内置机翻表（danbooru-zh.csv）。服务端按 import.meta.url 找它，
+  // 所以它必须躺在产物目录里（dist/ 整包搬走也带得上，LFS 只在源码 checkout 那一侧存在）。
+  extras: ['README.md', 'assets'],
   watch,
 });

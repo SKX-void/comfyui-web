@@ -14,7 +14,11 @@
  *
  * 用法：node plugins/prompt-editor/scripts/contract-test.ts（Node 24+ 直接跑 TS）
  */
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import { register } from 'node:module';
+import os from 'node:os';
+import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -71,10 +75,12 @@ const server = (await import(artifact('server.js').href)) as typeof import('../s
 const {
   PROVIDERS,
   docFromStored,
+  looksLikeLfsPointer,
+  machineCategory,
   maskPromptSyntax,
-  queryTags,
+  openTagDb,
+  parseTagCsv,
   rawFromStored,
-  removeTag,
   sanitizeDoc,
   sanitizeSettings,
   sanitizeTags,
@@ -82,9 +88,7 @@ const {
   storedFromDoc,
   storedFromRaw,
   tagKey,
-  tagsLookup,
   translateTexts,
-  upsertTag,
 } = server;
 
 const plugin = (await import(artifact('client.js').href)).default as {
@@ -108,9 +112,12 @@ const plugin = (await import(artifact('client.js').href)).default as {
     return { get: record('GET'), post: record('POST'), put: record('PUT'), delete: record('DELETE') };
   };
   let effects = 0;
+  // 空间给个真目录（宿主的语义就是这样）：装配阶段**不该**在里头留下任何东西 ——
+  // 词库连接是第一次真要用时才开的，只挂路由不该凭空造出一个 tags.db
+  const spaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-apply-'));
   server.apply({
     routes: { for: newTable },
-    space: { for: () => ({ packageName: 'x', root: '/tmp', resolve: (f: string) => f }) },
+    space: { for: () => ({ packageName: 'x', root: spaceDir, resolve: (f: string) => path.join(spaceDir, f) }) },
     effect: () => {
       effects += 1;
     },
@@ -132,6 +139,12 @@ const plugin = (await import(artifact('client.js').href)).default as {
     'GET /tags',
     'PUT /tags/entry',
     'DELETE /tags/entry',
+    'GET /tags/import',
+    'POST /tags/import',
+    'PUT /tags/order',
+    'POST /tags/categories',
+    'DELETE /tags/categories',
+    'PUT /tags/categories',
   ];
   const registered = tables.at(-1) ?? []; // 宿主最终留下的是最后领的那张表
   check(
@@ -140,6 +153,8 @@ const plugin = (await import(artifact('client.js').href)).default as {
     registered.join(' '),
   );
   check('apply 注册了收尾（ctx.effect）', effects === 1, effects);
+  check('装配阶段不碰盘（词库连接第一次真要用时才开）', fs.readdirSync(spaceDir).length === 0, fs.readdirSync(spaceDir).join(' '));
+  fs.rmSync(spaceDir, { recursive: true, force: true });
 }
 
 console.log('产物契约');
@@ -505,81 +520,323 @@ check('空文本切不出片段', maskPromptSyntax('   ').parts.length === 0);
 
 console.log('词库（一张表两用：翻译命中 + 面板分组）');
 check('键归一化：大小写不敏感、空白折叠', tagKey('  1Girl   SOLO ') === '1girl solo');
-const freshTags = sanitizeTags(null);
+// 每个用例开自己的空库：库是文件，不共享状态也就不会互相污染（目录跑完一起删）
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-tags-'));
+const tagsJson = path.join(tmpDir, 'tags.json');
+const dictJson = path.join(tmpDir, 'dict.json');
+let dbSeq = 0;
+const newTags = () =>
+  openTagDb({ db: path.join(tmpDir, `tags-${(dbSeq += 1)}.db`), tagsJson, legacyDictJson: dictJson });
+
+check('坏输入退化成空库', sanitizeTags(null).length === 0 && sanitizeTags('nope').length === 0);
+
+{
+  // 手动排序（面板拖出来的顺序）：`sort` 有值的排在最前，其余仍按热度
+  const db = newTags();
+  // 用 importEntries 而不是 upsert 铺数据：`hot` 是导入数据，upsert（人改的那条路）根本不收它，
+  // 而且 upsert 会把 updatedAt 写成当下，那样测的就不是"按热度"而是"按改动时间"了
+  db.importEntries(
+    (
+      [
+        ['a', 10],
+        ['b', 30],
+        ['c', 20],
+      ] as [string, number][]
+    ).map(([en, hot]) => ({
+      key: en,
+      en,
+      zh: `${en}译`,
+      categories: [],
+      aliases: [],
+      source: 'import',
+      updatedAt: 0,
+      hot,
+    })),
+  );
+  const keysOf = (): string => db.query({ limit: 10 }).tags.map((one) => one.key).join();
+  check('没排过顺序：按热度 b(30) > c(20) > a(10)', keysOf() === 'b,c,a', keysOf());
+  const first = db.setOrder(['a', 'c', 'b'], 'a');
+  check('第一次拖：这一页还没序号 → 整页铺间隔（rebuilt）', first.rebuilt === true && first.written === 3, JSON.stringify(first));
+  check('排过的按手动顺序在最前', keysOf() === 'a,c,b', keysOf());
+  const second = db.setOrder(['b', 'a', 'c'], 'b');
+  check('之后拖：只写被拖的那一行（中点法，不是重写整页）', second.rebuilt === false && second.written === 1, JSON.stringify(second));
+  check('顺序按新的来', keysOf() === 'b,a,c', keysOf());
+  check('setOrder 不动 updatedAt（排序不是"改内容"，不然回退顺序会被连带改掉）', db.lookup('a')?.updatedAt === 0);
+  check('setOrder 也不改 source（排序 ≠ 认领这条）', db.lookup('a')?.source === 'import');
+  // 浮点也会用尽：同一个缝里反复对半切（double 尾数 ~50 位）就切不出严格居中的值了
+  let rebuilt = false;
+  for (let i = 0; i < 80 && !rebuilt; i += 1) rebuilt = db.setOrder(['a', 'c', 'b'], 'c').rebuilt;
+  check('序号切尽 → 退回整页重铺（这条兜底路径必须真的会触发）', rebuilt === true);
+  check('重铺之后顺序没变（还是 a,c,b）', keysOf() === 'a,c,b', keysOf());
+  db.close();
+}
+
+// 分类级管理：分类**自己是一张表**（不只是 tag 上的一个字符串）
+{
+  const db = newTags();
+  const names = (): string => db.query().categories.map((one) => `${one.name}:${one.count}`).join(' ');
+  check('空库没有分类', names() === '', names());
+  check('新建一个分类', db.createCategory('新分类') === true);
+  check(
+    '还没人用的空分类也在树里（计数 0）—— 这就是分类做成实体表的意义',
+    names() === '新分类:0',
+    names(),
+  );
+  check('重名不当错误（面板再点一次不该报错）', db.createCategory('新分类') === false);
+  check('重名之后树里还是一份', names() === '新分类:0', names());
+
+  db.importEntries([
+    { key: 'x', en: 'x', zh: 'x译', categories: ['写词时现打的名字'], aliases: [], source: 'import', hot: 0, updatedAt: 1 },
+  ]);
+  check(
+    '给 tag 填一个没建过的分类名 → 顺手注册成真分类（不然编辑框里打出来的名字在树里没位置）',
+    names() === '写词时现打的名字:1 新分类:0',
+    names(),
+  );
+
+  db.importEntries([
+    { key: 'y', en: 'y', zh: 'y译', categories: ['新分类'], aliases: [], source: 'import', hot: 0, updatedAt: 2 },
+  ]);
+  check('分类计数跟着走', names() === '写词时现打的名字:1 新分类:1', names());
+
+  check(
+    '改名：两张表一起改，返回跟着走的词条数',
+    db.renameCategory('新分类', '改过的名字') === 1 && names() === '写词时现打的名字:1 改过的名字:1',
+    names(),
+  );
+  check('改名后那条词条上也是新名字', db.lookup('y')?.categories.join() === '改过的名字');
+  check('撞名不合并（返回 -1 让面板报错）', db.renameCategory('改过的名字', '写词时现打的名字') === -1);
+  check('撞名失败之后两边都没动', names() === '写词时现打的名字:1 改过的名字:1', names());
+
+  check('删掉分类：返回受影响的词条数', db.removeCategory('改过的名字') === 1);
+  check('分类没了', names() === '写词时现打的名字:1', names());
+  check(
+    '但词条本身一条都没删（只是变回未分类）',
+    db.lookup('y')?.categories.length === 0 && db.count() === 2,
+    `${db.lookup('y')?.categories.length} / ${db.count()}`,
+  );
+  check('删一个不存在的分类也不炸（返回 0）', db.removeCategory('从来没有过的名字') === 0);
+  db.close();
+}
+
+// 老库迁移：分类只存在于 `tag_categories` 里，`categories` 表是空的（本轮之前建的库就是这样）
+{
+  const file = path.join(tmpDir, 'categories-backfill.db');
+  const first = openTagDb({ db: file, tagsJson, legacyDictJson: dictJson });
+  first.importEntries([
+    { key: 'z', en: 'z', zh: 'z译', categories: ['老分类'], aliases: [], source: 'import', hot: 0, updatedAt: 1 },
+  ]);
+  first.close();
+  const raw = new DatabaseSync(file);
+  raw.exec('DELETE FROM categories');
+  raw.close();
+  const second = openTagDb({ db: file, tagsJson, legacyDictJson: dictJson });
+  check(
+    '开库时把 tag_categories 里在用的名字补进 categories（老库不用手工迁移）',
+    second.query().categories.map((one) => `${one.name}:${one.count}`).join() === '老分类:1',
+    JSON.stringify(second.query().categories),
+  );
+  second.close();
+}
 check(
-  '坏输入退化成空库',
-  Object.keys(freshTags.entries).length === 0 && sanitizeTags('nope').entries !== undefined && sanitizeTags(null).aliasIndex !== undefined,
+  '机翻分类映射：数字 → 机翻-中文名（认不出的数字归"其他"，空值给 null = 未分类）',
+  machineCategory('0') === '机翻-通用' &&
+    machineCategory(1) === '机翻-画师' &&
+    machineCategory('3') === '机翻-作品' &&
+    machineCategory('4') === '机翻-角色' &&
+    machineCategory('5') === '机翻-元信息' &&
+    machineCategory('9') === '机翻-其他' &&
+    machineCategory('') === null &&
+    machineCategory(undefined) === null,
+);
+
+// 机翻表的解析规则（server/tagcsv.ts）：CLI 与面板那条「导入内置机翻表」走的是同一份，
+// 所以这里断言的是**两边共同**的语义 —— 引号里的逗号、没翻出来的占位、同键去重。
+check(
+  'CSV 解析：表头认列名 · 引号里的逗号不断列 · 译文同正名的占位行跳过 · 同键留热度高的',
+  (() => {
+    const { rows, stats } = parseTagCsv(
+      [
+        'tag,category,count,alias',
+        '1girl,0,8419190,1女',
+        '"my_hero_academia,",6,39259,我的英雄学院',
+        'otu_(o2h2_oh4),1,679,"otu (O2H2, Oh4)"',
+        'untouched,0,8224,untouched',
+        'notrans,0,100,',
+        ',0,100,没正名',
+        '1girl,0,5,重复的（热度低，丢掉）',
+      ].join('\n'),
+    );
+    const byKey = new Map(rows.map((row) => [row.key, row]));
+    const girl = byKey.get('1girl');
+    return (
+      stats.lines === 7 &&
+      stats.noTag === 1 &&
+      stats.noZh === 1 &&
+      stats.placeholder === 1 &&
+      stats.duplicates === 1 &&
+      rows.length === 3 &&
+      // 引号里的逗号：tag 自己带逗号、译文里带逗号，都不能被切成两列
+      byKey.get('my_hero_academia,')?.zh === '我的英雄学院' &&
+      byKey.get('otu_(o2h2_oh4)')?.zh === 'otu (O2H2, Oh4)' &&
+      // 同键留热度高的那条（重复行是热度 5 的那份）
+      girl?.hot === 8419190 &&
+      girl?.categories.join() === '机翻-通用' &&
+      girl?.source === 'import' &&
+      girl?.updatedAt === 0
+    );
+  })(),
 );
 check(
-  '记一条再查得到',
-  upsertTag(freshTags, { en: '1Girl', zh: '一个女孩', source: 'import' }) !== null &&
-    tagsLookup(freshTags, '1girl')?.zh === '一个女孩',
+  'CSV 解析：认不出表头就按位置读（tag,category,count,alias）· --min-count 只过滤不报错',
+  (() => {
+    const { rows, stats } = parseTagCsv('1girl,0,8419190,1女\nrare,4,10,冷门\n', { minCount: 100 });
+    return (
+      rows.length === 1 && rows[0]?.en === '1girl' && stats.filtered === 1 && stats.header.join() === 'en,category,hot,zh'
+    );
+  })(),
+);
+check(
+  'git-lfs 指针认得出来（认不出来的话导入会"成功但入库 0 条"，比报错难查）',
+  looksLikeLfsPointer('version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 5448620\n') &&
+    !looksLikeLfsPointer('tag,category,count,alias\n1girl,0,8419190,1女\n'),
+);
+const fresh = newTags();
+check('空库查得到 null', fresh.lookup('nope') === null && fresh.count() === 0);
+check(
+  '记一条再查得到（键大小写不敏感）',
+  fresh.upsert({ en: '1Girl', zh: '一个女孩', source: 'import' }) !== null && fresh.lookup('1girl')?.zh === '一个女孩',
 );
 check(
   '空译文不记（词库里的条目必须有译文）',
-  upsertTag(freshTags, { en: 'solo', zh: '   ', source: 'import' }) === null && tagsLookup(freshTags, 'solo') === null,
+  fresh.upsert({ en: 'solo', zh: '   ', source: 'import' }) === null && fresh.lookup('solo') === null,
 );
 check(
   '手改的条目不被非 user 的写入覆盖',
-  upsertTag(freshTags, { en: '1girl', zh: '一个女孩（我改的）', source: 'user' }) !== null &&
-    upsertTag(freshTags, { en: '1girl', zh: '机器翻的', source: 'import' }) === null &&
-    tagsLookup(freshTags, '1girl')?.zh === '一个女孩（我改的）',
+  fresh.upsert({ en: '1girl', zh: '一个女孩（我改的）', source: 'user' }) !== null &&
+    fresh.upsert({ en: '1girl', zh: '机器翻的', source: 'import' }) === null &&
+    fresh.lookup('1girl')?.zh === '一个女孩（我改的）',
 );
 check(
   '只改分类时译文和来源都保留（局部更新不该抹掉别的字段）',
   (() => {
-    upsertTag(freshTags, { en: '1girl', categories: ['人物'] });
-    const entry = tagsLookup(freshTags, '1girl');
+    fresh.upsert({ en: '1girl', categories: ['人物'] });
+    const entry = fresh.lookup('1girl');
     return entry?.zh === '一个女孩（我改的）' && entry?.source === 'user' && entry?.categories[0] === '人物';
+  })(),
+);
+check(
+  '批量导入不覆盖手改过的行 —— 连它的分类 / 别名都不动（导入是无条件 DELETE 再写，不拦住就抹了）',
+  (() => {
+    const t = newTags();
+    t.upsert({ en: 'hatsune miku', zh: '我改的译文', categories: ['人物'], aliases: ['miku'], source: 'user' });
+    const written = t.importEntries([
+      {
+        key: 'hatsune miku',
+        en: 'hatsune miku',
+        zh: '机器翻的',
+        categories: ['机翻-角色'],
+        aliases: ['初音'],
+        source: 'import',
+        updatedAt: 0,
+        hot: 120000,
+      },
+    ]);
+    const entry = t.lookup('hatsune miku');
+    return (
+      written === 0 &&
+      entry?.zh === '我改的译文' &&
+      entry.categories.join() === '人物' &&
+      entry.aliases.join() === 'miku' &&
+      entry.hot === 0
+    );
   })(),
 );
 check(
   '老平表（dict.json）读进来：缺分类/别名补空，老 source 归到 import',
   (() => {
-    const d = sanitizeTags({ version: 1, entries: { a: { zh: '甲', source: 'api' }, b: { zh: '' }, c: 'nope' } });
-    const kept = Object.values(d.entries);
+    const rows = sanitizeTags({ version: 1, entries: { a: { zh: '甲', source: 'api' }, b: { zh: '' }, c: 'nope' } });
     return (
-      Object.keys(d.entries).length === 1 &&
-      kept[0]?.source === 'import' &&
-      kept[0]?.categories?.length === 0 &&
-      kept[0]?.aliases?.length === 0
+      rows.length === 1 &&
+      rows[0]?.source === 'import' &&
+      rows[0]?.categories.length === 0 &&
+      rows[0]?.aliases.length === 0
     );
+  })(),
+);
+check(
+  '落盘：关掉再打开条目还在（不是内存里的假象）',
+  (() => {
+    const file = path.join(tmpDir, 'persist.db');
+    const first = openTagDb({ db: file, tagsJson, legacyDictJson: dictJson });
+    first.upsert({ en: 'masterpiece', zh: '杰作', categories: ['画质'], aliases: ['mp'], source: 'import' });
+    first.close();
+    const second = openTagDb({ db: file, tagsJson, legacyDictJson: dictJson });
+    const hit = second.lookup('MP');
+    const ok = hit?.zh === '杰作' && hit?.categories[0] === '画质' && second.count() === 1;
+    second.close();
+    return ok;
+  })(),
+);
+check(
+  '迁移：tags.json 搬进库后改名成 .migrated（原件留着，也不让它复活）',
+  (() => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-migrate-'));
+    const json = path.join(dir, 'tags.json');
+    fs.writeFileSync(json, JSON.stringify({ version: 2, entries: { '1girl': { zh: '一个女孩', categories: ['人物'], source: 'user' } } }), 'utf8');
+    const db = openTagDb({ db: path.join(dir, 'tags.db'), tagsJson: json, legacyDictJson: path.join(dir, 'dict.json') });
+    const ok = db.count() === 1 && db.lookup('1girl')?.zh === '一个女孩';
+    db.close();
+    return ok && fs.existsSync(`${json}.migrated`) && !fs.existsSync(json);
+  })(),
+);
+check(
+  '迁移：盘上只有老 dict.json 时也能搬（同样改名）',
+  (() => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-migrate-'));
+    const dict = path.join(dir, 'dict.json');
+    fs.writeFileSync(dict, JSON.stringify({ entries: { masterpiece: { zh: '杰作' } } }), 'utf8');
+    const db = openTagDb({ db: path.join(dir, 'tags.db'), tagsJson: path.join(dir, 'tags.json'), legacyDictJson: dict });
+    const hit = db.lookup('masterpiece');
+    const ok = hit?.zh === '杰作' && hit?.source === 'import';
+    db.close();
+    return ok && fs.existsSync(`${dict}.migrated`);
   })(),
 );
 
 console.log('别名：输入别名命中正名（导入外部库时用得上）');
-const aliasTags = sanitizeTags(null);
-upsertTag(aliasTags, { en: 'cinematic lighting', zh: '电影照明', aliases: ['cinematic light', 'movie lighting'], source: 'import' });
-upsertTag(aliasTags, { en: 'depth of field', zh: '景深', source: 'import' });
-check('别名命中正名', tagsLookup(aliasTags, 'Cinematic Light')?.en === 'cinematic lighting');
-check('正名照旧命中', tagsLookup(aliasTags, 'cinematic lighting')?.zh === '电影照明');
-check('查不到的返回 null', tagsLookup(aliasTags, 'nope') === null);
+const aliasTags = newTags();
+aliasTags.upsert({ en: 'cinematic lighting', zh: '电影照明', aliases: ['cinematic light', 'movie lighting'], source: 'import' });
+aliasTags.upsert({ en: 'depth of field', zh: '景深', source: 'import' });
+check('别名命中正名', aliasTags.lookup('Cinematic Light')?.en === 'cinematic lighting');
+check('正名照旧命中', aliasTags.lookup('cinematic lighting')?.zh === '电影照明');
+check('查不到的返回 null', aliasTags.lookup('nope') === null);
 check(
   '别名撞上另一个正名时以正名为准',
   (() => {
-    upsertTag(aliasTags, { en: 'dof', zh: '景深缩写', source: 'import' });
-    upsertTag(aliasTags, { en: 'depth of field', aliases: ['dof'] });
-    return tagsLookup(aliasTags, 'dof')?.en === 'dof';
+    aliasTags.upsert({ en: 'dof', zh: '景深缩写', source: 'import' });
+    aliasTags.upsert({ en: 'depth of field', aliases: ['dof'] });
+    return aliasTags.lookup('dof')?.en === 'dof';
   })(),
 );
 check('删掉条目后别名不再命中', (() => {
-  const t = sanitizeTags(null);
-  upsertTag(t, { en: 'best quality', zh: '最好的质量', aliases: ['best'], source: 'import' });
-  const before = tagsLookup(t, 'best') !== null;
-  const deleted = removeTag(t, 'best quality');
-  return before && deleted && tagsLookup(t, 'best') === null && Object.keys(t.entries).length === 0;
+  const t = newTags();
+  t.upsert({ en: 'best quality', zh: '最好的质量', aliases: ['best'], source: 'import' });
+  const before = t.lookup('best') !== null;
+  const deleted = t.remove('best quality');
+  return before && deleted && t.lookup('best') === null && t.count() === 0;
 })());
 
 console.log('面板查询：搜索 / 分类 / 计数 / 删一条');
-const panelTags = sanitizeTags(null);
-upsertTag(panelTags, { en: 'masterpiece', zh: '杰作', categories: ['画质'], source: 'user' });
-upsertTag(panelTags, { en: 'best quality', zh: '最好的质量', categories: ['画质'], source: 'import' });
-upsertTag(panelTags, { en: '1girl', zh: '一个女孩', categories: ['人物'], source: 'import' });
-upsertTag(panelTags, { en: 'solo', zh: '单人', source: 'builtin' });
+const panel = newTags();
+panel.upsert({ en: 'masterpiece', zh: '杰作', categories: ['画质'], source: 'user' });
+panel.upsert({ en: 'best quality', zh: '最好的质量', categories: ['画质'], source: 'import' });
+panel.upsert({ en: '1girl', zh: '一个女孩', categories: ['人物'], source: 'import' });
+panel.upsert({ en: 'solo', zh: '单人', source: 'builtin' });
 check(
   '计数：总数 + 未分类 + 每个分类几条（**不按来源分** —— 进库就是库）',
   (() => {
-    const r = queryTags(panelTags);
+    const r = panel.query();
     return (
       r.counts.total === 4 &&
       r.counts.uncategorized === 1 &&
@@ -589,22 +846,132 @@ check(
   })(),
 );
 check('按分类筛', (() => {
-  const r = queryTags(panelTags, { category: '画质' });
+  const r = panel.query({ category: '画质' });
   return r.total === 2 && same(r.tags.map((t) => t.en).sort(), ['best quality', 'masterpiece']);
 })());
-check('未分类筛（__none__）', queryTags(panelTags, { category: '__none__' }).tags.map((t) => t.en).join() === 'solo');
-check('搜英文 / 搜中文 / 搜别名都行', (() => {
-  const byEn = queryTags(panelTags, { q: 'best' }).tags.map((t) => t.en);
-  const byZh = queryTags(panelTags, { q: '女孩' }).tags.map((t) => t.en);
-  const byAlias = queryTags(aliasTags, { q: 'movie light' }).tags.map((t) => t.en);
-  return same(byEn, ['best quality']) && same(byZh, ['1girl']) && same(byAlias, ['cinematic lighting']);
+check('未分类筛（__none__）', panel.query({ category: '__none__' }).tags.map((t) => t.en).join() === 'solo');
+check('搜英文 / 搜中文（**1 个字也行**，这正是 FTS5 trigram 给不了的）/ 搜别名', (() => {
+  const byEn = panel.query({ q: 'best' }).tags.map((t) => t.en);
+  const byZh = panel.query({ q: '女孩' }).tags.map((t) => t.en);
+  const byOneChar = panel.query({ q: '女' }).tags.map((t) => t.en);
+  const byAlias = aliasTags.query({ q: 'movie light' }).tags.map((t) => t.en);
+  return (
+    same(byEn, ['best quality']) &&
+    same(byZh, ['1girl']) &&
+    same(byOneChar, ['1girl']) &&
+    same(byAlias, ['cinematic lighting'])
+  );
 })());
-check('limit 生效', queryTags(panelTags, { limit: 2 }).tags.length === 2 && queryTags(panelTags, { limit: 2 }).total === 4);
 check(
-  '词库里没有"按来源清空"这回事：要清就一条条删（删完别名索引跟着重建）',
+  'limit 生效，总数封顶在 limit+1（面板只显示一页，精确值要再全表扫一遍）',
   (() => {
-    const removed = removeTag(panelTags, 'best quality');
-    return removed && tagsLookup(panelTags, 'best quality') === null && Object.keys(panelTags.entries).length === 3;
+    const page = panel.query({ limit: 2 });
+    return page.tags.length === 2 && page.total === 3 && panel.query({ limit: 10 }).total === 4;
+  })(),
+);
+check(
+  '排序：导入的一批内部按 hot DESC，你碰过的（updated_at 有值）永远排在它们前面',
+  (() => {
+    const t = newTags();
+    const imported = (i: number, hot: number) => ({
+      key: `k${i}`,
+      en: `k${i}`,
+      zh: `译${i}`,
+      categories: [],
+      aliases: [],
+      source: 'import',
+      updatedAt: 0,
+      hot,
+    });
+    t.importEntries([imported(1, 10), imported(2, 900), imported(3, 500)]);
+    const byHot = t.query().tags.map((x) => x.en);
+    t.upsert({ en: 'zzz', zh: '我自己加的' });
+    return same(byHot, ['k2', 'k3', 'k1']) && t.query().tags[0]?.en === 'zzz';
+  })(),
+);
+check('LIKE 的元字符当字面量（搜一个 % 不该把整库捞出来）', (() => {
+  const t = newTags();
+  t.upsert({ en: '100% cotton', zh: '纯棉', source: 'import' });
+  t.upsert({ en: 'masterpiece', zh: '杰作', source: 'import' });
+  return same(t.query({ q: '%' }).tags.map((x) => x.en), ['100% cotton']) && t.query({ q: '_' }).tags.length === 0;
+})());
+check(
+  '词库里没有"按来源清空"这回事：要清就一条条删（删完别名跟着走）',
+  (() => {
+    const removed = panel.remove('best quality');
+    return removed && panel.lookup('best quality') === null && panel.count() === 3;
+  })(),
+);
+
+console.log('导入脚本（scripts/import-tags.ts：CSV → tags.db）');
+check(
+  '端到端：列按表头认（alias 当译文）、category 映射成 机翻-xxx、count 进 hot、--min-count 过滤、手改过的整条跳过',
+  (() => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-import-'));
+    const csv = path.join(dir, 'tags.csv');
+    fs.writeFileSync(
+      csv,
+      [
+        'tag,category,count,alias',
+        '1girl,0,8419190,"1女"',
+        'hatsune_miku,4,120000,初音未来',
+        '"my_hero_academia,",6,39259,我的英雄学院',
+        'untouched,0,8224,untouched',
+        'obscure thing,0,10,冷门',
+        'no translate,0,999,',
+      ].join('\n'),
+      'utf8',
+    );
+    const db = path.join(dir, 'tags.db');
+    const seed = openTagDb({ db, tagsJson: path.join(dir, 'tags.json'), legacyDictJson: path.join(dir, 'dict.json') });
+    seed.upsert({ en: '1girl', zh: '我改过的译文', categories: ['人物'], source: 'user' });
+    seed.close();
+    const out = execFileSync(
+      process.execPath,
+      [fileURLToPath(new URL('./import-tags.ts', import.meta.url)), csv, '--db', db, '--min-count', '100'],
+      { encoding: 'utf8' },
+    );
+    const after = openTagDb({ db, tagsJson: path.join(dir, 'tags.json'), legacyDictJson: path.join(dir, 'dict.json') });
+    const mine = after.lookup('1girl');
+    const miku = after.lookup('hatsune_miku');
+    // 真表里有引号包着的 tag（tag 自己带逗号）：按逗号裸切会切出一个不存在的 tag
+    const academia = after.lookup('my_hero_academia,');
+    const ok =
+      after.count() === 3 &&
+      mine?.zh === '我改过的译文' &&
+      mine.categories.join() === '人物' &&
+      mine.source === 'user' &&
+      miku?.zh === '初音未来' &&
+      miku.categories.join() === '机翻-角色' &&
+      miku.hot === 120000 &&
+      miku.source === 'import' &&
+      miku.updatedAt === 0 &&
+      academia?.zh === '我的英雄学院' &&
+      academia.categories.join() === '机翻-其他' &&
+      after.lookup('obscure thing') === null &&
+      after.lookup('untouched') === null &&
+      after.lookup('no translate') === null;
+    after.close();
+    return ok && out.includes('机翻-角色') && out.includes('译文同正名 1');
+  })(),
+);
+check(
+  'LFS 指针当输入 → 报「先 git lfs pull」并退出 1（而不是安静地入库 0 条）',
+  (() => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-lfs-'));
+    const csv = path.join(dir, 'pointer.csv');
+    fs.writeFileSync(csv, 'version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 5448620\n', 'utf8');
+    try {
+      execFileSync(
+        process.execPath,
+        [fileURLToPath(new URL('./import-tags.ts', import.meta.url)), csv, '--db', path.join(dir, 'tags.db')],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      );
+      return false;
+    } catch (err) {
+      const failed = err as { status?: number; stderr?: string };
+      return failed.status === 1 && (failed.stderr ?? '').includes('git lfs pull');
+    }
   })(),
 );
 
@@ -649,10 +1016,10 @@ const translate = (texts: string[], options: Record<string, unknown> = {}) =>
 
 console.log('翻译编排：词库优先 → provider 兜底 → 现翻结果不进词库');
 {
-  const tags = sanitizeTags(null);
-  upsertTag(tags, { en: 'masterpiece', zh: '杰作', source: 'user' });
+  const dict = newTags();
+  dict.upsert({ en: 'masterpiece', zh: '杰作', source: 'user' });
   const stub = youdaoStub({});
-  const first = await translate(['masterpiece', 'best quality'], { tags, fetchImpl: stub.fetchImpl });
+  const first = await translate(['masterpiece', 'best quality'], { tagLookup: dict, fetchImpl: stub.fetchImpl });
   check('词库命中的不发请求', same(stub.calls, ['youdao|best quality']), JSON.stringify(stub.calls));
   check(
     '结果按入参顺序对齐，来源标清楚（命中=dict / 现翻=api）',
@@ -661,26 +1028,34 @@ console.log('翻译编排：词库优先 → provider 兜底 → 现翻结果不
   );
   check(
     '现翻结果**不写词库**（词库只装人认可的）',
-    tagsLookup(tags, 'best quality') === null && Object.hasOwn(tags.entries, 'best quality') === false,
-    JSON.stringify(tags.entries),
+    dict.lookup('best quality') === null && dict.count() === 1,
+    String(dict.count()),
   );
 
   const cache = new Map<string, string>();
-  const cached = await translate(['best quality'], { tags, apiCache: cache, fetchImpl: stub.fetchImpl });
+  const cached = await translate(['best quality'], { tagLookup: dict, apiCache: cache, fetchImpl: stub.fetchImpl });
   check('带会话缓存时第二次零请求，来源仍是"机翻"', stub.calls.length === 2 && cached.results[0]?.source === 'api', JSON.stringify(cached.results));
-  const hitAgain = await translate(['best quality'], { tags, apiCache: cache, fetchImpl: stub.fetchImpl });
+  const hitAgain = await translate(['best quality'], { tagLookup: dict, apiCache: cache, fetchImpl: stub.fetchImpl });
   check(
     '缓存命中：不再打接口',
     stub.calls.length === 2 && hitAgain.results[0]?.source === 'api' && hitAgain.results[0]?.translation === '译(best quality)',
     JSON.stringify(hitAgain.results),
   );
 
-  const dictHit = await translate(['masterpiece'], { tags, fetchImpl: stub.fetchImpl });
+  const dictHit = await translate(['masterpiece'], { tagLookup: dict, fetchImpl: stub.fetchImpl });
   check('词库命中仍然零请求，且来源透传成 dict（工作区画「库」）', stub.calls.length === 2 && dictHit.results[0]?.source === 'dict');
+
+  dict.upsert({ en: 'imported thing', zh: '导入的译文', source: 'import' });
+  const importHit = await translate(['imported thing'], { tagLookup: dict, fetchImpl: stub.fetchImpl });
+  check(
+    '命中导入的机翻表 → 来源标 import（工作区画「导」）且照样零请求 —— 跟"你改过的"分开，十几万条灌进来后才分得清',
+    stub.calls.length === 2 && importHit.results[0]?.source === 'import' && importHit.results[0]?.translation === '导入的译文',
+    JSON.stringify(importHit.results),
+  );
 
   const masked = youdaoStub({ masterpiece: '杰作' });
   const weighted = await translate(['(masterpiece:1.2)', '<lora:add_detail:0.8>'], {
-    tags: sanitizeTags(null),
+    tagLookup: newTags(),
     fetchImpl: masked.fetchImpl,
   });
   check('权重语法：只把词发出去，译文贴回结构', same(masked.calls, ['youdao|masterpiece']) && weighted.results[0]?.translation === '(杰作:1.2)', JSON.stringify(weighted.results));
@@ -695,7 +1070,7 @@ console.log('限流：节流 + 411 退避重试');
   };
   const paced = youdaoStub({});
   await translate(['a', 'b', 'c'], {
-    tags: sanitizeTags(null),
+    tagLookup: newTags(),
     settings: sanitizeSettings({ minIntervalMs: 6000 }),
     fetchImpl: paced.fetchImpl,
     sleep: spySleep,
@@ -709,7 +1084,7 @@ console.log('限流：节流 + 411 退避重试');
   waits.length = 0;
   const nextBatch = youdaoStub({});
   await translate(['d'], {
-    tags: sanitizeTags(null),
+    tagLookup: newTags(),
     settings: sanitizeSettings({ minIntervalMs: 6000 }),
     fetchImpl: nextBatch.fetchImpl,
     sleep: spySleep,
@@ -718,7 +1093,7 @@ console.log('限流：节流 + 411 退避重试');
 
   const noPace = youdaoStub({});
   await translate(['a', 'b'], {
-    tags: sanitizeTags(null),
+    tagLookup: newTags(),
     settings: sanitizeSettings({ minIntervalMs: 0 }),
     fetchImpl: noPace.fetchImpl,
     sleep: spySleep,
@@ -734,7 +1109,7 @@ console.log('限流：节流 + 411 退避重试');
     return { ok: true, status: 200, json: async () => ({ errorCode: '0', translation: [`译(${q})`] }) };
   };
   const retried = await translate(['solo'], {
-    tags: sanitizeTags(null),
+    tagLookup: newTags(),
     settings: sanitizeSettings({ minIntervalMs: 0 }),
     fetchImpl: flaky,
     sleep: spySleep,
@@ -747,7 +1122,7 @@ console.log('限流：节流 + 411 退避重试');
 
   const alwaysLimited = youdaoStub({}, { errorCode: '411' });
   const blocked = await translate(['solo'], {
-    tags: sanitizeTags(null),
+    tagLookup: newTags(),
     settings: sanitizeSettings({ minIntervalMs: 0 }),
     fetchImpl: alwaysLimited.fetchImpl,
     sleep: spySleep,
@@ -763,20 +1138,20 @@ console.log('限流：节流 + 411 退避重试');
 console.log('翻译编排：失败与配额都不炸');
 {
   const failing = youdaoStub({}, { ok: false });
-  const broken = await translate(['best quality'], { tags: sanitizeTags(null), fetchImpl: failing.fetchImpl });
+  const broken = await translate(['best quality'], { tagLookup: newTags(), fetchImpl: failing.fetchImpl });
   check(
     'provider 报错：结果标 error、错误码带上、词库不动',
     broken.results[0]?.source === 'error' && broken.error?.code === 'PROVIDER',
     JSON.stringify(broken),
   );
   const emptyCode = youdaoStub({}, { errorCode: '50' });
-  const refused = await translate(['solo'], { tags: sanitizeTags(null), fetchImpl: emptyCode.fetchImpl });
+  const refused = await translate(['solo'], { tagLookup: newTags(), fetchImpl: emptyCode.fetchImpl });
   check('有道返回非 0 错误码也当失败', refused.results[0]?.source === 'error', JSON.stringify(refused.error));
 
   const quotaStub = youdaoStub({});
   const usage = { date: '2026-01-01', calls: 2000 };
   const overQuota = await translate(['1girl'], {
-    tags: sanitizeTags(null),
+    tagLookup: newTags(),
     settings: sanitizeSettings({ maxCallsPerDay: 2000 }),
     usage,
     fetchImpl: quotaStub.fetchImpl,
@@ -788,11 +1163,11 @@ console.log('翻译编排：失败与配额都不炸');
   );
   const counted = { date: '2026-01-01', calls: 1999 };
   const okStub = youdaoStub({});
-  await translate(['1girl'], { tags: sanitizeTags(null), settings: sanitizeSettings({ maxCallsPerDay: 2000 }), usage: counted, fetchImpl: okStub.fetchImpl });
+  await translate(['1girl'], { tagLookup: newTags(), settings: sanitizeSettings({ maxCallsPerDay: 2000 }), usage: counted, fetchImpl: okStub.fetchImpl });
   check('成功的调用计入当天用量', okStub.calls.length === 1 && counted.calls === 2000);
   const halfStub = youdaoStub({});
   const half = await translate(['1girl', 'solo'], {
-    tags: sanitizeTags(null),
+    tagLookup: newTags(),
     settings: sanitizeSettings({ maxCallsPerDay: 1 }),
     usage: { date: '2026-01-01', calls: 0 },
     fetchImpl: halfStub.fetchImpl,
@@ -806,5 +1181,8 @@ console.log('翻译编排：失败与配额都不炸');
 
 console.log('provider 注册表');
 check('有道体验版不需要任何凭据字段', same(PROVIDERS['youdao-demo']?.fields ?? null, []) && typeof PROVIDERS['youdao-demo']?.label === 'string');
+
+// 词库用例建的临时库：跑完一起清（跑挂了也清，不然 /tmp 里会攒下一堆 tags-N.db）
+fs.rmSync(tmpDir, { recursive: true, force: true });
 
 console.log(failed === 0 ? '\n✅ 契约测试通过' : `\n❌ ${failed} 项不通过`);process.exit(failed === 0 ? 0 : 1);
