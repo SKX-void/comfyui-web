@@ -954,5 +954,58 @@ check(
   JSON.stringify(writesSince(markReorder).map((call) => call.url)),
 );
 
+console.log('区块颜色：预设色板之外，可以自己写一个颜色字符串');
+const colorDot = blockOf(0).querySelector('.pe-block-dot') as HTMLElement;
+colorDot.click();
+await nextTick();
+check('点色点打开色板', blockOf(0).querySelector('.pe-palette') !== null);
+check(
+  '色板里 8 个预设色 + 一个自定义输入框',
+  blockOf(0).querySelectorAll('.pe-swatch').length === 8 && blockOf(0).querySelector('.pe-swatch-input') !== null,
+);
+const colorInput = blockOf(0).querySelector('.pe-swatch-input') as HTMLInputElement;
+check(
+  '打开时输入框里就是当前色（好在这个基础上改）',
+  colorInput.value === blockOf(0).style.borderColor,
+  `${colorInput.value} / ${blockOf(0).style.borderColor}`,
+);
+
+const markColor = calls.length;
+await type(colorInput, '#123456');
+await blur(colorInput);
+check('自定义颜色落到区块上（边框跟着变）', blockOf(0).style.borderColor === '#123456', blockOf(0).style.borderColor);
+check('提交后面板不关（关掉的话"失焦即提交"这条链会断）', blockOf(0).querySelector('.pe-palette') !== null);
+const colorWrite = writesSince(markColor);
+check(
+  '发一次结构写（颜色是区块属性，跟结构走）',
+  colorWrite.length === 1 && colorWrite[0]?.url === STRUCTURE_URL,
+  JSON.stringify(colorWrite.map((call) => call.url)),
+);
+check(
+  '结构里带的是自定义色',
+  ((colorWrite[0]?.body?.blocks ?? []) as Record<string, unknown>[])[0]?.color === '#123456',
+  JSON.stringify(colorWrite[0]?.body),
+);
+
+const markColor2 = calls.length;
+await type(colorInput, 'rgb(1, 2, 3)');
+await pressEnter(colorInput);
+check('回车也能提交', blockOf(0).style.borderColor === 'rgb(1, 2, 3)', blockOf(0).style.borderColor);
+check('非十六进制的字符串照收（颜色就是个 CSS 值）', writesSince(markColor2).length === 1);
+
+const markColor3 = calls.length;
+await blur(colorInput);
+check('值没变就不发写请求（反复失焦不该刷草稿）', writesSince(markColor3).length === 0, JSON.stringify(writesSince(markColor3).map((call) => call.url)));
+
+const markColor4 = calls.length;
+(blockOf(0).querySelectorAll('.pe-swatch')[1] as HTMLButtonElement).click();
+await nextTick();
+check(
+  '预设色照旧：点一下换色并关面板',
+  blockOf(0).style.borderColor === '#4ac38a' && blockOf(0).querySelector('.pe-palette') === null,
+  blockOf(0).style.borderColor,
+);
+check('预设色同样只发一次结构写', writesSince(markColor4).length === 1, JSON.stringify(writesSince(markColor4).map((call) => call.url)));
+
 console.log(failed === 0 ? '\n✅ 交互测试通过' : `\n❌ ${failed} 项不通过`);
 process.exit(failed === 0 ? 0 : 1);
