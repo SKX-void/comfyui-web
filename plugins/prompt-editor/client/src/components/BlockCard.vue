@@ -42,6 +42,7 @@ const emit = defineEmits<{
   (e: 'translate', index: number): void;
   /** 翻这一整块 */
   (e: 'translate-block'): void;
+  (e: 'save-to-library'): void;
   /** 译文格改完了：除了落盘，还要写回词库（改过的就是最终答案） */
   (e: 'translation-edited', text: string, translation: string): void;
   (e: 'promote', index: number): void;
@@ -226,6 +227,7 @@ function removeItem(index: number): void {
       @drop="emit('drop')"
       @drag-end="emit('drag-end')"
       @translate-block="emit('translate-block')"
+      @save-to-library="emit('save-to-library')"
       @toggle-palette="paletteOpen = !paletteOpen"
       @structure-changed="emit('structure-changed')"
       @items-committed="emit('items-committed')"

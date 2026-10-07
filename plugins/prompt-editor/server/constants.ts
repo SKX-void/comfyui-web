@@ -8,6 +8,8 @@ export const PACKAGE = '@comfyui-web/prompt-editor';
 
 /** 都落在 `ctx.space`（→ data/plugins/<包名>/）里 */
 export const PRESETS_FILE = 'presets.json';
+/** 区块库：预设的**单块**（标题/颜色/风格/条目文本），见 `routes-block-presets.ts` */
+export const BLOCK_PRESETS_FILE = 'block-presets.json';
 export const DRAFT_FILE = 'draft.json';
 /** 词库（十几万条也扛得住）：SQLite，见 `tagdb.ts` */
 export const TAGS_DB_FILE = 'tags.db';
@@ -24,6 +26,8 @@ export const USAGE_FILE = 'usage.json';
 /** 上限：自用工具也要防「一个坏请求 / 手改坏的文件」把 UI 撑爆 */
 export const LIMITS = {
   presets: 300,
+  /** 区块库条数（跟预设同一个量级：都是"人手工攒的"，不是导入的） */
+  blockPresets: 300,
   name: 120,
   blocks: 200,
   items: 5000,

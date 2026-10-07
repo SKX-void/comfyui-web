@@ -1,7 +1,7 @@
 /**
  * 插件的接口层：前缀只有一个常量（宿主统一给插件加 `/api/p/<id>`），后端就在本插件的 server.js。
  */
-import type { BlockMeta, Doc, Item } from './model';
+import type { BlockMeta, Doc, Item, Mode } from './model';
 
 export const API_BASE = '/api/p/prompt-editor';
 
@@ -272,6 +272,68 @@ export async function deleteCategoryEntries(name: string): Promise<{ deleted: nu
     method: 'DELETE',
     body: JSON.stringify({ name }),
   });
+}
+
+/**
+ * 区块库（**预设单块**）：列表只给摘要（条目可能几百条），插入时按 id 取整条。
+ * 跟预设库（整份文档）是两份数据、两条路由。
+ */
+export interface BlockPresetSummary {
+  id: string;
+  name: string;
+  updatedAt: number;
+  title: string;
+  color: string;
+  mode: Mode;
+  itemCount: number;
+  /** 前几条文本，够认出是哪一块 */
+  preview: string[];
+}
+
+export interface BlockPreset {
+  id: string;
+  name: string;
+  updatedAt: number;
+  title: string;
+  color: string;
+  mode: Mode;
+  /** 条目文本（译文与 id 不存：插入时按当前词库重新查、id 现场生成） */
+  items: string[];
+}
+
+export async function listBlockPresets(): Promise<BlockPresetSummary[]> {
+  return (await request<{ presets: BlockPresetSummary[] }>('/block-presets')).presets;
+}
+
+export async function getBlockPreset(id: string): Promise<BlockPreset> {
+  return (await request<{ preset: BlockPreset }>(`/block-presets/${encodeURIComponent(id)}`)).preset;
+}
+
+export async function createBlockPreset(preset: {
+  name: string;
+  title: string;
+  color: string;
+  mode: Mode;
+  items: string[];
+}): Promise<BlockPreset> {
+  return (
+    await request<{ preset: BlockPreset }>('/block-presets', { method: 'POST', body: JSON.stringify(preset) })
+  ).preset;
+}
+
+export async function renameBlockPreset(id: string, name: string): Promise<BlockPreset> {
+  return (
+    await request<{ preset: BlockPreset }>(`/block-presets/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    })
+  ).preset;
+}
+
+export async function deleteBlockPreset(id: string): Promise<boolean> {
+  return (
+    await request<{ removed: boolean }>(`/block-presets/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  ).removed;
 }
 
 /** 产物里那份内置机翻表：`available:false` = 产物里没有它（面板就不画那个按钮） */

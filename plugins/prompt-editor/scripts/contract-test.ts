@@ -124,6 +124,11 @@ const plugin = (await import(artifact('client.js').href)).default as {
   } as unknown as Parameters<typeof server.apply>[0]);
 
   const expected = [
+    'GET /block-presets',
+    'GET /block-presets/:id',
+    'POST /block-presets',
+    'PUT /block-presets/:id',
+    'DELETE /block-presets/:id',
     'GET /presets',
     'GET /presets/:id',
     'POST /presets',
@@ -1252,6 +1257,98 @@ console.log('翻译编排：失败与配额都不炸');
 
 console.log('provider 注册表');
 check('有道体验版不需要任何凭据字段', same(PROVIDERS['youdao-demo']?.fields ?? null, []) && typeof PROVIDERS['youdao-demo']?.label === 'string');
+
+console.log('区块库：预设单块的存储与路由');
+{
+  const spaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-blockpresets-'));
+  const handlers: Record<string, (request: unknown, reply: unknown) => unknown> = {};
+  const record =
+    (method: string) =>
+    (routePath: string, handler: (request: unknown, reply: unknown) => unknown): void => {
+      handlers[`${method} ${routePath}`] = handler;
+    };
+  const reply = (): { status: number; body: unknown; code: (n: number) => unknown; send: (b: unknown) => unknown } => ({
+    status: 200,
+    body: null,
+    code(this: { status: number }, n: number) {
+      this.status = n;
+      return this;
+    },
+    send(this: { body: unknown }, body: unknown) {
+      this.body = body;
+      return this;
+    },
+  });
+  server.registerBlockPresetRoutes({
+    routes: { get: record('GET'), post: record('POST'), put: record('PUT'), delete: record('DELETE') },
+    space: { packageName: 'x', root: spaceDir, resolve: (f: string) => path.join(spaceDir, f) },
+    badRequest: (r: { code: (n: number) => { send: (b: unknown) => unknown } }, message: string) =>
+      r.code(400).send({ error: { code: 'BAD_REQUEST', message } }),
+    log: () => {},
+  } as unknown as Parameters<typeof server.registerBlockPresetRoutes>[0]);
+
+  // 有的 handler 直接 `return {...}`（GET），有的 `reply.code().send()`（POST/PUT）—— 两种都要收
+  const call = async (key: string, request: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
+    const r = reply();
+    const returned = await handlers[key]?.({ params: {}, body: null, ...request }, r);
+    return { ...r, body: r.body ?? returned ?? null } as unknown as Record<string, unknown>;
+  };
+  const stored = (): { presets: { name: string; items: string[] }[] } =>
+    JSON.parse(fs.readFileSync(path.join(spaceDir, 'block-presets.json'), 'utf8')) as { presets: { name: string; items: string[] }[] };
+
+  const created = await call('POST /block-presets', {
+    body: { name: '场景块', title: '场景', color: '#4ac38a', mode: 'text', items: ['a sentence.', '  ', 'another one.'] },
+  });
+  const createdId = ((created.body as { preset?: { id?: string } }).preset ?? {}).id ?? '';
+  check('新建：201 + 落盘', created.status === 201 && stored().presets.length === 1, JSON.stringify(created.body).slice(0, 90));
+  check('条目里空白项被丢掉（不留空条目）', stored().presets[0]?.items.length === 2, JSON.stringify(stored().presets[0]?.items));
+  check('属性原样存下（标题/颜色/风格）', JSON.stringify({ ...stored().presets[0], id: '', updatedAt: 0, name: '' }).includes('"mode":"text"'), JSON.stringify(stored().presets[0]));
+
+  const listed = await call('GET /block-presets');
+  const first = ((listed.body as { presets?: Record<string, unknown>[] }).presets ?? [])[0] ?? {};
+  check('列表给摘要 + 前几条预览', first.itemCount === 2 && (first.preview as string[]).length === 2 && first.name === '场景块', JSON.stringify(first));
+  check('列表不带全部条目（几百条的块不该整份传）', first.items === undefined);
+
+  const one = await call('GET /block-presets/:id', { params: { id: createdId } });
+  check('取单条：拿到全部条目', (one.body as { preset?: { items?: string[] } }).preset?.items?.length === 2);
+  check('取不存在的 id：404', (await call('GET /block-presets/:id', { params: { id: 'nope' } })).status === 404);
+
+  const renamed = await call('PUT /block-presets/:id', { params: { id: createdId }, body: { name: '场景块 2' } });
+  check('改名：名字变了、条目一条没动', (renamed.body as { preset?: { name?: string; items?: string[] } }).preset?.name === '场景块 2' && stored().presets[0]?.items.length === 2);
+  check('改名给空串：400', (await call('PUT /block-presets/:id', { params: { id: createdId }, body: { name: '  ' } })).status === 400);
+  check('改不存在的 id：404', (await call('PUT /block-presets/:id', { params: { id: 'nope' }, body: { name: 'x' } })).status === 404);
+
+  check('名字空的新建：400', (await call('POST /block-presets', { body: { name: '', items: ['a'] } })).status === 400);
+  check('请求体不是对象：400', (await call('POST /block-presets', { body: 'nope' })).status === 400);
+  check('风格写错不炸（兜底成 tag）', ((await call('POST /block-presets', { body: { name: '兜底', mode: '乱写', items: ['x'] } })).body as { preset?: { mode?: string } }).preset?.mode === 'tag');
+  check('没给颜色就用默认色', ((await call('POST /block-presets', { body: { name: '无色', items: [] } })).body as { preset?: { color?: string } }).preset?.color === '#6ea8fe');
+
+  const removed = await call('DELETE /block-presets/:id', { params: { id: createdId } });
+  check('删除：removed=true 且真的从盘上没了', removed.body !== null && stored().presets.every((one) => one.name !== '场景块 2'), JSON.stringify(stored().presets.map((one) => one.name)));
+  check('删不存在的 id：removed=false（不炸）', ((await call('DELETE /block-presets/:id', { params: { id: 'nope' } })).body as { removed?: boolean }).removed === false);
+
+  // 上限：塞满再存一条
+  const many = Array.from({ length: server.LIMITS.blockPresets }, (_v, i) => ({
+    id: `p${i}`,
+    name: `n${i}`,
+    updatedAt: 1,
+    title: '',
+    color: '#6ea8fe',
+    mode: 'tag',
+    items: ['x'],
+  }));
+  fs.writeFileSync(path.join(spaceDir, 'block-presets.json'), JSON.stringify({ version: 1, presets: many }));
+  check('到达上限后再存：400 且不动盘上那份', (await call('POST /block-presets', { body: { name: '多出来的', items: [] } })).status === 400 && stored().presets.length === server.LIMITS.blockPresets);
+
+  // 手改坏的文件：坏行跳过，好行照用
+  fs.writeFileSync(
+    path.join(spaceDir, 'block-presets.json'),
+    JSON.stringify({ version: 1, presets: [{ name: '好的', items: ['a'] }, { name: '' }, 'nope', { items: ['没名字'] }] }),
+  );
+  const survived = await call('GET /block-presets');
+  check('盘上坏行跳过、好行照用（手改坏文件不该让整个库打不开）', ((survived.body as { presets?: unknown[] }).presets ?? []).length === 1);
+  fs.rmSync(spaceDir, { recursive: true, force: true });
+}
 
 // 词库用例建的临时库：跑完一起清（跑挂了也清，不然 /tmp 里会攒下一堆 tags-N.db）
 fs.rmSync(tmpDir, { recursive: true, force: true });

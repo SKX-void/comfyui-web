@@ -16,6 +16,8 @@ const emit = defineEmits<{
   (e: 'drag-end'): void;
   /** 翻这一整块 */
   (e: 'translate-block'): void;
+  /** 把这一块存进区块库（面板会弹出来问名字） */
+  (e: 'save-to-library'): void;
   (e: 'toggle-palette'): void;
   /** 草稿写事件 1：这个区块的**属性**变了（标题/颜色/风格）——父级只发结构 */
   (e: 'structure-changed'): void;
@@ -73,6 +75,7 @@ function setBlockMode(mode: Mode): void {
     </div>
     <span class="pe-block-count">{{ block.items.length }} 条</span>
     <button class="pe-block-tr" title="翻译这一整块（先查词库）" @click.stop="emit('translate-block')">译</button>
+    <button class="pe-block-save" title="把这一块存进区块库" @click.stop="emit('save-to-library')">存</button>
     <button class="pe-block-del" title="删除区块" @click="emit('remove')">×</button>
   </header>
 </template>
@@ -158,9 +161,23 @@ function setBlockMode(mode: Mode): void {
   cursor: pointer;
 }
 
-.pe-block-tr:hover {
+.pe-block-tr:hover,
+.pe-block-save:hover {
   border-color: var(--accent, #6ea8fe);
   color: var(--accent, #6ea8fe);
+}
+
+/* 「存」跟「译」同一个样式盒子：一行小按钮，别抢标题的宽度 */
+.pe-block-save {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted, #9aa3b2);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 0 6px;
+  cursor: pointer;
 }
 
 .pe-block-del {

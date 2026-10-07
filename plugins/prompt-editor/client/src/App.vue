@@ -11,11 +11,12 @@
 import { onMounted, ref } from 'vue';
 
 import BlockCard from './components/BlockCard.vue';
+import BlockLibraryPanel, { type PendingBlock } from './components/BlockLibraryPanel.vue';
 import OutputPane from './components/OutputPane.vue';
 import PresetPanel from './components/PresetPanel.vue';
 import TagLibraryPanel from './components/TagLibraryPanel.vue';
 import TranslatePanel from './components/TranslatePanel.vue';
-import { fetchDraft, fetchSettings, type TranslateSettings } from './api';
+import { fetchDraft, fetchSettings, type BlockPreset, type TranslateSettings } from './api';
 import { canDropItem, moveItem, type Block, type Doc, type ItemRef } from './model';
 import { useNotice } from './composables/useNotice';
 import { useTranslate } from './composables/useTranslate';
@@ -37,11 +38,31 @@ const {
   persistItems,
   persistDoc,
   insertTagEntry,
+  insertBlockPreset,
 } = useWorkspace(flash);
+
+/**
+ * 区块表头「存」：把这一块的**快照**交给区块库面板，并把它打开问名字。
+ *
+ * 只收**启用且非空**的条目 —— 禁用的条目本来就不进输出，存进库再插出来等于把它悄悄放回输出。
+ * 译文不带（库里那份可能已经过期，插进来按当前词库重新查才对）。
+ */
+function saveBlockToLibrary(block: Block): void {
+  blockPending.value = {
+    title: block.title,
+    color: block.color,
+    mode: block.mode,
+    items: block.items.filter((item) => item.enabled && item.text.trim() !== '').map((item) => item.text.trim()),
+  };
+  blockLibOpen.value = true;
+}
 
 const presetOpen = ref(false);
 const translateOpen = ref(false);
 const libOpen = ref(false);
+const blockLibOpen = ref(false);
+/** 从区块表头「存」送过来的那一块快照：区块库面板据此弹出"起个名字" */
+const blockPending = ref<PendingBlock | null>(null);
 const dragBlock = ref<number | null>(null);
 const overBlock = ref<number | null>(null);
 /**
@@ -133,6 +154,8 @@ function loadPreset(next: Doc): void {
   presetOpen.value = false;
   flash('预设已载入工作区');
   persistDoc();
+  // 预设里可能本来就有没译文的条目（手写的一份 / 之前自动译关着的时候存的）：跟"条目变了"同一条路
+  for (const block of doc.blocks) enqueueAuto(block);
 }
 
 /** 设置面板保存后回填：自动译开关要立刻生效，不用刷新页面 */
@@ -144,6 +167,17 @@ function applySettings(next: TranslateSettings): void {
 function onItemsCommitted(block: Block): void {
   persistItems(block);
   enqueueAuto(block);
+}
+
+/**
+ * 插入预设区块：**新插进来的那些条目也要排队翻译**。
+ *
+ * 区块库里刻意不存译文（存的是当时的词库状态，插进来按现在的词库重新查才对），
+ * 所以插完这一块必然是"一堆没译文的条目" —— 跟手打一条新条目是同一件事，
+ * 得走同一条路（`enqueueAuto`：自动译关着就不发请求，库里命中也不打 provider）。
+ */
+function insertPresetBlock(preset: BlockPreset): void {
+  enqueueAuto(insertBlockPreset(preset));
 }
 
 onMounted(async () => {
@@ -171,6 +205,7 @@ onMounted(async () => {
         <button @click="addBlock">新建区块</button>
         <button @click="presetOpen = true">预设库…</button>
         <button @click="libOpen = true">词库…</button>
+        <button @click="blockLibOpen = true">区块库…</button>
         <button @click="translateOpen = true">翻译…</button>
         <button @click="clearAll">清空</button>
       </div>
@@ -190,6 +225,7 @@ onMounted(async () => {
           :busy-ids="busyIds"
           :failed-ids="failedIds"
           @activate="activeBlockId = block.id"
+          @save-to-library="saveBlockToLibrary(block)"
           @remove="removeBlock(index)"
           @drag-start="dragBlock = index"
           @drag-over="overBlockAt(index)"
@@ -221,6 +257,13 @@ onMounted(async () => {
       :active-block-id="activeBlockId"
       @close="libOpen = false"
       @insert="insertTagEntry"
+    />
+    <BlockLibraryPanel
+      :open="blockLibOpen"
+      :pending="blockPending"
+      @close="blockLibOpen = false"
+      @cancel-pending="blockPending = null"
+      @insert="insertPresetBlock"
     />
     <TranslatePanel :open="translateOpen" @close="translateOpen = false" @saved="applySettings" />
   </div>

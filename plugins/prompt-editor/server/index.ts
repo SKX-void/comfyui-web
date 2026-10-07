@@ -26,5 +26,6 @@ export { PROVIDERS } from './providers.js';
 export { sanitizeSettings, sanitizeUsage } from './settings.js';
 export { escapeLike, machineCategory, mergeTag, sanitizeTags, tagSearchBlob } from './tags.js';
 export { BUNDLED_CSV, looksLikeLfsPointer, parseTagCsv } from './tagcsv.js';
+export { registerBlockPresetRoutes, sanitizeBlockPreset, summarize } from './routes-block-presets.js';
 export { openTagDb } from './tagdb.js';
 export { translateTexts } from './translate.js';
