@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { HealthResponse } from '@comfyui-web/shared';
 import { api } from '@/api';
 import TemplateForm from '@/components/TemplateForm.vue';
@@ -32,21 +32,24 @@ const { template, values, models, stateNote, fatalError, fail, loadTemplate, sav
 const {
   status,
   submitting,
-  activeJobId,
-  progress,
-  assets,
+  queue,
+  queueCount,
+  recentAssets,
+  recentJobId,
   errorMessage,
   history,
   clearing,
-  percent,
   assetThumbUrl,
   submit,
   cancel,
   reuse,
   clearHistory,
   refreshHistory,
+  start,
+  stop,
 } = useJobs(pushLog, template, values, saveLastState);
 
+// 队列在跑**不锁**表单：提交一回来就能改参数接着排下一条（这是这个插件排队能力的关键）
 const canSubmit = computed(() => !!template.value && !submitting.value && depsReady.value);
 
 async function bootstrap(): Promise<void> {
@@ -83,6 +86,13 @@ onMounted(() => {
   void bootstrap();
   // 依赖检查独立于 bootstrap：即使模板加载失败，也能看到这台机器缺什么
   void checkDeps();
+  // 全局任务事件流：一条 SSE 盯住队列里所有任务（连接即发在途快照，刷新页面也能接回来）
+  start();
+});
+
+onUnmounted(() => {
+  // tab 卸载要断开 SSE，否则反复切 tab 会攒下一堆没人读的连接
+  stop();
 });
 </script>
 
@@ -162,21 +172,25 @@ onMounted(() => {
           :inputs="template.inputs"
           :values="values"
           :models="models"
-          :disabled="submitting"
         />
       </section>
 
       <section class="card">
-        <div class="card-head"><h2>进度</h2></div>
+        <div class="card-head">
+          <h2>队列</h2>
+          <span v-if="queueCount" class="dim small">在途 {{ queueCount }} 个</span>
+        </div>
 
-        <!-- 开始生成放在进度卡顶部：点了就在同一张卡里看进度，不用在两张卡之间来回找 -->
+        <!-- 开始生成放在队列卡顶部：点了就在同一张卡里看进度，不用在两张卡之间来回找 -->
         <div class="actions">
           <button class="btn primary" :disabled="!canSubmit" @click="submit">
-            {{ submitting ? '生成中…' : '开始生成' }}
+            {{ submitting ? '提交中…' : '加入队列' }}
           </button>
-          <button class="btn" :disabled="!submitting" @click="cancel">取消</button>
           <span v-if="!depsReady" class="actions-hint bad">
             缺节点 {{ currentDeps?.missing.join('、') }} —— 装好并重启 ComfyUI 后即可生成
+          </span>
+          <span v-else class="actions-hint">
+            提交完就能接着改参数、再排下一条（在途上限＝设置里的「队列深度」）
           </span>
         </div>
 
@@ -184,26 +198,46 @@ onMounted(() => {
           <strong>状态：</strong><span>{{ status }}</span>
         </div>
 
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: percent + '%' }" />
-        </div>
-        <div class="status-line small">
-          <span v-if="progress">{{ progress.value }} / {{ progress.max }} 步</span>
-          <span v-else>—</span>
-          <span v-if="progress?.node" class="dim">节点 {{ progress.node }}</span>
-        </div>
+        <!-- 一任务一行：队列里可能有好几条在跑/在排，进度条必须逐条画 -->
+        <ul v-if="queue.length" class="queue">
+          <li v-for="row in queue" :key="row.jobId" class="queue-item">
+            <div class="queue-head">
+              <span class="pill" :class="row.status">{{ row.label }}</span>
+              <span class="mono dim small">{{ row.jobId.slice(0, 12) }}…</span>
+              <span v-if="row.waiting" class="dim small">队列第 {{ row.waiting }} 位</span>
+              <span v-if="row.seed !== null" class="dim small">种子 {{ row.seed }}</span>
+              <button class="btn ghost small" @click="cancel(row.jobId)">取消</button>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: row.percent + '%' }" />
+            </div>
+            <div class="status-line small">
+              <span v-if="row.progress">{{ row.progress.value }} / {{ row.progress.max }} 步</span>
+              <span v-else>等上游调度…</span>
+              <span v-if="row.progress?.node" class="dim">节点 {{ row.progress.node }}</span>
+            </div>
+            <p v-if="row.error" class="error">{{ row.error }}</p>
+          </li>
+        </ul>
+        <p v-else class="dim">队列是空的。点「加入队列」提交当前参数。</p>
 
         <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
 
-        <div v-if="assets.length" class="results">
-          <img
-            v-for="a in assets"
-            :key="a.assetId"
-            :src="a.url"
-            :alt="a.filename"
-            class="result-img"
-          />
-        </div>
+        <template v-if="recentAssets.length">
+          <div class="status-line small">
+            <strong>最近产出：</strong>
+            <span class="mono">{{ (recentJobId ?? '').slice(0, 12) }}…</span>
+          </div>
+          <div class="results">
+            <img
+              v-for="a in recentAssets"
+              :key="a.assetId"
+              :src="a.url"
+              :alt="a.filename"
+              class="result-img"
+            />
+          </div>
+        </template>
 
         <details class="logbox">
           <summary>运行日志（{{ log.length }}）</summary>
@@ -268,7 +302,7 @@ onMounted(() => {
           </tbody>
         </table>
         <p v-else class="dim">
-          本次会话还没有任务。出图参数会在每次点「开始生成」时记进插件空间（
+          本次会话还没有任务。出图参数会在每次点「加入队列」时记进插件空间（
           <code>last-state.json</code>），刷新页面自动回填；要留档整套工作流时，把「输出格式」切到
           <strong>PNG</strong>，完整工作流会写进图片元数据。
         </p>

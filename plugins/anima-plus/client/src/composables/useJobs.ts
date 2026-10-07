@@ -1,12 +1,60 @@
 /**
- * 作业生命周期：提交 / SSE 进度 / 产出 / 取消 / 复用 + 历史列表。
+ * 作业生命周期：**队列**（提交 / 进度 / 产出 / 取消）+ 复用 + 历史列表。
+ *
+ * 队列是这块的核心：点一次「开始生成」只是往 ComfyUI 队列里排一条，POST 一回来表单就解锁 ——
+ * 改完参数可以接着排下一条（在途上限由服务端 `maxQueueDepth` 兜着，满了返回 QUEUE_FULL）。
+ * 因此这里跟的是一"批"任务，不是"一个当前任务"；进度卡按队列渲染。
+ *
+ * 所有任务的进度走**一条**全局 SSE（`/api/jobs/events`，见 server/http/routes/jobs.ts）：
+ * 浏览器对同源 HTTP/1.1 只给 6 条连接，每个任务各开一条 EventSource 会把队列深度本身
+ * 变成连接数上限，缩略图和历史刷新就都排不上了。
  *
  * 提交要用表单值和"存快照"，这两样在 `useTemplate()` 手里，所以从外面传进来（App.vue 接线）。
  */
 import { computed, ref, type Ref } from 'vue';
 import type { Job, JobProgress, TemplateDetail } from '@comfyui-web/shared';
-import { api, apiUrl, assetUrl, subscribeJob } from '@/api';
+import { api, apiUrl, assetUrl, subscribeJobs, type JobStreamEvent } from '@/api';
 import { drawSeed, normalizeValues, type FieldModel } from '@/form';
+
+/** 终态：到了就从队列里挪走，只剩历史表里那一行 */
+const TERMINAL = new Set(['succeeded', 'failed', 'canceled']);
+
+/** 队列里的一条在途任务（进度卡按它渲染） */
+export interface QueueJob {
+  jobId: string;
+  promptId: string | null;
+  status: string;
+  progress: JobProgress | null;
+  /** 0~100，由 progress 算出（不单独维护，免得两处漂移） */
+  percent: number;
+  error: string | null;
+  createdAt: string;
+  /** 本次提交时定下的种子（界面回显；服务端渲染时还会再抽一次兜底，见 templates/render.ts） */
+  seed: number | null;
+}
+
+/** 队列行：多两个给界面用的派生字段 */
+export interface QueueRow extends QueueJob {
+  /** 中文状态（进度卡的 pill 用它，所以别把英文状态直接摊给用户） */
+  label: string;
+  /** 排队位次（1 起）；已经在跑的是 null */
+  waiting: number | null;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  created: '已创建',
+  queued: '排队中',
+  running: '执行中',
+};
+
+export function statusLabel(status: string): string {
+  return STATUS_LABEL[status] ?? status;
+}
+
+function percentOf(progress: JobProgress | null): number {
+  if (!progress || !progress.max) return 0;
+  return Math.min(100, Math.round((progress.value / progress.max) * 100));
+}
 
 export function useJobs(
   pushLog: (line: string) => void,
@@ -14,190 +62,308 @@ export function useJobs(
   values: Ref<FieldModel>,
   saveLastState: (payload: Record<string, unknown>) => Promise<void>,
 ) {
-const submitting = ref(false);
+  /** 只在 POST /api/jobs 那一下为 true —— 队列在跑不影响它，表单要一直能改 */
+  const submitting = ref(false);
+  const errorMessage = ref<string | null>(null);
 
-const activeJobId = ref<string | null>(null);
+  const queue = ref<QueueJob[]>([]);
+  const history = ref<Job[]>([]);
+  const clearing = ref(false);
 
-const status = ref<string>('空闲');
+  /** 最近一条完成任务的产出（进度卡里的大图） */
+  const recentAssets = ref<Array<{ assetId: string; url: string; filename: string }>>([]);
+  const recentJobId = ref<string | null>(null);
 
-const progress = ref<JobProgress | null>(null);
+  let unsubscribe: (() => void) | null = null;
 
-const assets = ref<Array<{ assetId: string; url: string; filename: string }>>([]);
+  // ---- 队列维护 ----------------------------------------------------------
 
-const errorMessage = ref<string | null>(null);
-
-const history = ref<Job[]>([]);
-
-const clearing = ref(false);
-let unsubscribe: (() => void) | null = null;
-async function refreshHistory(): Promise<void> {
-  try {
-    history.value = (await api.listJobs()).items.slice(0, 8);
-  } catch {
-    /* 忽略 */
+  /** 合并一条任务状态；队列里没有就按"新任务"补进来（别的浏览器标签提交的也会这么出现） */
+  function applyJob(jobId: string, patch: Partial<QueueJob>): void {
+    const at = queue.value.findIndex((q) => q.jobId === jobId);
+    const base: QueueJob = at === -1
+      ? {
+          jobId,
+          promptId: null,
+          status: 'created',
+          progress: null,
+          percent: 0,
+          error: null,
+          createdAt: new Date().toISOString(),
+          seed: null,
+        }
+      : queue.value[at]!;
+    const merged: QueueJob = { ...base, ...patch };
+    merged.percent = percentOf(merged.progress);
+    const rest = queue.value.filter((q) => q.jobId !== jobId);
+    // 按提交时间排 = 队列视图的顺序（快照不带时间时用到达顺序兜底，见下面的 createdAt）
+    queue.value = [...rest, merged].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
-}
 
-/** 清空历史记录：服务端只清已结束的任务，在途的会保留 */
-async function clearHistory(): Promise<void> {
-  clearing.value = true;
-  try {
-    const res = await api.clearJobs();
-    history.value = res.items.slice(0, 8);
-    const parts = [`已清空 ${res.cleared} 条历史`];
-    if (res.kept > 0) parts.push(`${res.kept} 个任务还在跑，已保留`);
-    status.value = parts.join('，');
-    pushLog(parts.join('，'));
-  } catch (e) {
-    status.value = '清空失败';
-    pushLog(`清空历史失败: ${(e as Error).message}`);
-  } finally {
-    clearing.value = false;
+  function dropJob(jobId: string): void {
+    queue.value = queue.value.filter((q) => q.jobId !== jobId);
   }
-}
 
-async function submit(): Promise<void> {
-  if (!template.value) return;
-  submitting.value = true;
-  errorMessage.value = null;
-  assets.value = [];
-  progress.value = null;
-  status.value = '提交中…';
+  function hasJob(jobId: string): boolean {
+    return queue.value.some((q) => q.jobId === jobId);
+  }
 
-  try {
-    // 随机开启：现在抽定，并写回表单 —— 提交的值与界面显示的必须是同一个数
-    if (values.value.randomSeed === true) {
-      const drawn = drawSeed();
-      values.value = { ...values.value, seed: drawn };
-      pushLog(`随机种子: ${drawn}`);
-    }
-    const payload = normalizeValues(template.value.inputs, values.value);
-    // 快照就是这次提交出去的那一份（含刚抽定的种子）：刷新页面回填的必须是"跑过的参数"
-    void saveLastState(payload);
-    const res = await api.createJob({ values: payload });
-    activeJobId.value = res.jobId;
-    pushLog(`任务已创建 ${res.jobId} · promptId=${res.promptId ?? '-'}`);
-
-    unsubscribe?.();
-    unsubscribe = subscribeJob(res.jobId, (evt) => {
-      switch (evt.type) {
-        case 'snapshot':
-          status.value = String(evt.data.status ?? '');
-          if (evt.data.progress) progress.value = evt.data.progress as JobProgress;
-          break;
-        case 'queued':
-          status.value = '排队中';
-          break;
-        case 'started':
-          status.value = '执行中';
-          break;
-        case 'progress': {
-          const p = evt.data as unknown as JobProgress;
-          progress.value = { value: p.value, max: p.max, node: p.node ?? null };
-          status.value = '执行中';
-          break;
-        }
-        case 'node':
-          pushLog(`执行节点 ${String(evt.data.node)}`);
-          break;
-        case 'completed': {
-          status.value = '已完成';
-          // SSE 是绕开 api 层的第二条数据入口，产出图 URL 同样要改写到反代前缀下
-          const raw =
-            (evt.data.assets as Array<{ assetId: string; url: string; filename: string }>) ?? [];
-          assets.value = raw.map((a) => ({ ...a, url: assetUrl(a.url) }));
-          pushLog(`完成 · 产出 ${assets.value.length} 张`);
-          submitting.value = false;
-          cleanup();
-          void refreshHistory();
-          break;
-        }
-        case 'error': {
-          status.value = '失败';
-          errorMessage.value = String(evt.data.message ?? '执行失败');
-          pushLog(`错误: ${errorMessage.value}`);
-          submitting.value = false;
-          cleanup();
-          void refreshHistory();
-          break;
-        }
-        case 'canceled':
-          status.value = '已取消';
-          submitting.value = false;
-          cleanup();
-          break;
+  function onStreamEvent(evt: JobStreamEvent): void {
+    const { jobId, type, data } = evt;
+    const known = hasJob(jobId);
+    switch (type) {
+      case 'snapshot': {
+        const patch: Partial<QueueJob> = {
+          status: String(data.status ?? 'created'),
+          progress: (data.progress as JobProgress | null) ?? null,
+          error: (data.error as { message?: string } | null)?.message ?? null,
+        };
+        // 服务端带上了提交时间：刷新页面后队列顺序不会乱（不带就用"现在"兜底）
+        const createdAt = asText(data.createdAt);
+        if (createdAt) patch.createdAt = createdAt;
+        applyJob(jobId, patch);
+        break;
       }
+      case 'queued':
+        applyJob(jobId, { status: 'queued', promptId: asText(data.promptId) });
+        break;
+      case 'started':
+        applyJob(jobId, { status: 'running' });
+        break;
+      case 'progress':
+        applyJob(jobId, {
+          status: 'running',
+          progress: {
+            value: Number(data.value ?? 0),
+            max: Number(data.max ?? 0),
+            node: (data.node as string | null) ?? null,
+          },
+        });
+        break;
+      case 'node':
+        pushLog(`${jobId.slice(0, 12)}… 执行节点 ${String(data.node)}`);
+        break;
+      case 'completed': {
+        if (!known) return; // 已经不在队列里（本地已清 / 历史里的旧任务），别凭空长出来
+        const raw = (data.assets as Array<{ assetId: string; url: string; filename: string }>) ?? [];
+        // SSE 是绕开 api 层的第二条数据入口，产出图 URL 同样要改写到反代前缀下
+        recentAssets.value = raw.map((a) => ({ ...a, url: assetUrl(a.url) }));
+        recentJobId.value = jobId;
+        pushLog(`完成 ${jobId.slice(0, 12)}… · 产出 ${raw.length} 张`);
+        dropJob(jobId);
+        void refreshHistory();
+        break;
+      }
+      case 'error': {
+        if (!known) return;
+        const message = String(data.message ?? '执行失败');
+        errorMessage.value = message;
+        pushLog(`失败 ${jobId.slice(0, 12)}…: ${message}`);
+        dropJob(jobId);
+        void refreshHistory();
+        break;
+      }
+      case 'canceled':
+        if (!known) return;
+        pushLog(`已取消 ${jobId.slice(0, 12)}…`);
+        dropJob(jobId);
+        void refreshHistory();
+        break;
+    }
+  }
+
+  function asText(value: unknown): string | null {
+    return typeof value === 'string' && value ? value : null;
+  }
+
+  /**
+   * 跟服务端对一次账：列表里已经是终态的任务，队列里就不该再留着。
+   *
+   * 这条兜的是"SSE 断线期间任务跑完了"——重连只会补发**在途**任务的快照，
+   * 已结束的那条不会再有事件，只能靠对账把它从队列里摘掉。
+   */
+  function reconcile(items: Job[]): void {
+    if (queue.value.length === 0) return;
+    const byId = new Map(items.map((j) => [j.jobId, j]));
+    let changed = false;
+    const kept: QueueJob[] = [];
+    for (const q of queue.value) {
+      const job = byId.get(q.jobId);
+      if (job && TERMINAL.has(job.status)) {
+        changed = true;
+        if (job.status === 'succeeded' && job.assets.length > 0 && recentJobId.value !== job.jobId) {
+          recentAssets.value = job.assets.map((a) => ({ ...a, url: assetUrl(a.url) }));
+          recentJobId.value = job.jobId;
+        }
+        continue;
+      }
+      kept.push(q);
+    }
+    if (changed) queue.value = kept;
+  }
+
+  async function refreshHistory(): Promise<void> {
+    try {
+      const items = (await api.listJobs()).items;
+      history.value = items.slice(0, 8);
+      reconcile(items);
+    } catch {
+      /* 忽略 */
+    }
+  }
+
+  // ---- 事件流 ------------------------------------------------------------
+
+  /** 订阅全局任务事件流（App.vue 挂载时调一次；重复调用是空操作） */
+  function start(): void {
+    if (unsubscribe) return;
+    unsubscribe = subscribeJobs(onStreamEvent, {
+      // 重连成功就对一次账：断线期间跑完的任务不会有事件补发
+      onOpen: () => void refreshHistory(),
+      onError: (err) => pushLog(`任务事件流中断，浏览器会自动重连（${err.type || 'error'}）`),
     });
-  } catch (err) {
-    const e = err as Error & { details?: unknown };
-    errorMessage.value = e.message;
-    status.value = '提交失败';
-    submitting.value = false;
-    pushLog(`提交失败: ${e.message}`);
-    if (e.details) pushLog(`详情: ${JSON.stringify(e.details)}`);
   }
-}
 
-function cleanup(): void {
-  unsubscribe?.();
-  unsubscribe = null;
-}
-
-async function cancel(): Promise<void> {
-  if (!activeJobId.value) return;
-  try {
-    await api.cancelJob(activeJobId.value);
-    pushLog('已请求取消');
-  } catch (err) {
-    pushLog(`取消失败: ${(err as Error).message}`);
+  function stop(): void {
+    unsubscribe?.();
+    unsubscribe = null;
   }
-}
 
-function reuse(job: Job): void {
-  // 复用 = 复现同一张图：种子必须是**当时那个具体数**，所以顺手关掉随机，
-  // 否则下一次提交又抽新的，复用就白点了。
-  const resolved = job.seeds ?? {};
-  const next: Record<string, unknown> = { ...values.value, ...job.values };
-  for (const [key, seed] of Object.entries(resolved)) next[key] = seed;
-  if (Object.keys(resolved).length > 0) next.randomSeed = false;
-  values.value = next;
-  const seedKeys = Object.keys(resolved);
-  pushLog(
-    seedKeys.length > 0
-      ? `已复用任务 ${job.jobId} 的参数（种子 ${seedKeys.map((k) => resolved[k]).join(', ')}，已切换为固定种子）`
-      : `已复用任务 ${job.jobId} 的参数`,
-  );
-}
+  // ---- 提交 / 取消 / 复用 -------------------------------------------------
 
-const percent = computed(() => {
-  const p = progress.value;
-  if (!p || !p.max) return 0;
-  return Math.min(100, Math.round((p.value / p.max) * 100));
-});
+  async function submit(): Promise<void> {
+    if (!template.value) return;
+    submitting.value = true;
+    errorMessage.value = null;
 
-/**
- * 任务列表里的小图走缩略图端点。
- * 产出图可能是 1~2MB，用来渲染 56px 的缩略图纯属浪费网络。
- */
-function assetThumbUrl(assetId: string): string {
-  return apiUrl(`/api/assets/${encodeURIComponent(assetId)}/thumb?w=112&h=112`);
-}
+    try {
+      // 随机开启：现在抽定，并写回表单 —— 提交的值与界面显示的必须是同一个数
+      if (values.value.randomSeed === true) {
+        const drawn = drawSeed();
+        values.value = { ...values.value, seed: drawn };
+        pushLog(`随机种子: ${drawn}`);
+      }
+      const payload = normalizeValues(template.value.inputs, values.value);
+      // 快照就是这次提交出去的那一份（含刚抽定的种子）：刷新页面回填的必须是"跑过的参数"
+      void saveLastState(payload);
+      const res = await api.createJob({ values: payload });
+      const seed = typeof payload.seed === 'number' && payload.seed >= 0 ? payload.seed : null;
+      applyJob(res.jobId, {
+        promptId: res.promptId,
+        status: res.status,
+        createdAt: res.createdAt,
+        seed,
+      });
+      pushLog(
+        `已加入队列 ${res.jobId} · promptId=${res.promptId ?? '-'}（在途 ${queue.value.length} 个）`,
+      );
+      // 兜底：调用方忘了 start() 也要能收到进度（重复调用无害）
+      start();
+    } catch (err) {
+      const e = err as Error & { details?: unknown };
+      errorMessage.value = e.message;
+      pushLog(`提交失败: ${e.message}`);
+      if (e.details) pushLog(`详情: ${JSON.stringify(e.details)}`);
+    } finally {
+      // 只锁这一下 —— 队列在跑不影响继续改参数、接着排下一条
+      submitting.value = false;
+    }
+  }
+
+  /**
+   * 取消一条任务。在跑的打断当前执行，排队的从 ComfyUI 队列里摘掉（服务端按上游队列判断，
+   * 不靠本地状态猜 —— WS 掉线时本地会以为还在排队，其实已经在跑）。
+   */
+  async function cancel(jobId: string): Promise<void> {
+    try {
+      await api.cancelJob(jobId);
+      pushLog(`已请求取消 ${jobId.slice(0, 12)}…`);
+      // 乐观摘除；随后真到的 canceled 事件会因为"队列里没这条"被忽略（见 onStreamEvent）
+      dropJob(jobId);
+    } catch (err) {
+      pushLog(`取消失败: ${(err as Error).message}`);
+    }
+  }
+
+  function reuse(job: Job): void {
+    // 复用 = 复现同一张图：种子必须是**当时那个具体数**，所以顺手关掉随机，
+    // 否则下一次提交又抽新的，复用就白点了。
+    const resolved = job.seeds ?? {};
+    const next: Record<string, unknown> = { ...values.value, ...job.values };
+    for (const [key, seed] of Object.entries(resolved)) next[key] = seed;
+    if (Object.keys(resolved).length > 0) next.randomSeed = false;
+    values.value = next;
+    const seedKeys = Object.keys(resolved);
+    pushLog(
+      seedKeys.length > 0
+        ? `已复用任务 ${job.jobId} 的参数（种子 ${seedKeys.map((k) => resolved[k]).join(', ')}，已切换为固定种子）`
+        : `已复用任务 ${job.jobId} 的参数`,
+    );
+  }
+
+  /** 清空历史记录：服务端只清已结束的任务，在途的会保留 */
+  async function clearHistory(): Promise<void> {
+    clearing.value = true;
+    try {
+      const res = await api.clearJobs();
+      history.value = res.items.slice(0, 8);
+      const parts = [`已清空 ${res.cleared} 条历史`];
+      if (res.kept > 0) parts.push(`${res.kept} 个任务还在跑，已保留`);
+      pushLog(parts.join('，'));
+    } catch (e) {
+      pushLog(`清空历史失败: ${(e as Error).message}`);
+    } finally {
+      clearing.value = false;
+    }
+  }
+
+  // ---- 派生 --------------------------------------------------------------
+
+  const queueRows = computed<QueueRow[]>(() => {
+    let waiting = 0;
+    return queue.value.map((q) => {
+      const isWaiting = q.status !== 'running';
+      if (isWaiting) waiting += 1;
+      return { ...q, label: statusLabel(q.status), waiting: isWaiting ? waiting : null };
+    });
+  });
+
+  const status = computed(() => {
+    if (submitting.value) return '提交中…';
+    const rows = queue.value;
+    if (rows.length === 0) return '空闲';
+    const running = rows.filter((q) => q.status === 'running').length;
+    const parts: string[] = [];
+    if (running > 0) parts.push(`执行中 ${running}`);
+    if (rows.length - running > 0) parts.push(`排队 ${rows.length - running}`);
+    return parts.join(' · ');
+  });
+
+  /**
+   * 任务列表里的小图走缩略图端点。
+   * 产出图可能是 1~2MB，用来渲染 56px 的缩略图纯属浪费网络。
+   */
+  function assetThumbUrl(assetId: string): string {
+    return apiUrl(`/api/assets/${encodeURIComponent(assetId)}/thumb?w=112&h=112`);
+  }
 
   return {
     status,
     submitting,
-    activeJobId,
-    progress,
-    assets,
+    queue: queueRows,
+    queueCount: computed(() => queue.value.length),
+    recentAssets,
+    recentJobId,
     errorMessage,
     history,
     clearing,
-    percent,
     assetThumbUrl,
     submit,
     cancel,
     reuse,
     clearHistory,
     refreshHistory,
+    start,
+    stop,
   };
 }

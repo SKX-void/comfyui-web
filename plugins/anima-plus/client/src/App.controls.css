@@ -35,6 +35,34 @@
   background: linear-gradient(90deg, #4f46e5, #06b6d4);
   transition: width 0.2s ease;
 }
+/* 队列：一条任务一行（队列里可能同时有好几条在跑/在排，进度必须逐条画） */
+.queue {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.queue-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #0b1220;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+}
+.queue-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* 取消按钮靠右：它只作用于本行，别和"整队列"的操作混在一起 */
+.queue-head .btn {
+  margin-left: auto;
+}
 .error {
   color: #fca5a5;
   font-size: 13px;
