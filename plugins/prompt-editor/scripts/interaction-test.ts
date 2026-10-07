@@ -177,6 +177,29 @@ let translateFails = false;
 /** 产物里那份内置机翻表在不在（`GET /tags/import` 的答案）：面板靠它决定画不画导入按钮 */
 let bundledAvailable = true;
 const translateBatches: string[][] = [];
+/**
+ * 假的下游插件：跨域调用要的两样东西 —— 宿主清单里的一行（探测）+ 它的参数快照（组包）。
+ * 默认给"跑过一次"的样子：只有真跑过才有参数基底，跨域调用刻意不去猜模板默认值。
+ */
+let fakePlugins: { id: string; title: string; enabled: boolean; phase: string; error?: string }[] = [
+  { id: 'prompt-editor', title: '提示词编辑器', enabled: true, phase: 'active' },
+  { id: 'anima-plus', title: 'anima-plus', enabled: true, phase: 'active' },
+];
+let fakeAnimaState: { values: Record<string, unknown>; savedAt: string | null } = {
+  values: {
+    prompt: '上一次的描述提示词',
+    loras: [{ name: 'Anima\\Anima Turbo LoRA-v0.2', weight: 0.9 }, { name: '', weight: 1 }],
+    unet_name: 'Anima\\0.26.9.12.NAI.RDBT  Anima.b1V23Base_fp16.safetensors',
+    seed: 421066625562399,
+    randomSeed: true,
+    steps: 6,
+    cfg: 1,
+    width: 832,
+    height: 1216,
+  },
+  savedAt: '2026-02-09T12:33:00.000Z',
+};
+let fakeJobSeq = 0;
 
 Object.defineProperty(globalThis, 'fetch', {
   value: async (url: string, init?: { method?: string; body?: string }) => {
@@ -396,6 +419,33 @@ Object.defineProperty(globalThis, 'fetch', {
       fakeBlockPresets = fakeBlockPresets.filter((one) => one.id !== id);
       return reply({ removed: fakeBlockPresets.length !== before });
     }
+    // 宿主清单（跨域调用拿它判断下游装没装 / 启没启）
+    if (method === 'GET' && path === '/api/plugins') {
+      return reply({ plugins: fakePlugins });
+    }
+    // 假 anima-plus：参数快照（组包的基底）+ 作业（真发一次调用）
+    if (path.startsWith('/api/p/anima-plus/api/')) {
+      if (method === 'GET' && path.endsWith('/api/state')) {
+        return reply({ ...fakeAnimaState, file: '/tmp/last-state.json' });
+      }
+      if (method === 'PUT' && path.endsWith('/api/state')) {
+        fakeAnimaState = {
+          values: (body?.values ?? {}) as Record<string, unknown>,
+          savedAt: '2026-02-09T13:00:00.000Z',
+        };
+        return reply({ ...fakeAnimaState, file: '/tmp/last-state.json' });
+      }
+      if (method === 'POST' && path.endsWith('/api/jobs')) {
+        fakeJobSeq += 1;
+        return reply({
+          jobId: `job${fakeJobSeq}`,
+          promptId: 'p1',
+          status: 'queued',
+          queuePosition: 2,
+          createdAt: '2026-02-09T13:00:00.000Z',
+        });
+      }
+    }
     return reply({ doc: null });
   },
   configurable: true,
@@ -505,11 +555,13 @@ check('首屏三个区块各带风格开关', pickAll('.pe-block-modes').length 
 // onMounted 里先 await 草稿、再取设置：等两轮都发出去再断言
 await settle();
 check(
-  '装载阶段不写回（只有 /draft 和 /settings 两次 GET）',
+  '装载阶段不写回（只有 4 次 GET：/draft、/settings，加跨域区的探测与参数快照）',
   calls.every((call) => call.method === 'GET') &&
-    calls.length === 2 &&
+    calls.length === 4 &&
     calls.some((call) => call.url.endsWith('/draft') === true) &&
-    calls.some((call) => call.url.endsWith('/settings') === true),
+    calls.some((call) => call.url.endsWith('/settings') === true) &&
+    calls.some((call) => call.url === '/api/plugins') &&
+    calls.some((call) => call.url.endsWith('/anima-plus/api/state') === true),
   JSON.stringify(calls),
 );
 
@@ -1911,6 +1963,84 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
   (pick('.pe-close') as HTMLButtonElement).click();
   await nextTick();
   check('面板能关掉', pick('.pe-panel') === null);
+}
+
+// ── 跨域调用：把输出填进 anima-plus 的描述提示词，并向它发起一次出图 ──────────
+console.log('跨域调用（输出 → anima-plus）');
+{
+  await settle();
+  const runButton = (): HTMLButtonElement => pick('.pe-cross-run') as HTMLButtonElement;
+  const panelText = (selector: string): string => (pick(selector)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+  check('输出下面挂着跨域调用区', pick('.pe-cross') !== null && runButton() !== null);
+  check('认出了下游是 anima-plus', panelText('.pe-cross-name').includes('anima-plus'), panelText('.pe-cross-name'));
+  check(
+    '参数摘要是对方最后一次状态（模型名只取路径末段）',
+    panelText('.pe-cross-params').includes('b1V23Base_fp16.safetensors') &&
+      panelText('.pe-cross-params').includes('832×1216') &&
+      panelText('.pe-cross-params').includes('LoRA 1 条'),
+    panelText('.pe-cross-params'),
+  );
+  check('种子策略写在摘要里（每次重抽）', panelText('.pe-cross-params').includes('每次重抽'), panelText('.pe-cross-params'));
+
+  const mark = calls.length;
+  const sentText = output();
+  runButton().click();
+  await settle(20);
+  const wrote = calls
+    .slice(mark)
+    .find((call) => call.method === 'PUT' && call.url.endsWith('/api/p/anima-plus/api/state'));
+  const posted = calls
+    .slice(mark)
+    .find((call) => call.method === 'POST' && call.url.endsWith('/api/p/anima-plus/api/jobs'));
+  const sent = posted?.body?.values as Record<string, unknown> | undefined;
+  check('提交的值里 prompt 就是输出', sent?.prompt === sentText && sentText !== '', String(sent?.prompt));
+  check(
+    '基底没被改：模型 / 尺寸 / 步数都来自对方的 last-state',
+    sent?.unet_name === 'Anima\\0.26.9.12.NAI.RDBT  Anima.b1V23Base_fp16.safetensors' &&
+      sent?.width === 832 &&
+      sent?.height === 1216 &&
+      sent?.steps === 6,
+  );
+  check(
+    'randomSeed 开着 → 提交的是新抽的种子',
+    typeof sent?.seed === 'number' && sent.seed !== 421066625562399,
+    String(sent?.seed),
+  );
+  check(
+    '写回对方快照的那一份与提交的是同一份',
+    wrote !== undefined && JSON.stringify(wrote.body?.values) === JSON.stringify(sent),
+  );
+  check(
+    '回执：作业号 + 排队位 + 这次用的种子',
+    panelText('.pe-cross-receipt').includes('job1') &&
+      panelText('.pe-cross-receipt').includes('排队第 2 位') &&
+      panelText('.pe-cross-receipt').includes(String(sent?.seed)),
+    panelText('.pe-cross-receipt'),
+  );
+  check(
+    '回执里给了去 anima-plus 看进度的链接',
+    (pick('.pe-cross-link') as HTMLAnchorElement | null)?.getAttribute('href') === '/w/anima-plus',
+  );
+  check(
+    '提交完对方那份快照里的提示词也换成了这次输出',
+    fakeAnimaState.values.prompt === sentText,
+    String(fakeAnimaState.values.prompt),
+  );
+
+  // 对方还没跑过一次：没有参数基底，按钮禁用并把原因说出来
+  fakeAnimaState = { values: {}, savedAt: null };
+  (pick('.pe-cross-refresh') as HTMLButtonElement).click();
+  await settle();
+  check('没有「最后一次状态」时按钮禁用', runButton().disabled === true);
+  check('并且说清了为什么', panelText('.pe-cross-hint').includes('最后一次状态'), panelText('.pe-cross-hint'));
+
+  // 对方没装载（或没点重扫）：同样禁用，但原因是另一回事
+  fakePlugins = fakePlugins.filter((one) => one.id !== 'anima-plus');
+  (pick('.pe-cross-refresh') as HTMLButtonElement).click();
+  await settle();
+  check('下游不在宿主清单里时说清是没装载', panelText('.pe-cross-hint').includes('重新扫描'), panelText('.pe-cross-hint'));
+  check('探测结果也写在面板上', panelText('.pe-cross-status').includes('宿主里没有'), panelText('.pe-cross-status'));
 }
 
 console.log(failed === 0 ? '\n✅ 交互测试通过' : `\n❌ ${failed} 项不通过`);

@@ -70,6 +70,7 @@
 | D22 | 工作流定义的形状 | **一个插件 = 一份工作流定义，不存在"模板"这层抽象**：图是插件根的 `workflow.json`（与 `package.json` 并列、`pack.mjs` 按名打包，跟 `anima-example` 一致），表单/绑定/产出/依赖声明在 `assets/form.json`；没有 `source.file` 指针（图不存第二份），没有多模板注册表 / 按 id 查 / id 唯一性校验（D16/D19 之后一个工作流 = 一个 tab，多模板能力从未被用过），HTTP 也随之去 `templateId`：`GET /api/template`（单数）、`POST /api/jobs` 只收 `values` | v1 的「模板数据」层是单体应用的产物（§0），v2 用「一个工作流 = 一个 tab」（G1）取代了它：一个插件里再分"模板"是重复抽象，而它唯一独有的能力（一格挂多套表单/图）没有任何使用者。旧形状还实际制造过事故：`workflow.json` 与 `graph.json` 两份图靠 `source.file` 指针连着，改一份忘另一份就悄悄跑偏。见 §10、§14 |
 | D19 | profile 机制与示例 tab 的删除 | **`profiles/`、Include 装配、`apps/server/scripts/plugin.mjs`、清单落盘、契约 patch 层、`fallback`/`following` 全删**：插件唯一来源是 `tabs/<id>/`；统一地址只剩"只读默认值"（宿主不写进任何插件）；`tabs/hello/` 不再作为示例（写法见 `tabs/README.md`） | D16 已把落点定死（`data/host.json` + `tabs/`），留着 profile 只会多一条没人走的装配路径与一份"两个真源"的歧义；示例 tab 的内容已经并进 `tabs/README.md` 的三文件骨架。见 §6/§6.1/§14.5 |
 | D23 | 插件页面崩了怎么办 | **前端渲染错误隔离**：`PluginBoundary` 包住 `<RouterView>`（`onErrorCaptured` → `return false`，且 **slot 永远渲染**），`app.config.errorHandler` 只记录、**不重抛** | dev 构建的 Vue 对**没人接住**的组件错误是 `throw err`（`logError` 的 `throwInDev`），而抛出点在调度器 `flushJobs` 里 —— 一个插件页面抛错就能让整个外壳停摆：插件区域空白、之后每次切 tab 再抛 `Cannot read properties of null (reading 'component')`，只能刷新浏览器（实测复现过）。`return false` 与"slot 永远渲染"缺一不可（前者防 re-throw，后者保证切走后 RouterView 还在树上）。见 §7.2、§14.2 |
+| D24 | 跨插件调用 | **特别允许一条单向依赖**：prompt-editor 的输出可以直接变成 anima-plus 的一次出图 —— 全程走 HTTP 路由（`GET /api/plugins` 看对方装没装 / 启没启、`GET`+`PUT /api/p/anima-plus/api/state`、`POST /api/p/anima-plus/api/jobs`），**不 import 对方代码、不读对方库文件**；参数基底一律取自对方「最后一次状态」，没有就**禁用按钮并把原因说出来**（不猜模板默认值） | "写好的提示词直接发去出图"是这两个插件真实的工作流，隔一层复制粘贴才是假隔离；但隔离规则（§8）不能破，所以对方那几条提交语义（`randomSeed` 开着先抽种子、先写快照再建作业）在适配器里复刻并注明来源。代价：两处逻辑要一起改（对方改了这边不知道），且 prompt-editor 从此知道 anima-plus 存在 —— 方向单向、下游只有一个适配器时这个代价可接受。见 §8、§14.6 |
 
 ```
 ┌─────────────────────────── 浏览器 ───────────────────────────┐
@@ -738,6 +739,20 @@ comfyui-web/
   先原子写盘、再改运行期状态（停用走 `loader.update`，启用走整格重挂），写不进去就报 500 而**不**
   假装成功；装载时由 `tabs.ts` 读盘决定 disabled。清单的 `enabled` 报**当前事实**（Loader 行优先），
   避免"刚启用却还显示停用"的窗口。
+
+### 14.6 D24 的落点（跨插件调用）
+
+- **适配器 + 薄注册表**：`plugins/prompt-editor/client/src/crosscall/`（`types.ts` 接口 /
+  `anima-plus.ts` 唯一实现 / `index.ts` 注册表），状态在 `composables/useCrossCall.ts`，
+  视图是 `components/CrossCallPanel.vue`，挂在右侧栏输出区下面（`App.vue` 的 `.pe-side`）。
+- **三件事分开**：`probe()`（只读宿主清单判断对方装没装 / 启没启）→ `plan()`（读对方快照、
+  把输出填进 `prompt`、按 `randomSeed` 决定是否重抽种子；纯函数 `buildPlan()` 可单测）→
+  `submit()`（`PUT` 写回对方快照 + `POST /api/jobs` 建作业，回执报 jobId / 排队位 / 这次用的种子）。
+- **刻意不做**：没有参数基底时**不猜模板默认值**（对方没跑过一次就直接禁用并写明原因）；
+  不引入对方代码 —— `drawSeed()` 与「先写快照再建作业」是复刻，注释里写明来源与同步义务。
+- **验收**：`plugins/prompt-editor/scripts/contract-test.ts` 断言组包纯函数；
+  `scripts/interaction-test.ts` 用假下游跑通整条链路（探测 → 提交 → 回执 → 「没有最后一次状态」
+  与「没装载」两条降级路径），挂载断言里计入跨域区的两次探测 GET。`pnpm verify` 6 步全绿。
 
 其余实施细节（每条功能的落地过程、验收证据）见
 [`docs/archive/v2-implementation-notes.md`](./archive/v2-implementation-notes.md)。

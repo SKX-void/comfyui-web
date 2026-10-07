@@ -36,6 +36,7 @@ import {
   type Doc,
   type Item,
 } from '../client/src/model.ts';
+import { buildPlan, drawSeed, paramsOf } from '../client/src/crosscall/anima-plus.ts';
 
 let failed = 0;
 function check(label: string, ok: boolean, detail?: unknown): void {
@@ -390,6 +391,57 @@ check(
       blocks: [{ id: 'b', title: '场景', color: '#fff', mode: 'text', items: [item('a cat sits.'), item('a dog runs.')] }],
     }),
   ),
+);
+
+// ── 跨域调用：输出 → anima-plus 的描述提示词（组包是纯函数，提交才是 HTTP）──────
+console.log('跨域调用组包（anima-plus 适配器）');
+/** anima-plus 的 last-state.json 长什么样（键名与 assets/form.json 的 inputs 对齐） */
+const savedState = {
+  prompt: '上一次的描述提示词',
+  loras: [{ name: 'Anima\\Anima Turbo LoRA-v0.2', weight: 0.9 }, { name: '  ', weight: 1 }],
+  unet_name: 'Anima\\0.26.9.12.NAI.RDBT  Anima.b1V23Base_fp16.safetensors',
+  seed: 421066625562399,
+  randomSeed: true,
+  steps: 6,
+  cfg: 1,
+  width: 832,
+  height: 1216,
+};
+const drawn = buildPlan(savedState, '1girl, solo', () => 777);
+check(
+  '描述提示词换成输出，其余字段原样（基底就是对方最后一次状态）',
+  drawn.values.prompt === '1girl, solo' && drawn.values.width === 832 && drawn.values.steps === 6,
+  JSON.stringify(drawn.values.prompt),
+);
+check(
+  '不动传进来的那份基底（改的是拷贝出来的新对象）',
+  savedState.prompt === '上一次的描述提示词' && savedState.seed === 421066625562399,
+);
+check(
+  'randomSeed 开着：重抽种子并写回 values（与对方 submit 同一套）',
+  drawn.redrewSeed === true && drawn.seed === 777 && drawn.values.seed === 777,
+  String(drawn.values.seed),
+);
+const kept = buildPlan({ ...savedState, randomSeed: false }, 'x');
+check('randomSeed 关着：沿用快照里的种子', kept.redrewSeed === false && kept.values.seed === 421066625562399);
+const noSeed = buildPlan({ prompt: 'p' }, 'x');
+check('对方没有种子字段时不硬塞一个', noSeed.seed === null && noSeed.values.seed === undefined);
+const param = (label: string): string => drawn.params.find((one) => one.label === label)?.value ?? '';
+check(
+  '摘要：模型只取路径末段（Windows 路径也一样）',
+  param('模型').endsWith('b1V23Base_fp16.safetensors') && !/[\\/]/.test(param('模型')),
+  param('模型'),
+);
+check('摘要：尺寸 / 步数 / CFG', param('尺寸') === '832×1216' && param('步数') === '6' && param('CFG') === '1');
+check('摘要：LoRA 条数剔掉空名字行（对方提交时也剔）', param('LoRA') === '1 条', param('LoRA'));
+check('摘要：重抽时写策略而不是预览用的那个数', param('种子') === '每次重抽', param('种子'));
+check(
+  '摘要：不重抽时写出具体种子',
+  paramsOf({ ...savedState, randomSeed: false }, false).find((one) => one.label === '种子')?.value === '421066625562399',
+);
+check(
+  'drawSeed 落在 anima-plus 的同一区间（0 ~ 2^53-1）',
+  [0, 1, 2, 3].every(() => drawSeed() >= 0 && drawSeed() <= 2 ** 53 - 1),
 );
 
 // ── 5. 服务端收敛：请求体与手改坏的文件都不该让页面炸 ────────────────────────

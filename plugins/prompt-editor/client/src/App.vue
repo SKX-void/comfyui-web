@@ -12,6 +12,7 @@ import { onMounted, ref } from 'vue';
 
 import BlockCard from './components/BlockCard.vue';
 import BlockLibraryPanel, { type PendingBlock } from './components/BlockLibraryPanel.vue';
+import CrossCallPanel from './components/CrossCallPanel.vue';
 import OutputPane from './components/OutputPane.vue';
 import PresetPanel from './components/PresetPanel.vue';
 import TagLibraryPanel from './components/TagLibraryPanel.vue';
@@ -247,6 +248,7 @@ onMounted(async () => {
 
       <aside class="pe-side">
         <OutputPane :text="output" :item-count="itemCount" :block-count="doc.blocks.length" />
+        <CrossCallPanel :text="output" />
       </aside>
     </div>
 
@@ -343,6 +345,9 @@ onMounted(async () => {
 }
 
 .pe-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   position: sticky;
   top: 12px;
   min-width: 0;
