@@ -7,7 +7,7 @@
  * 每次都往上抬一层再传回来只会把代码变长。改的始终是父级那个对象，不是重新赋值 prop。
  * 头部（拖动 / 颜色 / 标题 / 风格开关）在 BlockHeader —— 它改的也是同一个 block。
  */
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import BlockHeader from './BlockHeader.vue';
 import ItemChip from './ItemChip.vue';
@@ -56,6 +56,16 @@ const emit = defineEmits<{
 const paletteOpen = ref(false);
 const adding = ref('');
 const addInput = ref<HTMLInputElement | null>(null);
+/** 色板里那个「自己写一个颜色」的输入框：打开面板时填当前色，方便在它基础上改 */
+const customColor = ref('');
+const customInput = ref<HTMLInputElement | null>(null);
+
+watch(
+  paletteOpen,
+  (open) => {
+    if (open) customColor.value = props.block.color;
+  },
+);
 
 const isDragging = (index: number): boolean =>
   props.dragItem !== null && props.dragItem.blockId === props.block.id && props.dragItem.index === index;
@@ -114,6 +124,21 @@ function onItemDrop(event: DragEvent, index: number): void {
 function pickColor(color: string): void {
   props.block.color = color;
   paletteOpen.value = false;
+  emit('structure-changed');
+}
+
+/**
+ * 自定义颜色：**失焦即提交**（敲回车也行），和「+」输入框一个规矩；提交后**不关面板** ——
+ * 关掉的话输入框会随面板一起从 DOM 里消失，而"点了别处 → 失焦 → 提交"这条链就断了
+ * （点色板时也会先失焦，提交顺序会变得看运气）。读的是输入框的实时值，理由同 ItemChip。
+ *
+ * 不做合法性校验：颜色只是个 CSS 值，写错了浏览器自己丢掉那条声明（边框回到默认色），
+ * 面板上的色点也立刻显示成"没颜色"—— 校验了还得再给一套"为什么没生效"的提示，不值。
+ */
+function applyCustomColor(): void {
+  const next = (customInput.value?.value ?? customColor.value).trim();
+  if (next === '' || next === props.block.color) return;
+  props.block.color = next;
   emit('structure-changed');
 }
 
@@ -215,6 +240,15 @@ function removeItem(index: number): void {
         :title="color"
         @click="pickColor(color)"
       />
+      <input
+        ref="customInput"
+        v-model="customColor"
+        class="pe-swatch-input"
+        placeholder="或输入颜色：red / #f0f / rgb(…)"
+        @keydown.enter.prevent="applyCustomColor"
+        @keydown.esc.prevent="customColor = block.color"
+        @blur="applyCustomColor"
+      />
     </div>
 
     <div
@@ -274,6 +308,8 @@ function removeItem(index: number): void {
 
 .pe-palette {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--line, #2e333d);
@@ -286,6 +322,23 @@ function removeItem(index: number): void {
   border: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
   padding: 0;
+}
+
+.pe-swatch-input {
+  flex: 1 1 150px;
+  min-width: 120px;
+  border: 1px dashed var(--line, #2e333d);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 6px;
+  outline: none;
+}
+
+.pe-swatch-input:focus {
+  border-color: var(--accent, #6ea8fe);
 }
 
 .pe-block-body {
