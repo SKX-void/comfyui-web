@@ -21,13 +21,16 @@ const emit = defineEmits<{
 
 /**
  * 译文标记只说一件事：**这条译文在不在词库里**。
- * `库` = 在库里（词库命中 / 你手改手填的 / 点「机」存过的）· `机` = 机器现翻的、还没进库。
+ * `库` = 在库里（词库命中的、你手改手填的、点「机」存过的）· `导` = 在库里，但来自导入的机翻表
+ * （十几万条灌进来之后，全画「库」就分不出哪条是你改过的）· `机` = 机器现翻的、还没进库。
  * 不在库里就永远要再问一次接口，所以这个标记值得看。
  */
-const SOURCE_MARK: Record<string, string> = { dict: '库', api: '机' };
+const SOURCE_MARK: Record<string, string> = { dict: '库', import: '导', api: '机' };
 const sourceMark = computed(() => SOURCE_MARK[props.item.source] ?? '');
 const sourceTitle = computed(() => {
   if (props.item.source === 'dict') return '这条译文在词库里（词库命中的，或你手改/存过的）—— 自动译不会再覆盖它';
+  if (props.item.source === 'import')
+    return '这条译文在词库里，但来自**导入的机翻表**（不是人写的）—— 零请求；觉得不对就在词库面板里改掉它';
   if (props.item.source === 'api') return '机器现翻的，**还没进词库**；点一下存进词库';
   return '';
 });

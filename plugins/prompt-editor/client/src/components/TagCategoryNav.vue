@@ -1,44 +1,169 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue';
+
 /**
  * 词库面板左边的分类树：全部 / 未分类 / 已有分类。
  *
  * 分类不是装饰 —— 它是"写作时怎么找词"的维度（见 server.js 的 queryTags 按 categories 分组）。
+ *
+ * 它同时是**拖拽的落点**：把右边某一行拖到某个分类上 = 那条改成这个分类。所以这批按钮
+ * 要同时当"筛选用"（点）和"落点"（拖上去），两件事互不打扰。
+ *
+ * 「全部」**不是落点**（`''` 不是一个分类）：拖到它上面等于"去掉分类"就太容易误触了，
+ * 想去掉分类拖「未分类」——那是个真状态。
  */
-defineProps<{
+const props = defineProps<{
   categories: { name: string; count: number }[];
   total: number;
   uncategorized: number;
   /** 当前选中的分类名（`''` = 全部，`__none__` = 未分类） */
   active: string;
+  /** 是不是正拖着某一行（拖拽状态在父级）—— 没在拖的时候落点不该有反应 */
+  dragging: boolean;
+  /** 正被悬停的落点（`''` = 没有；`__none__` = 未分类） */
+  dropTarget: string;
+  /** 分类级管理（分类本身是一张表）：新建 / 改名 / 删除三件事的中间状态 */
+  creating: boolean;
+  newName: string;
+  renaming: string;
+  renameTo: string;
+  /** 待确认的删除：删分类会连带摘掉它下面所有归属，所以先摆出影响范围 */
+  confirm: { name: string; count: number } | null;
+  busy: boolean;
+  /** 面板的编辑模式：关着时这棵树只是筛选 + 拖拽落点，不出现任何管理入口 */
+  editMode: boolean;
 }>();
-const emit = defineEmits<{ (e: 'pick', name: string): void }>();
+const emit = defineEmits<{
+  (e: 'pick', name: string): void;
+  (e: 'drag-over', name: string): void;
+  (e: 'drag-leave'): void;
+  (e: 'drop', name: string): void;
+  (e: 'start-create'): void;
+  (e: 'cancel-create'): void;
+  (e: 'update:newName', value: string): void;
+  (e: 'submit-create'): void;
+  (e: 'start-rename', name: string): void;
+  (e: 'cancel-rename'): void;
+  (e: 'update:renameTo', value: string): void;
+  (e: 'submit-rename'): void;
+  (e: 'ask-remove', name: string, count: number): void;
+  (e: 'cancel-remove'): void;
+  (e: 'submit-remove'): void;
+}>();
+
+/**
+ * 输入框出现时要**自己抢焦点**：不抢的话点了「改」之后敲键盘什么也不会发生
+ * （`@keyup.enter` / `@keyup.esc` 挂在输入框上，没焦点就永远不触发），
+ * 看起来就是"点了没反应、也没法取消"。
+ */
+const newInput = ref<HTMLInputElement | null>(null);
+const renameInput = ref<HTMLInputElement | null>(null);
+const grab = (target: typeof newInput): void => {
+  target.value?.focus();
+  target.value?.select();
+};
+// `flush: 'post'`：等 DOM 换完再抢焦点（默认的 pre 在渲染前跑，那时 ref 还是空的；
+// 而自己在回调里 `await nextTick()` 又会慢一拍 —— 就是"点了没反应"的来源）
+watch(() => props.creating, (on) => { if (on) grab(newInput); }, { flush: 'post' });
+watch(() => props.renaming, (name) => { if (name !== '') grab(renameInput); }, { flush: 'post' });
 </script>
 
 <template>
-  <nav class="pe-lib-cats">
+  <nav class="pe-lib-cats" :class="{ 'pe-lib-cats-dragging': dragging }">
+    <!-- 分类级管理区：一次只显示一件事（新建 / 改名 / 删除确认），不然左边会变成工具箱。
+         整个区跟「改 / 删」一样只在编辑模式出现 —— 浏览模式下这棵树不该有写入口 -->
+    <div v-if="editMode" class="pe-lib-cat-manage">
+      <template v-if="confirm !== null">
+        <p class="pe-lib-cat-warn">
+          删掉「{{ confirm.name }}」？<br />
+          <strong>{{ confirm.count }}</strong> 条词条会变回未分类（<strong>词条本身不删</strong>）。
+        </p>
+        <span class="pe-lib-cat-btns">
+          <button class="pe-btn pe-btn-danger" :disabled="busy" @click="emit('submit-remove')">确认删除</button>
+          <button class="pe-btn" @click="emit('cancel-remove')">取消</button>
+        </span>
+      </template>
+      <template v-else-if="renaming !== ''">
+        <p class="pe-lib-cat-warn">把「{{ renaming }}」改名成：</p>
+        <input
+          ref="renameInput"
+          class="pe-input pe-lib-cat-input"
+          :value="renameTo"
+          @input="emit('update:renameTo', ($event.target as HTMLInputElement).value)"
+          @keyup.enter="emit('submit-rename')"
+          @keyup.esc="emit('cancel-rename')"
+        />
+        <span class="pe-lib-cat-btns">
+          <button class="pe-btn" :disabled="busy || renameTo.trim() === ''" @click="emit('submit-rename')">改名</button>
+          <button class="pe-btn" @click="emit('cancel-rename')">取消</button>
+        </span>
+      </template>
+      <template v-else-if="creating">
+        <input
+          ref="newInput"
+          class="pe-input pe-lib-cat-input"
+          :value="newName"
+          placeholder="新分类名"
+          @input="emit('update:newName', ($event.target as HTMLInputElement).value)"
+          @keyup.enter="emit('submit-create')"
+          @keyup.esc="emit('cancel-create')"
+        />
+        <span class="pe-lib-cat-btns">
+          <button class="pe-btn" :disabled="busy || newName.trim() === ''" @click="emit('submit-create')">新建</button>
+          <button class="pe-btn" @click="emit('cancel-create')">取消</button>
+        </span>
+      </template>
+      <button v-else class="pe-btn pe-btn-quiet pe-lib-cat-new" @click="emit('start-create')">＋ 新建分类</button>
+    </div>
+
     <button :class="{ on: active === '' }" @click="emit('pick', '')">
       全部 <em>{{ total }}</em>
     </button>
-    <button :class="{ on: active === '__none__' }" @click="emit('pick', '__none__')">
+    <button
+      :class="{ on: active === '__none__', 'pe-lib-drop-on': dragging && dropTarget === '__none__' }"
+      :data-drop="dragging ? 'ok' : ''"
+      @click="emit('pick', '__none__')"
+      @dragover.prevent="emit('drag-over', '__none__')"
+      @dragleave="emit('drag-leave')"
+      @drop.prevent="emit('drop', '__none__')"
+    >
       未分类 <em>{{ uncategorized }}</em>
     </button>
-    <button
+    <!-- 一行 = 一个分类：可点的那个是「选它」（也当落点），改名/删除挂在它旁边（button 里不能再套 button） -->
+    <div
       v-for="one in categories"
       :key="one.name"
-      :class="{ on: active === one.name }"
-      @click="emit('pick', one.name)"
+      class="pe-lib-cat-row"
+      :class="{ 'pe-lib-cat-row-editing': renaming === one.name }"
     >
-      {{ one.name }} <em>{{ one.count }}</em>
-    </button>
+      <button
+        class="pe-lib-cat-pick"
+        :class="{ on: active === one.name, 'pe-lib-drop-on': dragging && dropTarget === one.name }"
+        :data-drop="dragging ? 'ok' : ''"
+        :title="one.name"
+        @click="emit('pick', one.name)"
+        @dragover.prevent="emit('drag-over', one.name)"
+        @dragleave="emit('drag-leave')"
+        @drop.prevent="emit('drop', one.name)"
+      >
+        <span class="pe-lib-cat-name">{{ one.name }}</span> <em>{{ one.count }}</em>
+      </button>
+      <span v-if="editMode" class="pe-lib-cat-tools">
+        <button class="pe-lib-cat-tool" title="改名" @click="emit('start-rename', one.name)">改</button>
+        <button class="pe-lib-cat-tool" title="删掉这个分类" @click="emit('ask-remove', one.name, one.count)">删</button>
+      </span>
+    </div>
     <p v-if="categories.length === 0" class="pe-lib-tip">
-      还没有分类。<br />点条目上的「改」填分类，填过的会出现在这里。
+      还没有分类。<br />点上面的「＋ 新建分类」建一个，或把右边的条目拖到「未分类」以外的地方。
     </p>
   </nav>
 </template>
 
 <style scoped>
 .pe-lib-cats {
-  flex: 0 0 150px;
+  /* 150 放不下"分类名 + 计数 + 改名/删除"：名字会被挤成两行，整行高 44（原来 26）。
+     右边列表宽得多，从它那里挪 40px 过来最划算 */
+  flex: 0 0 190px;
   overflow: auto;
   padding: 8px;
   border-right: 1px solid var(--line, #2e333d);
@@ -67,6 +192,114 @@ const emit = defineEmits<{ (e: 'pick', name: string): void }>();
 }
 
 .pe-lib-cats button.on {
+  background: var(--panel-2, #22262e);
+  color: var(--accent, #6ea8fe);
+}
+
+/**
+ * 拖拽时整列点亮：一拿起手柄，左边所有能放的地方都显出来（"这里可以放"），
+ * 悬停到的那个再加强（`.pe-lib-drop-on`）—— 光高亮悬停的那个不够，人得先知道有哪几个地方能放。
+ */
+.pe-lib-cats-dragging button[data-drop='ok'] {
+  background: var(--panel-2, #22262e);
+  outline: 1px dashed var(--accent, #6ea8fe);
+  outline-offset: -1px;
+}
+
+.pe-lib-cats button.pe-lib-drop-on {
+  background: var(--accent, #6ea8fe);
+  color: var(--panel, #171a20);
+  outline-style: solid;
+}
+
+/* 分类级管理区：新建 / 改名 / 删除确认，一次只显示一件事 */
+.pe-lib-cat-manage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 2px 6px;
+  border-bottom: 1px solid var(--line, #2c313a);
+  margin-bottom: 6px;
+}
+
+.pe-lib-cat-warn {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted, #9aa3b2);
+}
+
+.pe-lib-cat-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.pe-lib-cat-new,
+.pe-lib-cat-input {
+  width: 100%;
+  font-size: 12px;
+}
+
+/* 一行 = 可点的分类 + 挂在旁边的改名/删除（button 里不能再套 button，所以是兄弟节点） */
+.pe-lib-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 正在改名的那一行：管理区在上面，这里得看得出改的是哪一个 */
+.pe-lib-cat-row-editing .pe-lib-cat-pick {
+  outline: 1px dashed var(--accent, #6ea8fe);
+  outline-offset: -1px;
+}
+
+.pe-lib-cat-row .pe-lib-cat-pick {
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+/* 名字太长时自己省略，别把这一行撑成两行（`em` 不参与收缩，计数永远看得见） */
+.pe-lib-cat-row .pe-lib-cat-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pe-lib-cat-row .pe-lib-cat-pick > em {
+  flex: none;
+}
+
+/* 常显（淡）而不是 hover 才出：这俩按钮就是"分类管理在哪"的答案，藏起来等于没有。
+   用「改 / 删」而不是 ✎/× —— 缺字时 ✎ 会变成豆腐块（本机实测），汉字一定有 */
+.pe-lib-cat-tools {
+  display: flex;
+  gap: 2px;
+  opacity: 0.4;
+}
+
+.pe-lib-cat-row:hover .pe-lib-cat-tools {
+  opacity: 1;
+}
+
+/* 选择器要压过上面那条 `.pe-lib-cats button`（它的 display/padding 会把这俩小按钮撑歪） */
+.pe-lib-cats .pe-lib-cat-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted, #9aa3b2);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pe-lib-cats .pe-lib-cat-tool:hover {
   background: var(--panel-2, #22262e);
   color: var(--accent, #6ea8fe);
 }

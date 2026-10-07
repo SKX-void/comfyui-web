@@ -8,14 +8,15 @@
  * 依赖注入（fetchImpl / now / usage / apiCache）是为了能在契约测试里跑 stub，不碰真网。
  * 返回的 `results` 严格按入参顺序对齐：results[i] 对应 texts[i]，前端自己记 id ↔ 下标。
  */
-import { maskPromptSyntax, tagKey, type MaskPlan } from './prompt.js';
+import { tagKey, maskPromptSyntax, type MaskPlan } from './prompt.js';
 import { PROVIDERS, isRateLimited, type FetchLike } from './providers.js';
 import { DEFAULT_SETTINGS, type Settings, type Usage } from './settings.js';
-import { tagsLookup, type Tags } from './tags.js';
+import type { TagLookup } from './tags.js';
 import { errorMessage } from './util.js';
 
 export interface TranslateOptions {
-  tags?: Tags;
+  /** 词库（只用到"按一条查一条"）：`tagdb` 或测试里的假实现 */
+  tagLookup?: TagLookup;
   settings?: Settings;
   usage?: Usage | null;
   apiCache?: Map<string, string> | null;
@@ -25,8 +26,11 @@ export interface TranslateOptions {
   now?: (() => number) | undefined;
 }
 
-/** 一条结果是怎么来的：dict 库命中 · api 现翻 · empty 空串 · pending 还没定 · skip 语法跳过 · error 没翻成 */
-export type TranslateSource = 'dict' | 'api' | 'empty' | 'pending' | 'skip' | 'error';
+/**
+ * 一条结果是怎么来的：dict 库命中（你改过的 / 内置的）· import 库命中（外部机翻表导入的）·
+ * api 现翻 · empty 空串 · pending 还没定 · skip 语法跳过 · error 没翻成
+ */
+export type TranslateSource = 'dict' | 'import' | 'api' | 'empty' | 'pending' | 'skip' | 'error';
 
 export interface TranslateResult {
   text: string;
@@ -41,7 +45,7 @@ export interface TranslateOutcome {
 
 export async function translateTexts(texts: string[], options: TranslateOptions = {}): Promise<TranslateOutcome> {
   const {
-    tags = { version: 2, entries: {}, aliasIndex: {} },
+    tagLookup = { lookup: () => null },
     settings = DEFAULT_SETTINGS,
     usage = null,
     apiCache = null,
@@ -52,10 +56,10 @@ export async function translateTexts(texts: string[], options: TranslateOptions 
 
   const provider = PROVIDERS[settings.provider];
   const results: TranslateResult[] = texts.map((text) => {
-    const hit = tagsLookup(tags, text);
-    // 词库命中：人认可的标 user（「我」），导入/内置的标 dict（「库」）—— 前端据此画标记
-    // 词条自己的 source（user/import/builtin）跟工作区的徽章无关：命中就是"在库里"
-    if (hit !== null) return { text, translation: hit.zh, source: 'dict' };
+    const hit = tagLookup.lookup(text);
+    // 命中就是"在库里"（零请求），但**导入的机翻单独报**：十几万条机翻表灌进来之后，
+    // 徽章全变「库」就分不出哪条是你改过的了。前端据此画「库」/「导」。
+    if (hit !== null) return { text, translation: hit.zh, source: hit.source === 'import' ? 'import' : 'dict' };
     const key = tagKey(text);
     if (key === '') return { text, translation: '', source: 'empty' };
     const cached = apiCache?.get(key);

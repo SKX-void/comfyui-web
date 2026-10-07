@@ -10,7 +10,9 @@
     "dev": "node scripts/pack.mjs --watch",
     "typecheck": "vue-tsc --noEmit",
     "test:contract": "node scripts/contract-test.ts && node scripts/interaction-test.ts",
-    "test:interaction": "node scripts/interaction-test.ts"
+    "test:interaction": "node scripts/interaction-test.ts",
+    "bench:scale": "node scripts/scale-bench.ts",
+    "import:tags": "node scripts/import-tags.ts"
   },
   "plugin": {
     "contract": 1,

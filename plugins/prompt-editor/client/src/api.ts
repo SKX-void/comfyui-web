@@ -115,8 +115,8 @@ export interface SettingsPayload {
   providers: ProviderInfo[];
 }
 
-/** 一条译文是怎么来的：词库命中且是人认可的 / 词库命中 / 现翻的 / 语法跳过 / 没翻成 */
-export type TranslateSource = 'user' | 'dict' | 'api' | 'skip' | 'empty' | 'error';
+/** 一条译文是怎么来的：词库命中（你改过的 / 内置的）/ 词库命中（导入的机翻表）/ 现翻的 / 语法跳过 / 没翻成 */
+export type TranslateSource = 'user' | 'dict' | 'import' | 'api' | 'skip' | 'empty' | 'error';
 
 export interface TranslateResult {
   text: string;
@@ -163,10 +163,13 @@ export interface TagEntry {
   aliases: string[];
   source: TagSource;
   updatedAt: number;
+  /** 热度（导入数据的 post count，自己写的条目是 0）：面板那一页就是按它排序的 */
+  hot: number;
 }
 
 export interface TagList {
   tags: TagEntry[];
+  /** 命中总数，**最多报到 `limit + 1`**（面板只显示一页，精确值要全表扫） */
   total: number;
   counts: { total: number; uncategorized: number };
   categories: { name: string; count: number }[];
@@ -198,9 +201,84 @@ export async function saveTagEntry(entry: {
   ).entry;
 }
 
+/**
+ * 分类级操作（分类本身是一张表，跟"某个 tag 属于谁"分开）。
+ *
+ * 新建**只加名字，一条词都不动** —— 这样"先建分类、再往里放词"才走得通（靠给 tag 打新名字
+ * 来间接建分类的话，建完不马上用就会消失）。
+ */
+export async function createCategory(name: string): Promise<boolean> {
+  return (await request<{ ok: boolean; created: boolean }>('/tags/categories', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })).created;
+}
+
+/** 删掉分类**连它下面的归属一起删**；返回受影响的词条数（词条本身不删，只是变回未分类） */
+export async function deleteCategory(name: string): Promise<number> {
+  return (await request<{ ok: boolean; removed: number }>('/tags/categories', {
+    method: 'DELETE',
+    body: JSON.stringify({ name }),
+  })).removed;
+}
+
+/** 重命名分类（两张表一起改）；目标名字已存在时服务端 409（不自动合并） */
+export async function renameCategory(from: string, to: string): Promise<number> {
+  return (await request<{ ok: boolean; moved: number }>('/tags/categories', {
+    method: 'PUT',
+    body: JSON.stringify({ from, to }),
+  })).moved;
+}
+
 export async function deleteTagEntry(en: string): Promise<boolean> {
   return (
     await request<{ ok: boolean; deleted: boolean }>('/tags/entry', { method: 'DELETE', body: JSON.stringify({ en }) })
   ).deleted;
+}
+
+/**
+ * 手动排序：把**当前这一页的新顺序**（`keys`）和**被拖的那一条**（`moved`）发过去。
+ *
+ * `moved` 是必需的：服务端取左右邻居的中点只写 1 行，它得知道"哪一条动了" ——
+ * 光看一串 key 是看不出来的（顺序是相对一整页说的，服务端不知道原来长什么样）。
+ */
+export async function saveTagOrder(keys: string[], moved: string): Promise<{ written: number; rebuilt: boolean }> {
+  return await request<{ ok: boolean; written: number; rebuilt: boolean }>('/tags/order', {
+    method: 'PUT',
+    body: JSON.stringify({ keys, moved }),
+  });
+}
+
+/** 产物里那份内置机翻表：`available:false` = 产物里没有它（面板就不画那个按钮） */
+export interface BundledTags {
+  available: boolean;
+  bytes: number;
+}
+
+export async function fetchBundledTags(): Promise<BundledTags> {
+  return (await request<{ bundled: BundledTags }>('/tags/import')).bundled;
+}
+
+/**
+ * 导入结果。`written` 是**真写进去的**条数，`skipped` 是你手改过、这次没动的
+ * （导入不覆盖 `source:'user'` 的行 —— 见 `tagdb.ts` 的 `insertTagSql(guardUser)`）。
+ */
+export interface TagImportResult {
+  /** 表里的数据行数 */
+  lines: number;
+  /** 解析后真正进库的候选（去掉没 tag / 没译文 / 译文同正名的行、同键去重之后） */
+  rows: number;
+  written: number;
+  skipped: number;
+  before: number;
+  after: number;
+  noZh: number;
+  placeholder: number;
+  duplicates: number;
+  elapsedMs: number;
+}
+
+export async function importBundledTags(): Promise<TagImportResult> {
+  return await request<TagImportResult>('/tags/import', { method: 'POST' });
 }
 

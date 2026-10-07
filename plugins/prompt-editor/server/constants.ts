@@ -9,8 +9,14 @@ export const PACKAGE = '@comfyui-web/prompt-editor';
 /** 都落在 `ctx.space`（→ data/plugins/<包名>/）里 */
 export const PRESETS_FILE = 'presets.json';
 export const DRAFT_FILE = 'draft.json';
+/** 词库（十几万条也扛得住）：SQLite，见 `tagdb.ts` */
+export const TAGS_DB_FILE = 'tags.db';
+/**
+ * 老词库：整文件 JSON。**只当迁移来源** —— 搬进 `tags.db` 后它会被改名成 `tags.json.migrated`，
+ * 之后不再读写（留着是给迁移出问题时翻原件）。
+ */
 export const TAGS_FILE = 'tags.json';
-/** 老词库：只有 { entries } 平表（en/zh/source），没有分类和别名。读到它就迁进 tags.json，原文件留着不删 */
+/** 更老的词库：只有 { entries } 平表（en/zh/source），没有分类和别名。同上，`tags.json` 不在时才用它 */
 export const LEGACY_DICT_FILE = 'dict.json';
 export const SETTINGS_FILE = 'settings.json';
 export const USAGE_FILE = 'usage.json';
@@ -28,6 +34,8 @@ export const LIMITS = {
   category: 24,
   categories: 12,
   aliases: 16,
+  /** 一次手动排序最多收多少个 key（面板"加载更多"最多到 1000 条，留点余量） */
+  orderKeys: 5000,
 };
 
 /** 区块风格：tag = 逗号分隔的标签流 · text = 自然语言句子 */

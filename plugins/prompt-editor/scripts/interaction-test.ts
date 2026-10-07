@@ -77,16 +77,16 @@ const calls: Call[] = [];
  * 假的翻译后端：只认一份"词库"，其余现翻 —— 这样"词库命中/现翻/失败"三种来路
  * 在交互层都能断言，而且**不打真网**（真实 provider 的行为在契约层已经测过）。
  */
-type FakeTag = { en: string; zh: string; categories: string[]; aliases: string[]; source: string; updatedAt: number };
+type FakeTag = { en: string; zh: string; categories: string[]; aliases: string[]; source: string; updatedAt: number; hot: number };
 /**
  * 假词库。**刻意不放工作区里出现过的词**（8k / solo / 1girl…）：那几条的断言依赖
  * "没命中词库 → 现翻"，混进来会把"逐条发几条请求"这类断言弄脏。
  */
 const tagSeed = (): Record<string, FakeTag> => ({
-  masterpiece: { en: 'masterpiece', zh: '杰作', categories: ['画质'], aliases: [], source: 'import', updatedAt: 1 },
-  'cinematic lighting': { en: 'cinematic lighting', zh: '电影照明', categories: ['光照'], aliases: ['cinematic light'], source: 'user', updatedAt: 2 },
-  'depth of field': { en: 'depth of field', zh: '景深', categories: ['光照'], aliases: [], source: 'import', updatedAt: 3 },
-  'ultra detailed': { en: 'ultra detailed', zh: '超详细的', categories: [], aliases: [], source: 'builtin', updatedAt: 4 },
+  masterpiece: { en: 'masterpiece', zh: '杰作', categories: ['画质'], aliases: [], source: 'import', updatedAt: 1, hot: 8419190 },
+  'cinematic lighting': { en: 'cinematic lighting', zh: '电影照明', categories: ['光照'], aliases: ['cinematic light'], source: 'user', updatedAt: 2, hot: 0 },
+  'depth of field': { en: 'depth of field', zh: '景深', categories: ['光照'], aliases: [], source: 'import', updatedAt: 3, hot: 2400 },
+  'ultra detailed': { en: 'ultra detailed', zh: '超详细的', categories: [], aliases: [], source: 'builtin', updatedAt: 4, hot: 0 },
 });
 const fakeTags: Record<string, FakeTag> = tagSeed();
 /**
@@ -97,11 +97,20 @@ const fakeTags: Record<string, FakeTag> = tagSeed();
 function resetFakeTags(): void {
   for (const key of Object.keys(fakeTags)) delete fakeTags[key];
   Object.assign(fakeTags, tagSeed());
+  fakeOrder = [];
+  // 分类自己是独立的表（真库是 categories）—— 种子里的两个名字都注册过
+  fakeCategories = ['画质', '光照'];
 }
 let tagStamp = 100;
+/** 手动排序后的 key 顺序（空 = 还没排过）。真库里是 `sort` 列，这里只要顺序对得上就够 */
+let fakeOrder: string[] = [];
+/** 分类实体（含**还没有词用的空分类**）：真库里是 categories 表 */
+let fakeCategories: string[] = [];
 
-/** 假的 GET /tags：形状与 server.js 的 queryTags 一致 */
-function fakeTagList(q: string, category: string): unknown {
+/** 假的 GET /tags：形状与 `server/tagdb.ts` 的 `query()` 一致（这一层只关心前端怎么用，不碰真库） */
+function fakeTagList(q: string, category: string, limitRaw?: string | null): unknown {
+  // 与真服务端同一套语义：`total` 最多报到 `limit + 1`（精确值要全表扫，故意不报）
+  const limit = Math.min(1000, Math.max(1, Number(limitRaw ?? 200) || 200));
   const needle = q.trim().toLowerCase();
   const all = Object.values(fakeTags);
   const counts = { total: all.length, uncategorized: 0 };
@@ -123,15 +132,26 @@ function fakeTagList(q: string, category: string): unknown {
       entry.aliases.some((alias) => alias.toLowerCase().includes(needle))
     );
   });
-  tags.sort((a, b) => b.updatedAt - a.updatedAt);
+  // 排过序的按 `fakeOrder` 排在前面（对应真库的 `ORDER BY (sort IS NULL), sort`），其余按 updatedAt
+  const rank = (key: string): number => {
+    const at = fakeOrder.indexOf(key);
+    return at < 0 ? Number.MAX_SAFE_INTEGER : at;
+  };
+  tags.sort((a, b) => rank(a.en) - rank(b.en) || b.updatedAt - a.updatedAt);
   return {
-    tags: tags.map((entry) => ({ key: entry.en, ...entry })),
-    total: tags.length,
+    tags: tags.slice(0, limit).map((entry) => ({ key: entry.en, ...entry })),
+    total: Math.min(tags.length, limit + 1),
     counts,
-    categories: [...byCategory.entries()].map(([name, count]) => ({ name, count })),
+    categories: [...new Set([...fakeCategories, ...byCategory.keys()])]
+      .map((name) => ({ name, count: byCategory.get(name) ?? 0 }))
+      // 并列时按**码点序**（SQLite 的 `name ASC` 是 BINARY 排序）；localeCompare 是另一套，
+      // 用它的话假库和真库的并列顺序会不一样（画/光 就是反的）
+      .sort((a, b) => b.count - a.count || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
   };
 }
 let translateFails = false;
+/** 产物里那份内置机翻表在不在（`GET /tags/import` 的答案）：面板靠它决定画不画导入按钮 */
+let bundledAvailable = true;
 const translateBatches: string[][] = [];
 
 Object.defineProperty(globalThis, 'fetch', {
@@ -141,6 +161,45 @@ Object.defineProperty(globalThis, 'fetch', {
     const body = init?.body === undefined ? null : (JSON.parse(init.body) as Record<string, unknown>);
     calls.push({ method, url: path, body });
     const reply = (payload: unknown) => ({ ok: true, status: 200, text: async () => JSON.stringify(payload) });
+    const fail = (message: string) => ({
+      ok: false,
+      status: 409,
+      text: async () => JSON.stringify({ ok: false, error: { message } }),
+    });
+
+    // 分类级管理：分类自己是一张表（真库是 categories 表），所以**空分类也要列出来**
+    if (method === 'POST' && path.endsWith('/tags/categories')) {
+      const name = String(body?.name ?? '').trim();
+      const created = !fakeCategories.includes(name);
+      if (created) fakeCategories.push(name);
+      return reply({ ok: true, created });
+    }
+    if (method === 'DELETE' && path.endsWith('/tags/categories')) {
+      const name = String(body?.name ?? '').trim();
+      fakeCategories = fakeCategories.filter((one) => one !== name);
+      let removed = 0;
+      for (const entry of Object.values(fakeTags)) {
+        if (entry.categories.includes(name)) {
+          entry.categories = entry.categories.filter((one) => one !== name);
+          removed += 1;
+        }
+      }
+      return reply({ ok: true, removed });
+    }
+    if (method === 'PUT' && path.endsWith('/tags/categories')) {
+      const from = String(body?.from ?? '').trim();
+      const to = String(body?.to ?? '').trim();
+      if (fakeCategories.includes(to)) return fail(`已经有一个叫「${to}」的分类了（不自动合并）`);
+      fakeCategories = fakeCategories.map((one) => (one === from ? to : one));
+      let moved = 0;
+      for (const entry of Object.values(fakeTags)) {
+        if (entry.categories.includes(from)) {
+          entry.categories = entry.categories.map((one) => (one === from ? to : one));
+          moved += 1;
+        }
+      }
+      return reply({ ok: true, moved });
+    }
 
     if (method === 'GET' && path.endsWith('/settings')) {
       return reply({
@@ -166,13 +225,62 @@ Object.defineProperty(globalThis, 'fetch', {
         results: texts.map((text) => {
           const hit = fakeTags[text];
           if (hit === undefined) return { text, translation: `译(${text})`, source: 'api' };
-          return { text, translation: hit.zh, source: 'dict' };
+          // 与 server/translate.ts 一致：命中就是"在库里"，但导入的机翻单独报（工作区画「导」）
+          return { text, translation: hit.zh, source: hit.source === 'import' ? 'import' : 'dict' };
         }),
+      });
+    }
+    // 内置机翻表：面板打开时只**问一次**（GET，只 stat 产物里那份 CSV），点了按钮才写（POST）。
+    // 这两条必须排在下面那条笼统的 `GET .../tags` 前面，否则会被它当成"查词库列表"接走。
+    if (method === 'GET' && path.endsWith('/tags/import')) {
+      return reply({ bundled: { available: bundledAvailable, bytes: 5448620 } });
+    }
+    // 手动排序：面板把这一页的新顺序整批发来，服务端记成 sort=1..N。
+    // 这里也把它真的应用一遍（假库是对象，顺序另存一个数组），这样"拖完顺序真的变了"也验得到。
+    if (method === 'PUT' && path.endsWith('/tags/order')) {
+      const body = JSON.parse(init?.body === undefined ? '{}' : String(init.body)) as { keys?: string[]; moved?: string };
+      const keys = body.keys ?? [];
+      const known = keys.filter((key) => fakeTags[key] !== undefined);
+      // 与真服务端同一套语义：还没铺过序号 = 整页重铺（rebuilt），铺过了 = 只写被拖的那一行
+      const rebuilt = fakeOrder.length === 0;
+      fakeOrder = [...known, ...fakeOrder.filter((key) => !known.includes(key))];
+      return reply({ ok: true, written: rebuilt ? known.length : 1, rebuilt });
+    }
+    if (method === 'POST' && path.endsWith('/tags/import')) {
+      // 与 server 那条路同一个语义：写进库里；已经是你改过的（user）不动
+      const incoming: FakeTag[] = [
+        { en: '1girl', zh: '1女', categories: ['机翻-通用'], aliases: [], source: 'import', updatedAt: 0, hot: 8419190 },
+        { en: 'hatsune_miku', zh: '初音未来', categories: ['机翻-角色'], aliases: [], source: 'import', updatedAt: 0, hot: 120000 },
+      ];
+      let written = 0;
+      for (const entry of incoming) {
+        if (fakeTags[entry.en]?.source === 'user') continue;
+        fakeTags[entry.en] = entry;
+        written += 1;
+      }
+      return reply({
+        ok: true,
+        lines: 142571,
+        rows: incoming.length,
+        written,
+        skipped: incoming.length - written,
+        before: 0,
+        after: Object.keys(fakeTags).length,
+        noZh: 0,
+        placeholder: 8224,
+        duplicates: 0,
+        elapsedMs: 12,
       });
     }
     if (method === 'GET' && path.includes('/tags')) {
       const url = new URL(path, 'http://localhost');
-      return reply(fakeTagList(url.searchParams.get('q') ?? '', url.searchParams.get('category') ?? ''));
+      return reply(
+        fakeTagList(
+          url.searchParams.get('q') ?? '',
+          url.searchParams.get('category') ?? '',
+          url.searchParams.get('limit'),
+        ),
+      );
     }
     if (method === 'PUT' && path.endsWith('/tags/entry')) {
       const en = String(body?.en ?? '');
@@ -184,6 +292,8 @@ Object.defineProperty(globalThis, 'fetch', {
         aliases: Array.isArray(body?.aliases) ? (body.aliases as string[]) : (current?.aliases ?? []),
         source: typeof body?.source === 'string' ? body.source : (current?.source ?? 'user'),
         updatedAt: (tagStamp += 1),
+        // 手改不动热度（与 server/tagdb.ts 的 mergeTag 一致）
+        hot: current?.hot ?? 0,
       };
       return reply({ ok: true, entry: fakeTags[en] });
     }
@@ -263,6 +373,15 @@ const STRUCTURE_URL = '/api/p/prompt-editor/draft/structure';
 const dispatch = (target: Element, event: unknown): void => {
   target.dispatchEvent(event as Event);
 };
+
+/** 行上的动作按钮按文字找：编辑模式一开，按钮集合就从「插入」变成「改 / 删」，按下标会点成删 */
+function rowBtn(row: Element | null | undefined, label: string): HTMLButtonElement {
+  const hit = [...(row?.querySelectorAll('.pe-lib-actions .pe-btn') ?? [])].find(
+    (one) => (one.textContent ?? '').trim() === label,
+  );
+  if (hit === undefined) throw new Error(`这一行没有「${label}」按钮`);
+  return hit as HTMLButtonElement;
+}
 
 /** 普通敲字：浏览器会同时改 value 并发 input 事件（v-model 就是听它） */
 async function type(input: HTMLInputElement, text: string): Promise<void> {
@@ -629,10 +748,14 @@ if (cell1Input !== null) {
   check('格子显示改后的译文', cellText(0, 1) === '我改的译文', cellText(0, 1));
 }
 
-console.log('译文标记：在不在词库里（库 / 机）');
-check('词库命中的标「库」', markText(0, 3) === '库', markText(0, 3));
+console.log('译文标记：在不在词库里，以及"谁写的"（库 / 导 / 机）');
+check(
+  '命中导入的机翻标「导」（十几万条灌进来后，全画「库」就分不出哪条是我改过的）',
+  markText(0, 3) === '导',
+  markText(0, 3),
+);
 check('机器现翻的标「机」', markText(0, 4) === '机', markText(0, 4));
-check('手改过的标「库」（手改 = 已经进库了）', markText(0, 1) === '库', markText(0, 1));
+check('手改过的标「库」（手改 = 已经进库了，而且是"人写的"）', markText(0, 1) === '库', markText(0, 1));
 check('没译文的条目不画标记', markText(0, 0) === '机' && markText(1, 1) === '', `${markText(0, 0)} / ${markText(1, 1)}`);
 
 console.log('点「机」= 把这条机器译文存进词库');
@@ -703,13 +826,37 @@ check('失败不影响输出区', output().includes('brand new tag') === true, J
 translateFails = false;
 
 console.log('词库面板：看 / 搜 / 分类 / 插入 / 改译文 / 改分类 / 删');
+
+/**
+ * 打开编辑模式（幂等）：面板每次打开都会回到浏览模式，需要改/删的小节各自先开一下。
+ * 面板没开的时候它什么都不做 —— 所以调用要放在"面板已经开起来"之后。
+ */
+async function editModeOn(): Promise<void> {
+  if ((pick('.pe-lib-mode')?.textContent ?? '').includes('关')) {
+    (pick('.pe-lib-mode') as HTMLButtonElement).click();
+    await nextTick();
+  }
+}
 // 前面几节的手改 / 点「机」都真的写进了这份假词库（这就是真实行为），面板这节从一份干净的词库开始
 resetFakeTags();
 const libRow = (en: string): HTMLElement | undefined =>
   pickAll<HTMLElement>('.pe-lib-row').find((row) => row.querySelector('.pe-lib-en')?.textContent?.trim() === en);
 const libNames = (): string[] => pickAll('.pe-lib-en').map((el) => el.textContent?.trim() ?? '');
+/**
+ * 分类树里**能点的那些**（全部 / 未分类 / 每个分类），不含 ＋新建、改名、删除那几个小按钮 ——
+ * 它们也是 button，混在一起会把序号和文案都搅乱。
+ */
+const catPicks = (): HTMLButtonElement[] => [
+  ...pickAll<HTMLButtonElement>('.pe-lib-cats > button'),
+  ...pickAll<HTMLButtonElement>('.pe-lib-cats .pe-lib-cat-pick'),
+];
 const catLabels = (): string[] =>
-  pickAll('.pe-lib-cats button').map((el) => (el.textContent ?? '').trim().split(/\s+/)[0] ?? '');
+  catPicks().map((el) => (el.textContent ?? '').trim().split(/\s+/)[0] ?? '');
+/** 某个分类那一行上的两个小按钮：`[0]` 改名 `✎`、`[1]` 删除 `×` */
+const catRowTools = (name: string): HTMLButtonElement[] => {
+  const row = pickAll('.pe-lib-cat-row').find((one) => (one.textContent ?? '').includes(name));
+  return row === undefined ? [] : [...row.querySelectorAll<HTMLButtonElement>('.pe-lib-cat-tool')];
+};
 /** 面板里的异步：搜索有 250ms 防抖，拉列表 + 渲染还要几轮 */
 const settleLib = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 320));
@@ -729,13 +876,63 @@ check(
 );
 check('条目都画出来了', libNames().length === 4, libNames().join('|'));
 check('顶上写明总数与未分类条数', pick('.pe-lib-stat')?.textContent?.includes('共 4 条') === true && pick('.pe-lib-stat')?.textContent?.includes('未分类 1') === true, pick('.pe-lib-stat')?.textContent);
-check('分类树：全部 / 未分类 / 已有分类（按写作分类列）', catLabels().join('|') === '全部|未分类|画质|光照', catLabels().join('|'));
+check('分类树：全部 / 未分类 / 已有分类（计数多的在前）', catLabels().join('|') === '全部|未分类|光照|画质', catLabels().join('|'));
 check(
   '库里的条目一律标「库」（不按来源分 —— 进库就是库）',
   pickAll('.pe-lib-src').length === 4 && pickAll('.pe-lib-src').every((el) => el.textContent?.trim() === '库') === true,
   pickAll('.pe-lib-src').map((el) => el.textContent?.trim()).join('|'),
 );
 check('别名显示在条目上', libRow('cinematic lighting')?.textContent?.includes('cinematic light') === true);
+check(
+  '热度显示成短标签（8.4M / 2k）—— 面板是按它排序的，看得见才知道那一页为什么这么排；自己写的条目没热度就不显示',
+  libRow('masterpiece')?.querySelector('.pe-lib-hot')?.textContent?.trim() === '8.4M' &&
+    libRow('depth of field')?.querySelector('.pe-lib-hot')?.textContent?.trim() === '2k' &&
+    libRow('cinematic lighting')?.querySelector('.pe-lib-hot') === null,
+);
+
+// 编辑模式：插入与编辑互斥（「删」没有二次确认，误触一次这条就没了）
+check(
+  '默认是浏览模式：行上只有「插入」',
+  (libRow('masterpiece')?.querySelector('.pe-lib-actions')?.textContent ?? '').trim() === '插入',
+  (libRow('masterpiece')?.querySelector('.pe-lib-actions')?.textContent ?? '').trim(),
+);
+check('浏览模式下：分类标签上没有摘分类的「×」', pick('.pe-lib-cat-x') === null);
+check(
+  '浏览模式下：左边分类树没有管理入口（＋ 新建分类 / 改 / 删 都不出现）',
+  pick('.pe-lib-cat-new') === null && pick('.pe-lib-cat-tool') === null,
+);
+check('开关上写着当前状态', (pick('.pe-lib-mode')?.textContent ?? '').trim() === '编辑模式：关');
+
+(pick('.pe-lib-mode') as HTMLButtonElement).click();
+await nextTick();
+check(
+  '打开编辑模式：行上换成「改 / 删」，插入藏起来',
+  (libRow('masterpiece')?.querySelector('.pe-lib-actions')?.textContent ?? '').trim() === '改删' &&
+    (pick('.pe-lib-mode') as HTMLElement).className.includes('on') &&
+    (pick('.pe-lib-mode')?.textContent ?? '').trim() === '编辑模式：开',
+  (libRow('masterpiece')?.querySelector('.pe-lib-actions')?.textContent ?? '').trim(),
+);
+check(
+  '打开编辑模式：左边分类树出现管理入口',
+  pick('.pe-lib-cat-new') !== null && pick('.pe-lib-cat-tool') !== null,
+);
+
+// 关掉模式时不能留下"模式关了、某一行却还是表单"这种自相矛盾的状态
+(pickAll('.pe-lib-actions .pe-btn')[0] as HTMLButtonElement).click();
+await nextTick();
+check('开了模式点「改」才进编辑态', pick('.pe-lib-edit') !== null);
+(pick('.pe-lib-mode') as HTMLButtonElement).click();
+await nextTick();
+check(
+  '关掉编辑模式：退出编辑态 + 行上回到只有「插入」',
+  pick('.pe-lib-edit') === null &&
+    (libRow('masterpiece')?.querySelector('.pe-lib-actions')?.textContent ?? '').trim() === '插入',
+  `edit=${pick('.pe-lib-edit') !== null} actions=${(libRow('masterpiece')?.querySelector('.pe-lib-actions')?.textContent ?? '').trim()}`,
+);
+check(
+  '关掉编辑模式：分类树的管理入口也收回去',
+  pick('.pe-lib-cat-new') === null && pick('.pe-lib-cat-tool') === null,
+);
 
 console.log('词库面板：搜索（防抖后发请求，英文/中文/别名都搜）');
 const searchBox = pick('.pe-lib-bar .pe-input') as HTMLInputElement;
@@ -755,14 +952,14 @@ await settleLib();
 check('清空搜索恢复全部', libNames().length === 4, libNames().join('|'));
 
 console.log('词库面板：按分类筛');
-(pickAll('.pe-lib-cats button')[3] as HTMLButtonElement).click();
+(catPicks()[2] as HTMLButtonElement).click();
 await settleLib();
 check('点「光照」只剩那两条', libNames().sort().join('|') === 'cinematic lighting|depth of field', libNames().join('|'));
-check('分类树高亮当前分类', pickAll('.pe-lib-cats button')[3]?.className.includes('on') === true);
-(pickAll('.pe-lib-cats button')[1] as HTMLButtonElement).click();
+check('分类树高亮当前分类', catPicks()[2]?.className.includes('on') === true);
+(catPicks()[1] as HTMLButtonElement).click();
 await settleLib();
 check('「未分类」筛出没填分类的那条', libNames().join() === 'ultra detailed', libNames().join('|'));
-(pickAll('.pe-lib-cats button')[0] as HTMLButtonElement).click();
+(catPicks()[0] as HTMLButtonElement).click();
 await settleLib();
 
 console.log('词库面板：插入到当前块（连译文一起带，不再问接口）');
@@ -772,7 +969,11 @@ await settleLib();
 const insertedAt = chips(0).indexOf('cinematic lighting');
 check('条目插进了当前块', insertedAt >= 0, chips(0).join('|'));
 check('译文一起带上了', cellText(0, insertedAt) === '电影照明', cellText(0, insertedAt));
-check('标记是「库」（插进来的这条就在库里）', markText(0, insertedAt) === '库', markText(0, insertedAt));
+check(
+  '标记是「库」（插进来的这条是人写的/内置的，不是导入的机翻）',
+  markText(0, insertedAt) === '库',
+  markText(0, insertedAt),
+);
 check(
   '插入**没有**发翻译请求（库里已经有中文了）',
   calls.slice(markInsert).every((call) => call.url.endsWith('/translate') === false),
@@ -786,9 +987,10 @@ check('同一块里插第二次会被挡下（提示而不是又来一条）', c
 check('提示说清是重复了', noticeText().includes('已经有了') === true, noticeText());
 
 console.log('词库面板：改分类 / 别名');
+await editModeOn();
 const ultraRow = libRow('ultra detailed') as HTMLElement;
 // 进编辑态后行里就没有 .pe-lib-en 了（模板换了），所以先抓住行元素再用
-(ultraRow.querySelectorAll('.pe-btn')[1] as HTMLButtonElement).click();
+rowBtn(ultraRow, '改').click();
 await nextTick();
 const editRow = ultraRow;
 check('编辑态给三个输入框（译文 / 分类 / 别名）', editRow.querySelectorAll('.pe-lib-edit .pe-input').length === 3);
@@ -810,12 +1012,17 @@ check(
     (editCall?.body as { aliases?: string[] })?.aliases?.join() === 'very detailed',
   JSON.stringify(editCall?.body),
 );
-check('只改分类/别名不传 source（不因为改元数据就变成"我改过译文"）', (editCall?.body as { source?: string })?.source === undefined);
+check(
+  '在面板里动过就传 source: user（改分类/别名也算 —— 导入的十几万条里，你挪过分类的条目下次导入不许被冲回去）',
+  (editCall?.body as { source?: string })?.source === 'user',
+  JSON.stringify(editCall?.body),
+);
 check('分类树跟着多了一条', catLabels().includes('画质') === true, catLabels().join('|'));
 
-console.log('词库面板：改译文 = 我认可了它（升成 user）');
+console.log('词库面板：改译文（同样升成 user）');
+await editModeOn();
 const detailRow = libRow('depth of field') as HTMLElement;
-(detailRow.querySelectorAll('.pe-btn')[1] as HTMLButtonElement).click();
+rowBtn(detailRow, '改').click();
 await nextTick();
 const detailInputs = detailRow.querySelectorAll('.pe-lib-edit .pe-input') as unknown as HTMLInputElement[];
 await type(detailInputs[0] as HTMLInputElement, '景深（我确认的）');
@@ -830,8 +1037,9 @@ check(
 );
 
 console.log('词库面板：删一条');
+await editModeOn();
 const markDelete = calls.length;
-(ultraRow.querySelectorAll('.pe-btn')[2] as HTMLButtonElement).click();
+rowBtn(ultraRow, '删').click();
 await settleLib();
 check(
   '删除发一次 DELETE /tags/entry',
@@ -844,6 +1052,392 @@ console.log('词库面板：关掉');
 (pick('.pe-close') as HTMLButtonElement).click();
 await nextTick();
 check('关掉后面板不在了', pick('.pe-lib-row') === null);
+
+console.log('词库面板：空库 → 提示 + 手动导入内置机翻表');
+// 真·空库（把假词库清空）。导入只在这里发生，而且只有点了按钮才会发生
+for (const key of Object.keys(fakeTags)) delete fakeTags[key];
+(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+await settleLib();
+// 编辑模式把「插入」藏起来了，所以它不能粘着：重开面板 = 回到"能插"的状态
+check(
+  '重新打开面板回到浏览模式（编辑模式不粘着）',
+  (pick('.pe-lib-mode')?.textContent ?? '').trim() === '编辑模式：关' &&
+    pick('.pe-lib-cat-new') === null,
+  (pick('.pe-lib-mode')?.textContent ?? '').trim(),
+);
+await settleLib();
+const emptyCard = pick('.pe-lib-empty');
+check(
+  '空库时给一条"不用自己收集 CSV"的路（说明 + 按钮）',
+  emptyCard?.textContent?.includes('导入内置的 danbooru 机翻表') === true,
+  emptyCard?.textContent?.trim(),
+);
+check(
+  '按钮上写明这一下要写进去多少（体积从产物问出来，不写死）',
+  pick('.pe-lib-empty .pe-btn')?.textContent?.trim() === '导入内置机翻表' &&
+    emptyCard?.textContent?.includes('5.2MB') === true,
+  `${pick('.pe-lib-empty .pe-btn')?.textContent?.trim()} · ${emptyCard?.textContent?.includes('5.2MB')}`,
+);
+const markImport = calls.length;
+(pick('.pe-lib-empty .pe-btn') as HTMLButtonElement).click();
+await settleLib();
+check(
+  '点了才发 POST /tags/import（打开面板只问一次 GET，不动库）',
+  calls
+    .slice(markImport)
+    .filter((call) => call.url.includes('/tags/import'))
+    .map((call) => call.method)
+    .join() === 'POST',
+  JSON.stringify(calls.slice(markImport).map((call) => `${call.method} ${call.url}`)),
+);
+check(
+  '导完说清楚入库多少条 / 你改过的没动，列表跟着刷新',
+  pick('.pe-hint')?.textContent?.includes('入库 2 条') === true && libNames().length === 2,
+  `${pick('.pe-hint')?.textContent} · ${libNames().join('|')}`,
+);
+check(
+  '库里有东西之后：空态卡让位给页脚一个"重导"小按钮（换了新版 CSV 再导一遍用）',
+  pick('.pe-lib-empty') === null && pick('.pe-btn-quiet') !== null,
+  pick('.pe-btn-quiet')?.textContent?.trim(),
+);
+(pick('.pe-close') as HTMLButtonElement).click();
+await nextTick();
+
+// 产物里没有内置表（手写丢进 tabs/ 的目录、没跑过 build:plugins）：按钮不该画，且要说清楚怎么补
+for (const key of Object.keys(fakeTags)) delete fakeTags[key];
+bundledAvailable = false;
+(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+await settleLib();
+check(
+  '产物里没有内置机翻表：不画按钮，写清楚先 pnpm build:plugins',
+  pick('.pe-lib-empty .pe-btn') === null && pick('.pe-lib-empty')?.textContent?.includes('pnpm build:plugins') === true,
+  pick('.pe-lib-empty')?.textContent?.trim(),
+);
+bundledAvailable = true;
+(pick('.pe-close') as HTMLButtonElement).click();
+await nextTick();
+resetFakeTags();
+
+console.log('词库面板：拖拽改分类（拖到左边分类上 = 换成那一个）');
+// 上一行 resetFakeTags() 把假词库恢复成种子（4 条），面板是关着的 —— 重新打开
+(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+await settleLib();
+const navBtn = (name: string): HTMLElement =>
+  catPicks().find((one) => (one.textContent ?? '').trim().startsWith(name)) as HTMLElement;
+/** 拖一行到左边某个分类上：dragstart 在**可拖的那个元素**（`.pe-lib-line`）上、dragover + drop 在落点上 */
+const dragTo = async (en: string, target: string): Promise<void> => {
+  dispatch(libRow(en)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  await nextTick();
+  const to = navBtn(target);
+  dispatch(to, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  await nextTick();
+  dispatch(to, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  await settleLib();
+};
+const putWritesSince = (mark: number) =>
+  calls.slice(mark).filter((call) => call.method === 'PUT' && call.url.endsWith('/tags/entry'));
+
+const markDrag = calls.length;
+await dragTo('masterpiece', '光照');
+const dragWrites = putWritesSince(markDrag);
+check(
+  '拖到分类上 = 发一次 PUT，分类**就是那一个**（不是加一个）',
+  dragWrites.length === 1 &&
+    JSON.stringify(dragWrites[0]?.body?.categories) === '["光照"]' &&
+    dragWrites[0]?.body?.source === 'user',
+  JSON.stringify(dragWrites.map((call) => call.body)),
+);
+check('拖完说清楚去了哪（没有保存按钮 —— 松手就是改了）', pick('.pe-hint')?.textContent?.includes('→ 光照') === true, pick('.pe-hint')?.textContent);
+check('行上的分类跟着变了', libRow('masterpiece')?.textContent?.includes('光照') === true, libRow('masterpiece')?.textContent);
+
+const markNone = calls.length;
+await dragTo('masterpiece', '未分类');
+const noneWrite = putWritesSince(markNone)[0];
+check(
+  '拖到「未分类」= 分类清空（那是个真状态，不是特例）',
+  noneWrite !== undefined && JSON.stringify(noneWrite.body?.categories) === '[]',
+  JSON.stringify(noneWrite?.body),
+);
+check('清空后提示也换了说法', pick('.pe-hint')?.textContent?.includes('未分类') === true, pick('.pe-hint')?.textContent);
+
+console.log('词库面板：增减分类的独立入口（× 摘掉 · 编辑态点标签加/减）');
+await editModeOn();
+const markX = calls.length;
+const xButton = libRow('depth of field')?.querySelector('.pe-lib-cat-x') as HTMLElement;
+xButton.click();
+await settleLib();
+const xWrite = putWritesSince(markX)[0];
+check(
+  '行上分类标签的「×」= 摘掉那个分类（拖拽答不了"减"）',
+  putWritesSince(markX).length === 1 && JSON.stringify(xWrite?.body?.categories) === '[]',
+  JSON.stringify(putWritesSince(markX).map((call) => call.body)),
+);
+check('摘掉后行上不再有那个分类', libRow('depth of field')?.querySelector('.pe-lib-cat') === null, libRow('depth of field')?.textContent);
+
+// 编辑态：点标签 = 加/减（精确那条路），输入框仍在（批量改 / 造新分类名）
+rowBtn(libRow('cinematic lighting'), '改').click();
+await nextTick();
+const pickLabels = (): string[] =>
+  pickAll<HTMLElement>('.pe-lib-edit-cats .pe-lib-cat-pick').map((one) => (one.textContent ?? '').trim());
+const pickByName = (name: string): HTMLElement =>
+  pickAll<HTMLElement>('.pe-lib-edit-cats .pe-lib-cat-pick').find((one) => (one.textContent ?? '').trim() === name) as HTMLElement;
+const catInput = (): HTMLInputElement => pick('.pe-lib-edit-cats .pe-input') as HTMLInputElement;
+check(
+  '编辑态列出的分类 = 左边分类树那批（分类做成实体后，**没人用的分类也还在**，只是计数 0）',
+  pickLabels().join('|') === '光照|画质',
+  pickLabels().join('|'),
+);
+// cinematic lighting 本来就是「光照」→ 点它 = 去掉；再点 = 加回来
+pickByName('光照').click();
+await nextTick();
+check('点一下已有的分类 = 从输入框去掉', catInput().value === '', catInput().value);
+pickByName('光照').click();
+await nextTick();
+check('再点一下 = 加回来', catInput().value === '光照', catInput().value);
+// 收尾：取消编辑，别把这条留在编辑态影响后面的小节
+(pickAll<HTMLButtonElement>('.pe-lib-edit .pe-btn')[1] as HTMLButtonElement).click();
+await nextTick();
+(pick('.pe-close') as HTMLButtonElement).click();
+await nextTick();
+resetFakeTags();
+
+console.log('词库面板：分类级管理（新建 / 改名 / 删除）');
+(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+await settleLib();
+// 面板每次打开都回到浏览模式，所以要等它开起来再开编辑模式
+await editModeOn();
+// 前面的小节**真的**写过库（手改译文、改分类都走真接口），所以先要一个确定的起点：
+// 种子 = 光照(2 条：cinematic lighting / depth of field) + 画质(1 条：masterpiece)
+resetFakeTags();
+await type(pick('.pe-lib-bar .pe-input') as HTMLInputElement, '');
+await settleLib();
+check('起点：分类树按计数排（光照 2 条 / 画质 1 条）', catLabels().join('|') === '全部|未分类|光照|画质', catLabels().join('|'));
+// 新建：一个还没有任何词用的空分类，也得能建、能列出来
+const newBtn = pick('.pe-lib-cat-new') as HTMLButtonElement | null;
+check('分类树顶部有「＋ 新建分类」', newBtn !== null && (newBtn.textContent ?? '').includes('新建分类'), newBtn?.textContent ?? '没有');
+newBtn?.click();
+await nextTick();
+const newCatInput = pick('.pe-lib-cat-input') as HTMLInputElement | null;
+check('点了之后出现输入框', newCatInput !== null);
+// 抢焦点这条是真踩过的坑：不抢焦点，`@keyup.enter/esc` 挂在输入框上就永远不触发，
+// 用户看到的是"点了没反应，也没法取消"
+check('新建的输入框自己拿到焦点', document.activeElement === newCatInput, document.activeElement?.tagName);
+check(
+  '新建有「新建 / 取消」两个按钮（不是只能靠键盘）',
+  pickAll('.pe-lib-cat-btns .pe-btn').map((el) => el.textContent?.trim()).join() === '新建,取消',
+  pickAll('.pe-lib-cat-btns .pe-btn').map((el) => el.textContent?.trim()).join('|'),
+);
+const markNew = calls.length;
+if (newCatInput !== null) {
+  await type(newCatInput, '我的分类');
+  (pickAll('.pe-lib-cat-btns .pe-btn')[0] as HTMLButtonElement).click();
+  await settleLib();
+}
+check(
+  '新建发一次 POST /tags/categories，带的是名字',
+  calls.slice(markNew).filter((call) => call.method === 'POST' && call.url.endsWith('/tags/categories')).length === 1 &&
+    JSON.stringify(calls.slice(markNew).find((call) => call.method === 'POST')?.body) === JSON.stringify({ name: '我的分类' }),
+  JSON.stringify(calls.slice(markNew).map((call) => call.body)),
+);
+check(
+  '空分类也出现在树里（计数 0）—— 这就是分类做成实体表的意义',
+  catLabels().includes('我的分类') &&
+    (catPicks().find((one) => (one.textContent ?? '').includes('我的分类'))?.textContent ?? '').includes('0'),
+  catLabels().join('|'),
+);
+check('提示说清了新建结果', (pick('.pe-hint')?.textContent ?? '').includes('已新建分类'), pick('.pe-hint')?.textContent ?? '');
+
+// 改名：挂着分类的那条要跟着走
+const renameTool = catRowTools('画质')[0] as HTMLButtonElement;
+renameTool.click();
+await nextTick();
+const newRenameInput = pick('.pe-lib-cat-input') as HTMLInputElement | null;
+const markRename = calls.length;
+check('改名的输入框自己拿到焦点', document.activeElement === newRenameInput, document.activeElement?.tagName);
+check('改名时那一行被标出来（改的是哪个）', pick('.pe-lib-cat-row-editing') !== null);
+check(
+  '改名有「改名 / 取消」两个按钮',
+  pickAll('.pe-lib-cat-btns .pe-btn').map((el) => el.textContent?.trim()).join() === '改名,取消',
+  pickAll('.pe-lib-cat-btns .pe-btn').map((el) => el.textContent?.trim()).join('|'),
+);
+// Esc 取消：靠的是输入框上的 @keyup.esc，所以必须真的有焦点
+dispatch(newRenameInput as HTMLInputElement, new window.KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
+await nextTick();
+check('按 Esc 撤掉改名，且一个请求都不发', pick('.pe-lib-cat-input') === null && calls.length === markRename);
+(catRowTools('画质')[0] as HTMLButtonElement).click();
+await nextTick();
+if (newRenameInput !== null) {
+  await type(newRenameInput, '画质与风格');
+  dispatch(newRenameInput, new window.KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+  await settleLib();
+}
+check(
+  '改名发一次 PUT /tags/categories（from/to）',
+  JSON.stringify(calls.slice(markRename).find((call) => call.method === 'PUT')?.body) ===
+    JSON.stringify({ from: '画质', to: '画质与风格' }),
+  JSON.stringify(calls.slice(markRename).map((call) => call.body)),
+);
+check('树里换成新名字，用它的词条跟着走', catLabels().includes('画质与风格') && !catLabels().includes('画质'), catLabels().join('|'));
+check('改名后条目上也是新分类', libRow('masterpiece')?.textContent?.includes('画质与风格') === true);
+
+// 删除：批量破坏性，所以先摆影响范围再确认
+const markBeforeAsk = calls.length;
+(catRowTools('光照')[1] as HTMLButtonElement).click();
+await nextTick();
+const warn = pick('.pe-lib-cat-warn')?.textContent ?? '';
+check('点「×」先出确认，并写清影响多少条', warn.includes('光照') && warn.includes('2'), warn.replace(/\s+/g, ' '));
+check('确认之前一个请求都不发', calls.length === markBeforeAsk, JSON.stringify(calls.slice(markBeforeAsk)));
+(pickAll('.pe-lib-cat-btns .pe-btn')[1] as HTMLButtonElement).click();
+await nextTick();
+check('点「取消」就撤掉，也不发请求', pick('.pe-lib-cat-warn') === null && calls.length === markBeforeAsk);
+(catRowTools('光照')[1] as HTMLButtonElement).click();
+await nextTick();
+const markRemove = calls.length;
+(pickAll('.pe-lib-cat-btns .pe-btn')[0] as HTMLButtonElement).click();
+await settleLib();
+check(
+  '确认删除发一次 DELETE /tags/categories',
+  JSON.stringify(calls.slice(markRemove).find((call) => call.method === 'DELETE')?.body) === JSON.stringify({ name: '光照' }),
+  JSON.stringify(calls.slice(markRemove).map((call) => call.body)),
+);
+check('分类没了，条目本身还在（只是变回未分类）', !catLabels().includes('光照') && libRow('cinematic lighting') !== null, catLabels().join('|'));
+check('提示说清了"词条本身没删"', (pick('.pe-hint')?.textContent ?? '').includes('词条本身没删'), pick('.pe-hint')?.textContent ?? '');
+(pick('.pe-close') as HTMLButtonElement).click();
+await nextTick();
+resetFakeTags();
+
+console.log('词库面板：六点手柄 + 拖拽排序 + 拖拽时左侧高亮');
+(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+await settleLib();
+const rowKeys = (): string[] =>
+  pickAll<HTMLElement>('.pe-lib-row .pe-lib-en').map((one) => (one.textContent ?? '').trim());
+check(
+  '每行前面有六点手柄（内联 SVG，6 个点）',
+  pickAll('.pe-lib-row .pe-lib-grip svg circle').length === pickAll('.pe-lib-row').length * 6,
+  `${pickAll('.pe-lib-row .pe-lib-grip').length} 个手柄 / ${pickAll('.pe-lib-row').length} 行`,
+);
+check('手柄带得动这一行（手柄所在的 .pe-lib-line 是可拖的）', pick('.pe-lib-row .pe-lib-line')?.getAttribute('draggable') === 'true');
+
+// 拖起来：左边整列点亮（所有能放的地方都显出来），悬停到的那个再加强
+const orderBefore = rowKeys();
+dispatch(libRow(orderBefore[3] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+await nextTick();
+check('一拿起手柄，左侧整列点亮（能放的地方都显出来）', pick('.pe-lib-cats-dragging') !== null, pick('.pe-lib-cats')?.className);
+check(
+  '点亮的是"能放的"那几个：未分类 + 已有分类（「全部」不是落点）',
+  pickAll('.pe-lib-cats [data-drop="ok"]').length === catPicks().length - 1,
+  `${pickAll('.pe-lib-cats [data-drop="ok"]').length} / ${catPicks().length} 个落点`,
+);
+// 悬停到第一行上半边 = 插到最前面
+const firstLine = libRow(orderBefore[0] as string)?.querySelector('.pe-lib-line') as Element;
+dispatch(firstLine, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+await nextTick();
+check('悬停的行画出插入位置（插到它前面）', libRow(orderBefore[0] as string)?.className.includes('pe-lib-row-over-before') === true);
+const markOrder = calls.length;
+dispatch(firstLine, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+await settleLib();
+const orderWrites = calls.slice(markOrder).filter((call) => call.method === 'PUT' && call.url.endsWith('/tags/order'));
+const sentKeys = (orderWrites[0]?.body as { keys?: string[] } | undefined)?.keys ?? [];
+const sentMoved = (orderWrites[0]?.body as { moved?: string } | undefined)?.moved;
+check(
+  '松手 = 发一次 PUT /tags/order：这一页的新顺序 + 被拖的那条（moved）',
+  orderWrites.length === 1 && sentKeys[0] === orderBefore[3] && sentKeys.length === orderBefore.length && sentMoved === orderBefore[3],
+  JSON.stringify({ keys: sentKeys.slice(0, 3), moved: sentMoved }),
+);
+check('拖完顺序真的变了（服务端记下后再读回来）', rowKeys()[0] === orderBefore[3], rowKeys().join(' | '));
+check('第一次拖是"整页铺序号"，提示如实说出来', (pick('.pe-hint')?.textContent ?? '').includes('重排了序号'), pick('.pe-hint')?.textContent ?? '');
+
+// 第二次拖（序号已经铺过了）= 只写一行，提示不该再说"重排了序号"
+const seededKeys = rowKeys();
+dispatch(libRow(seededKeys[2] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+await nextTick();
+dispatch(libRow(seededKeys[0] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+await nextTick();
+dispatch(libRow(seededKeys[0] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+await settleLib();
+check('铺过序号之后再拖：提示就是「顺序已记下」（不喊重排）', (pick('.pe-hint')?.textContent ?? '') === '顺序已记下', pick('.pe-hint')?.textContent ?? '');
+
+// 拖回原位 = 不发请求（不然随手一点就写一整页）
+const markNoop = calls.length;
+const stillKeys = rowKeys();
+dispatch(libRow(stillKeys[0] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+await nextTick();
+dispatch(libRow(stillKeys[0] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+await nextTick();
+dispatch(libRow(stillKeys[0] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+await settleLib();
+check(
+  '拖回原地（顺序没变）= 一个请求都不发',
+  calls.slice(markNoop).filter((call) => call.url.endsWith('/tags/order')).length === 0,
+  JSON.stringify(calls.slice(markNoop).map((call) => call.url)),
+);
+
+// 筛选 / 搜索出来的是一小撮：在那一小撮里拖顺序会把它们整批顶到全库最前，说不通 —— 所以不接排序
+await type(pick('.pe-lib-bar .pe-input') as HTMLInputElement, 'a');
+await settleLib();
+const filtered = rowKeys();
+check('搜索后列表变短了（下面要在这一小撮里试拖顺序）', filtered.length < stillKeys.length, `${filtered.length} vs ${stillKeys.length}`);
+const markFiltered = calls.length;
+if (filtered.length >= 2) {
+  dispatch(libRow(filtered[1] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  await nextTick();
+  const target = libRow(filtered[0] as string)?.querySelector('.pe-lib-line') as Element;
+  dispatch(target, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  await nextTick();
+  dispatch(target, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  await settleLib();
+}
+check(
+  '搜索态下拖行不排序（一个 /tags/order 都不发）',
+  calls.slice(markFiltered).filter((call) => call.url.endsWith('/tags/order')).length === 0,
+  JSON.stringify(calls.slice(markFiltered).map((call) => call.url)),
+);
+// 但筛选态下"拖到左边换分类"照旧（那是两件事）
+const markFilteredCat = calls.length;
+dispatch(libRow(filtered[0] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+await nextTick();
+dispatch(navBtn('未分类'), new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+await nextTick();
+dispatch(navBtn('未分类'), new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+await settleLib();
+check(
+  '搜索态下拖到左边分类仍然生效（排序和换分类是两件事）',
+  calls.slice(markFilteredCat).filter((call) => call.method === 'PUT' && call.url.endsWith('/tags/entry')).length === 1,
+  JSON.stringify(calls.slice(markFilteredCat).map((call) => call.url)),
+);
+
+// 头部数字：不筛选时写全库，筛选时得写"命中"（原来不管搜什么都写全库总数，容易被读成"搜到这么多"）
+await type(pick('.pe-lib-bar .pe-input') as HTMLInputElement, '');
+await settleLib();
+const statAll = pick('.pe-lib-stat')?.textContent ?? '';
+check('没筛选时头部写「共 N 条 · 未分类 M」', statAll.includes('共') && statAll.includes('未分类'), statAll);
+await type(pick('.pe-lib-bar .pe-input') as HTMLInputElement, '电影');
+await settleLib();
+const statHits = pick('.pe-lib-stat')?.textContent ?? '';
+check('筛选时头部改成「命中 N 条 · 全库 M」', statHits.includes('命中 1 条') && statHits.includes('全库'), statHits);
+
+// 加载更多：一次只取 300 条，后面的行原来除了搜索没有入口
+for (let i = 0; i < 400; i += 1) {
+  fakeTags[`bulk_${i}`] = { en: `bulk_${i}`, zh: `批量${i}`, categories: [], aliases: [], source: 'import', updatedAt: 0, hot: 0 };
+}
+const moreBox = pick('.pe-lib-bar .pe-input') as HTMLInputElement;
+await type(moreBox, 'bulk');
+await settleLib();
+check('一页只给 300 条', pickAll('.pe-lib-row').length === 300, String(pickAll('.pe-lib-row').length));
+const moreBtn = pick('.pe-lib-more') as HTMLButtonElement | null;
+check('还有更多时出现「加载更多」（并写着已显示多少）', moreBtn !== null && (moreBtn.textContent ?? '').includes('300'), moreBtn?.textContent ?? '没有按钮');
+const markMore = calls.length;
+moreBtn?.click();
+await settleLib();
+check(
+  '点了之后按 limit=600 再取一次',
+  calls.slice(markMore).some((call) => call.url.includes('limit=600')) === true,
+  JSON.stringify(calls.slice(markMore).map((call) => call.url)),
+);
+check('400 条全出来了，按钮自己收起来', pickAll('.pe-lib-row').length === 400 && pick('.pe-lib-more') === null, String(pickAll('.pe-lib-row').length));
+(pick('.pe-close') as HTMLButtonElement).click();
+await nextTick();
+resetFakeTags();
 
 console.log('跨块拖条目：块类型相同才接');
 const dragStart = (el: Element): void => dispatch(el, new window.DragEvent('dragstart', { bubbles: true }));

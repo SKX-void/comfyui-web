@@ -175,9 +175,10 @@ export function registerRoutes(ctx: PluginContext): void {
 
   // 翻译 / 词库 / 设置那三组（顺序同原来：接在草稿之后）。路由表**传下去**而不是让那边再领一次：
   // 宿主每次 `ctx.routes.for()` 都换一张新表，领两次会把这里的预设 / 草稿路由整张覆盖掉。
-  registerTranslateRoutes({ routes, space, badRequest });
+  const translateRoutes = registerTranslateRoutes({ routes, space, badRequest, log });
 
   ctx.effect(() => () => {
-    // 本插件没有定时器 / 长连接；留一个显式的收尾点，重挂时语义清楚
+    // 词库是长持的 SQLite 连接：重挂 = 新闭包，不关就是句柄 + WAL 文件泄漏
+    translateRoutes.close();
   });
 }

@@ -61,10 +61,12 @@ export interface Preset {
 }
 
 /**
- * 条目来源只有两态：`dict` = 这条译文在词库里 · `api` = 机器现翻的、还没进库。
- * （徽章只说"在不在库里" —— "谁写的"不再区分：手改的、词库命中的、点「机」存过的，都在库里。）
+ * 条目来源三态：`dict` = 这条译文在词库里（你改过的 / 内置的）· `import` = 在库里但来自
+ * 导入的机翻表 · `api` = 机器现翻的、还没进库。
+ * 徽章只回答"这条译文能不能信 / 要不要再问接口"：`import` 跟 `dict` 一样是零请求，
+ * 单独留一态是因为十几万条机翻灌进来之后，"我改过的"和"导入的"得能一眼分开。
  */
-const ITEM_SOURCES: ReadonlySet<string> = new Set(['api', 'dict']);
+const ITEM_SOURCES: ReadonlySet<string> = new Set(['api', 'dict', 'import']);
 /** 老草稿里的 `user`（手改的）折进 `dict` */
 const LEGACY_ITEM_SOURCES: Record<string, string> = { user: 'dict' };
 
