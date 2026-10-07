@@ -105,6 +105,17 @@ function resetFakeTags(): void {
 let tagStamp = 100;
 /** 手动排序后的 key 顺序（空 = 还没排过）。真库里是 `sort` 列，这里只要顺序对得上就够 */
 let fakeOrder: string[] = [];
+/** 假区块库：真库是 `block-presets.json`，这里就一份内存数组（顺序 = 插入顺序） */
+let fakeBlockPresets: {
+  id: string;
+  name: string;
+  updatedAt: number;
+  title: string;
+  color: string;
+  mode: string;
+  items: string[];
+}[] = [];
+let fakeBlockSeq = 0;
 /** 分类实体（含**还没有词用的空分类**）：真库里是 categories 表 */
 let fakeCategories: string[] = [];
 /** 分类的手动顺序（空 = 还没拖过）。真库里是 `categories.sort`，这里只要顺序对得上就够 */
@@ -337,6 +348,53 @@ Object.defineProperty(globalThis, 'fetch', {
       const had = fakeTags[en] !== undefined;
       delete fakeTags[en];
       return reply({ ok: true, deleted: had });
+    }
+    // 区块库：列表只给摘要（面板要的预览在 preview 里），按 id 取整条
+    if (method === 'GET' && path.endsWith('/block-presets')) {
+      return reply({
+        presets: fakeBlockPresets.map((one) => ({
+          id: one.id,
+          name: one.name,
+          updatedAt: one.updatedAt,
+          title: one.title,
+          color: one.color,
+          mode: one.mode,
+          itemCount: one.items.length,
+          preview: one.items.slice(0, 3),
+        })),
+      });
+    }
+    if (method === 'GET' && path.includes('/block-presets/')) {
+      const id = path.slice(path.lastIndexOf('/') + 1);
+      const hit = fakeBlockPresets.find((one) => one.id === id);
+      return hit === undefined ? fail('没有这个预设区块') : reply({ preset: hit });
+    }
+    if (method === 'POST' && path.endsWith('/block-presets')) {
+      fakeBlockSeq += 1;
+      const created = {
+        id: `bp${fakeBlockSeq}`,
+        name: String(body?.name ?? ''),
+        updatedAt: 1000 + fakeBlockSeq,
+        title: String(body?.title ?? ''),
+        color: String(body?.color ?? '#6ea8fe'),
+        mode: String(body?.mode ?? 'tag'),
+        items: (body?.items as string[]) ?? [],
+      };
+      fakeBlockPresets.push(created);
+      return reply({ preset: created });
+    }
+    if (method === 'PUT' && path.includes('/block-presets/')) {
+      const id = path.slice(path.lastIndexOf('/') + 1);
+      const hit = fakeBlockPresets.find((one) => one.id === id);
+      if (hit === undefined) return fail('没有这个预设区块');
+      hit.name = String(body?.name ?? hit.name);
+      return reply({ preset: hit });
+    }
+    if (method === 'DELETE' && path.includes('/block-presets/')) {
+      const id = path.slice(path.lastIndexOf('/') + 1);
+      const before = fakeBlockPresets.length;
+      fakeBlockPresets = fakeBlockPresets.filter((one) => one.id !== id);
+      return reply({ removed: fakeBlockPresets.length !== before });
     }
     return reply({ doc: null });
   },
@@ -1737,6 +1795,123 @@ check(
   blockOf(0).style.borderColor,
 );
 check('预设色同样只发一次结构写', writesSince(markColor4).length === 1, JSON.stringify(writesSince(markColor4).map((call) => call.url)));
+
+console.log('区块库：存一块 / 插入 / 改名 / 删除');
+{
+  // 存进库的只有**启用且非空**的条目（禁用的本来就不进输出），所以断言也得按这把尺子取
+  const enabledChips = (blockIndex: number): string[] =>
+    [...blockOf(blockIndex).querySelectorAll('.pe-chip:not(.pe-chip-off) > .pe-chip-text')]
+      .map((el) => (el.textContent ?? '').trim())
+      .filter((text) => text !== '');
+  const blkLibBtn = pickAll('.pe-top .pe-actions button')[3] as HTMLButtonElement;
+  check('表头有「区块库…」入口', (blkLibBtn.textContent ?? '').includes('区块库') === true, blkLibBtn.textContent ?? '');
+  blkLibBtn.click();
+  await settle();
+  check('打开面板并拉到列表', pick('.pe-panel')?.textContent?.includes('区块库') === true && pick('.pe-blk-tip') !== null);
+  check('空库给一句"怎么存"的提示', (pick('.pe-blk-tip')?.textContent ?? '').includes('点「存」') === true, pick('.pe-blk-tip')?.textContent ?? '');
+
+  // 在区块表头点「存」：把这一块的快照送进面板
+  const firstBlock = blockOf(0);
+  const headSave = firstBlock.querySelector('.pe-block-save') as HTMLButtonElement;
+  check('区块表头有「存」按钮', headSave !== null && (headSave.textContent ?? '').trim() === '存');
+  const titleBefore = (firstBlock.querySelector('.pe-block-title') as HTMLInputElement).value;
+  const chipsBefore = enabledChips(0);
+  headSave.click();
+  await settle();
+  const nameBox = pick('.pe-blk-save .pe-input') as HTMLInputElement;
+  check('点「存」后出现名字框，并**真的抢到焦点**（不然回车存不了、看着像没反应）', document.activeElement === nameBox, String(document.activeElement?.className ?? document.activeElement?.tagName));
+  check('名字框预填区块标题', nameBox.value === titleBefore, nameBox.value);
+
+  // 取消：待存的块收回去，输入框消失
+  (pickAll('.pe-blk-save .pe-btn')[1] as HTMLButtonElement).click();
+  await nextTick();
+  check('点「取消」把待存的块收回去', pick('.pe-blk-save') === null && pick('.pe-blk-tip') !== null);
+
+  // 真的存一次：先把这一块临时改成 2 条 + 1 条禁用，验证"禁用的不带进库"
+  headSave.click();
+  await settle();
+  const markSave = calls.length;
+  await type(pick('.pe-blk-save .pe-input') as HTMLInputElement, '我的质量块');
+  (pickAll('.pe-blk-save .pe-btn')[0] as HTMLButtonElement).click();
+  await settle();
+  const posted = calls.slice(markSave).find((call) => call.method === 'POST' && call.url.endsWith('/block-presets'));
+  check(
+    '存进库：POST 带上整块快照（名字 / 标题 / 颜色 / 风格 / 条目文本）',
+    posted?.body?.name === '我的质量块' &&
+      posted?.body?.title === titleBefore &&
+      typeof posted?.body?.color === 'string' &&
+      posted?.body?.mode === 'tag',
+    JSON.stringify(posted?.body),
+  );
+  check('条目文本跟着走（禁用的那条不带）', sameTexts((posted?.body?.items as string[]) ?? [], chipsBefore), `${JSON.stringify(posted?.body?.items)} vs ${JSON.stringify(chipsBefore)}`);
+  check('存完列表里出现了它（带风格 / 条数 / 预览）', pickAll('.pe-item-name').length === 1 && (pick('.pe-blk-preview')?.textContent ?? '').includes(chipsBefore[0] ?? ''), pick('.pe-blk-preview')?.textContent ?? '');
+  check('提示说清了存了什么', (pick('.pe-hint')?.textContent ?? '').includes('已存进区块库：「我的质量块」') === true, pick('.pe-hint')?.textContent ?? '');
+  check('存完名字框收起来（一次存一块）', pick('.pe-blk-save') === null);
+
+  // 插入：新增一块、追加到最后
+  const blocksBefore = pickAll('.pe-block').length;
+  const batchesBeforeBlock = translateBatches.length;
+  const markInsert = calls.length;
+  (pick('.pe-item-actions .pe-btn') as HTMLButtonElement).click();
+  await settle();
+  check('插入前先按 id 取整条（列表里只有摘要）', calls.slice(markInsert).some((call) => call.method === 'GET' && call.url.endsWith('/block-presets/bp1')) === true, JSON.stringify(calls.slice(markInsert).map((call) => call.url)));
+  check('插入 = 新增一块、追加到最后（已有区块一个不动）', pickAll('.pe-block').length === blocksBefore + 1 && blockOf(blocksBefore) !== null);
+  check('新块的标题 = 预设的标题', (blockOf(blocksBefore).querySelector('.pe-block-title') as HTMLInputElement).value === titleBefore, (blockOf(blocksBefore).querySelector('.pe-block-title') as HTMLInputElement).value);
+  check('新块的条目 = 预设里那些文本', sameTexts(enabledChips(blocksBefore), chipsBefore), `${enabledChips(blocksBefore).join('|')} vs ${chipsBefore.join('|')}`);
+  check('新块的风格跟着预设走（tag）', (blockOf(blocksBefore).querySelector('.pe-block-modes button.active')?.textContent ?? '').trim() === 'tag');
+  check(
+    '新块的译文是空的（库里不带译文，等你自己查）',
+    blockOf(blocksBefore).querySelector('.pe-chip-translation-empty') !== null,
+    cellText(blocksBefore, 0),
+  );
+  check('插入也发了一次结构写（新块要落盘）', calls.slice(markInsert).some((call) => call.method === 'PUT' && call.url.endsWith('/draft/structure')) === true);
+
+  // 插进来的条目没有译文（库里刻意不存）→ 自动译开着的话要排队去翻，跟手打一条新条目同一条路
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  const autoBatches = translateBatches.slice(batchesBeforeBlock);
+  check(
+    '插入的块自动排队翻译（自动译开着，逐条发）',
+    autoBatches.length === chipsBefore.length && sameTexts(autoBatches.map((one) => one[0] ?? ''), chipsBefore),
+    JSON.stringify(autoBatches),
+  );
+  check('翻完译文落到格子里', cellText(blocksBefore, 0) !== '' && cellText(blocksBefore, 0) !== '译文', cellText(blocksBefore, 0));
+
+  // 改名 / 删除：跟预设库同一套（window.prompt / window.confirm）
+  const win = window as unknown as Record<string, unknown>;
+  const realPrompt = win.prompt;
+  const realConfirm = win.confirm;
+  win.prompt = () => '改过的名字';
+  win.confirm = () => true;
+  const markRename = calls.length;
+  (pickAll('.pe-item-actions .pe-btn')[1] as HTMLButtonElement).click();
+  await settle();
+  const renamed = calls.slice(markRename).find((call) => call.method === 'PUT' && call.url.includes('/block-presets/'));
+  check('改名：PUT 只带名字', renamed?.body?.name === '改过的名字' && Object.keys(renamed?.body ?? {}).length === 1, JSON.stringify(renamed?.body));
+  check('改名后列表里就是新名字', (pick('.pe-item-name')?.textContent ?? '').includes('改过的名字') === true, pick('.pe-item-name')?.textContent ?? '');
+
+  // 改名点取消（prompt 返回 null）：一个请求都不发
+  win.prompt = () => null;
+  const markNoop = calls.length;
+  (pickAll('.pe-item-actions .pe-btn')[1] as HTMLButtonElement).click();
+  await settle();
+  check('改名点取消（prompt 给 null）：不发请求', calls.slice(markNoop).length === 0, String(calls.length - markNoop));
+
+  const markDel = calls.length;
+  (pickAll('.pe-item-actions .pe-btn')[2] as HTMLButtonElement).click();
+  await settle();
+  check(
+    '删除：DELETE 打的是这一条的 id',
+    calls.slice(markDel).some((call) => call.method === 'DELETE' && call.url.endsWith('/block-presets/bp1')) === true,
+    JSON.stringify(calls.slice(markDel).map((call) => `${call.method} ${call.url}`)),
+  );
+  check('删完库空了（工作区那块不受影响）', pickAll('.pe-item-name').length === 0 && pick('.pe-empty') !== null);
+  win.prompt = realPrompt;
+  win.confirm = realConfirm;
+
+  (pick('.pe-close') as HTMLButtonElement).click();
+  await nextTick();
+  check('面板能关掉', pick('.pe-panel') === null);
+}
 
 console.log(failed === 0 ? '\n✅ 交互测试通过' : `\n❌ ${failed} 项不通过`);
 process.exit(failed === 0 ? 0 : 1);

@@ -8,8 +8,10 @@ import {
   newItem,
   renderOutput,
   starterDoc,
+  type Block,
   type Doc,
   type Item,
+  type Mode,
 } from '../model';
 
 /**
@@ -45,6 +47,26 @@ export function useWorkspace(flash: (message: string) => void) {
   function addBlock(): void {
     doc.blocks.push(newBlock(`区块 ${doc.blocks.length + 1}`));
     persistStructure();
+  }
+
+  /**
+   * 插入一个**预设区块**：新增一块、**追加到最后**（不动任何已有区块）。
+   *
+   * 条目文本照抄、**译文不带**（库里的那份可能已经过期，插进来按当前词库重新查才对），
+   * 条目 id 现场生成（id 只要在本机文档内唯一）。结构写只带属性，所以条目要单独再写一次
+   * —— 跟新建区块同一条路（`persistStructure` + `persistItems`）。
+   *
+   * **返回插进来的那块**：译文得由上层排队去翻（`enqueueAuto` 在 App 那层，词库/翻译都在那儿）。
+   */
+  function insertBlockPreset(preset: { name: string; title: string; color: string; mode: Mode; items: string[] }): Block {
+    const block = newBlock(preset.title.trim() === '' ? preset.name : preset.title, preset.color, preset.mode);
+    block.items = preset.items.map((text) => newItem(text));
+    doc.blocks.push(block);
+    activeBlockId.value = block.id;
+    persistStructure();
+    persistItems(block);
+    flash(`已插入区块「${preset.name}」（${block.items.length} 条）`);
+    return block;
   }
 
   function removeBlock(index: number): void {
@@ -121,6 +143,7 @@ export function useWorkspace(flash: (message: string) => void) {
     blockLabels,
     replaceDoc,
     addBlock,
+    insertBlockPreset,
     removeBlock,
     clearAll,
     persistStructure,

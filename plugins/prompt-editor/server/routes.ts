@@ -23,6 +23,7 @@ import {
   type Preset,
   type Stored,
 } from './doc.js';
+import { registerBlockPresetRoutes } from './routes-block-presets.js';
 import { registerTranslateRoutes } from './routes-translate.js';
 import { readJson, writeJson } from './store.js';
 import type { PluginContext, RouteReply } from './types.js';
@@ -175,6 +176,9 @@ export function registerRoutes(ctx: PluginContext): void {
 
   // 翻译 / 词库 / 设置那三组（顺序同原来：接在草稿之后）。路由表**传下去**而不是让那边再领一次：
   // 宿主每次 `ctx.routes.for()` 都换一张新表，领两次会把这里的预设 / 草稿路由整张覆盖掉。
+  // 区块库没有长持句柄（就是一份 JSON），直接注册
+  registerBlockPresetRoutes({ routes, space, badRequest, log });
+
   const translateRoutes = registerTranslateRoutes({ routes, space, badRequest, log });
 
   ctx.effect(() => () => {
