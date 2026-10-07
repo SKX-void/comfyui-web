@@ -249,6 +249,31 @@ export async function saveTagOrder(keys: string[], moved: string): Promise<{ wri
   });
 }
 
+/**
+ * 分类树的手动顺序。跟 `saveTagOrder` 同一套（`names` = 新顺序，`moved` = 被拖的那个），
+ * 区别是服务端**第一次拖就整树铺序号** —— 分类只有几个，不用"手动的是前缀"那套。
+ */
+export async function saveCategoryOrder(
+  names: string[],
+  moved: string,
+): Promise<{ written: number; rebuilt: boolean }> {
+  return await request<{ ok: boolean; written: number; rebuilt: boolean }>('/tags/categories/order', {
+    method: 'PUT',
+    body: JSON.stringify({ names, moved }),
+  });
+}
+
+/**
+ * **批量删除**一个分类下的词条：那些 `tags` 行真删（不是只摘归属），分类留着。
+ * 返回删了几条、其中几条是手改过的（`userDeleted`）—— 面板要把"删掉了什么"说出来。
+ */
+export async function deleteCategoryEntries(name: string): Promise<{ deleted: number; userDeleted: number }> {
+  return await request<{ ok: boolean; deleted: number; userDeleted: number }>('/tags/categories/entries', {
+    method: 'DELETE',
+    body: JSON.stringify({ name }),
+  });
+}
+
 /** 产物里那份内置机翻表：`available:false` = 产物里没有它（面板就不画那个按钮） */
 export interface BundledTags {
   available: boolean;

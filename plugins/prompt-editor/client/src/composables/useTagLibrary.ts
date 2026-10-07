@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue';
 
 import {
+  deleteCategoryEntries,
   createCategory,
   deleteCategory,
   deleteTagEntry,
@@ -8,6 +9,7 @@ import {
   importBundledTags,
   listTags,
   renameCategory,
+  saveCategoryOrder,
   saveTagEntry,
   saveTagOrder,
   type BundledTags,
@@ -269,7 +271,6 @@ export function useTagLibrary(props: {
     const after = rect !== null && rect.height > 0 && event.clientY > rect.top + rect.height / 2;
     dropIndex.value = after ? index + 1 : index;
   }
-
   /**
    * 松手：把这一行从可见顺序里摘掉、插到落点上，整批写回。
    *
@@ -302,12 +303,6 @@ export function useTagLibrary(props: {
       busy.value = '';
     }
   }
-
-  /** 行上分类标签旁边的「×」：从这一条上摘掉一个分类 */
-  async function removeCategory(entry: TagEntry, name: string): Promise<void> {
-    await setCategory(entry, entry.categories.filter((one) => one !== name).join(',') || null);
-  }
-
   /**
    * 编辑态里点一个分类标签：**切换**它在不在这一条上。
    *
@@ -320,28 +315,39 @@ export function useTagLibrary(props: {
     const next = list.includes(name) ? list.filter((one) => one !== name) : [...list, name];
     form.value.categories = next.join(', ');
   }
+  /** 行上分类标签旁边的「×」：从这一条上摘掉一个分类 */
+  async function removeCategory(entry: TagEntry, name: string): Promise<void> {
+    await setCategory(entry, entry.categories.filter((one) => one !== name).join(',') || null);
+  }  /**
+   * 分类树拖完的新顺序（**状态在 TagCategoryNav 里**：拖拽的起点/落点必须是同步的，
+   * 绕一趟父组件 props 会慢一拍 —— tag 行那套把状态放在这里是历史原因，分类这版不重复那个坑）。
+   */
+  async function reorderCategories(names: string[], moved: string): Promise<void> {
+    error.value = '';
+    try {
+      const result = await saveCategoryOrder(names, moved);
+      // 第一次拖会整树铺序号（分类只有几个），如实说出来
+      hint.value = result.rebuilt ? '分类顺序已记下（重铺了序号）' : '分类顺序已记下';
+      await load();
+    } catch (err) {
+      error.value = `存分类顺序失败：${(err as Error).message}`;
+    }
+  }
 
   /**
-   * 编辑模式：**插入和编辑互斥**，一个开关切。
-   *
-   * - 关着（浏览）：行上只有「插入」；左边分类树是纯筛选 + 拖拽落点，没有管理入口。
-   * - 开着（编辑）：行上是「改 / 删」，分类树上出现「＋ 新建分类」和每行的「改 / 删」，**「插入」藏起来**。
-   *
-   * 为什么收进模式里：「删」**没有二次确认**（直接把这条从库里删掉），而它原来就挨着「插入」——
-   * 想插一条手抖点偏一格，这条就没了。改和删都是"我要动手整理"时才会做的事，插入不是。
-   *
-   * 关掉/重开面板时会**把编辑态一起收干净**：不然会出现"模式关了、某一行却还是表单"
-   * 或者"分类树停在改名输入框上"这种自相矛盾的状态。
+   * 编辑模式：**插入和编辑互斥** —— 开着时行上只有「改 / 删」（没有「插入」），分类树才有
+   * 「＋ 新建分类」和每行的「改 / 清 / 删」。目的是把"会改库的动作"和"往提示词里插词"分开，免得手滑。
    */
   const editMode = ref(false);
 
-  /** 退出编辑模式：把这一层里所有"编辑中的半成品"一起收掉（关开关和重开面板都走它） */
+  /** 退出编辑模式：把这一层所有"编辑中的半成品"一起收掉（关开关、重开面板都走它） */
   function exitEditMode(): void {
     editMode.value = false;
     cancelEdit();
     cancelCreateCategory();
     cancelRenameCategory();
     cancelRemoveCategory();
+    cancelDeleteEntries();
   }
 
   function toggleEditMode(): void {
@@ -349,13 +355,50 @@ export function useTagLibrary(props: {
     else editMode.value = true;
   }
 
-  /** 分类级管理（分类本身是一张表，跟"某个 tag 属于谁"分开） */
+  /** 分类级管理（分类本身是一张表，跟"某个 tag 属于谁"分开）—— 一次只显示一件事 */
   const creatingCategory = ref(false);
   const newCategory = ref('');
   const renamingCategory = ref('');
   const renameTo = ref('');
   const confirmRemove = ref<{ name: string; count: number } | null>(null);
   const categoryBusy = ref(false);
+  /** 待确认的"批量删掉这个分类下的词条"（词条真删，分类留着） */
+  const deletingCategory = ref<{ name: string; count: number } | null>(null);
+
+  /**
+   * **批量删除**这个分类下的词条：先摆出影响范围再确认（跟删分类同一套）。
+   * 这是面板上唯一的批量删除入口 —— 逐条删要点 N 次「删」。
+   */
+  function askDeleteEntries(name: string, count: number): void {
+    deletingCategory.value = { name, count };
+    creatingCategory.value = false;
+    renamingCategory.value = '';
+    confirmRemove.value = null;
+  }
+
+  function cancelDeleteEntries(): void {
+    deletingCategory.value = null;
+  }
+
+  async function submitDeleteEntries(): Promise<void> {
+    const target = deletingCategory.value;
+    if (target === null || categoryBusy.value) return;
+    categoryBusy.value = true;
+    error.value = '';
+    try {
+      const result = await deleteCategoryEntries(target.name);
+      deletingCategory.value = null;
+      // 删掉的东西不可撤销，至少把"删掉了什么"说全（含手改过的有几条）
+      hint.value =
+        `已从库里删掉 ${result.deleted} 条（分类「${target.name}」留着）` +
+        (result.userDeleted > 0 ? ` · 其中 ${result.userDeleted} 条是你手改过的` : '');
+      await load();
+    } catch (err) {
+      error.value = `批量删除失败：${(err as Error).message}`;
+    } finally {
+      categoryBusy.value = false;
+    }
+  }
 
   function startCreateCategory(): void {
     creatingCategory.value = true;
@@ -513,6 +556,11 @@ export function useTagLibrary(props: {
     canLoadMore,
     loadMore,
     headerLabel,
+    reorderCategories,
+    deletingCategory,
+    askDeleteEntries,
+    cancelDeleteEntries,
+    submitDeleteEntries,
     creatingCategory,
     newCategory,
     renamingCategory,

@@ -100,12 +100,15 @@ function resetFakeTags(): void {
   fakeOrder = [];
   // 分类自己是独立的表（真库是 categories）—— 种子里的两个名字都注册过
   fakeCategories = ['画质', '光照'];
+  fakeCatOrder = [];
 }
 let tagStamp = 100;
 /** 手动排序后的 key 顺序（空 = 还没排过）。真库里是 `sort` 列，这里只要顺序对得上就够 */
 let fakeOrder: string[] = [];
 /** 分类实体（含**还没有词用的空分类**）：真库里是 categories 表 */
 let fakeCategories: string[] = [];
+/** 分类的手动顺序（空 = 还没拖过）。真库里是 `categories.sort`，这里只要顺序对得上就够 */
+let fakeCatOrder: string[] = [];
 
 /** 假的 GET /tags：形状与 `server/tagdb.ts` 的 `query()` 一致（这一层只关心前端怎么用，不碰真库） */
 function fakeTagList(q: string, category: string, limitRaw?: string | null): unknown {
@@ -132,6 +135,10 @@ function fakeTagList(q: string, category: string, limitRaw?: string | null): unk
       entry.aliases.some((alias) => alias.toLowerCase().includes(needle))
     );
   });
+  const catRank = (name: string): number => {
+    const at = fakeCatOrder.indexOf(name);
+    return at < 0 ? Number.MAX_SAFE_INTEGER : at;
+  };
   // 排过序的按 `fakeOrder` 排在前面（对应真库的 `ORDER BY (sort IS NULL), sort`），其余按 updatedAt
   const rank = (key: string): number => {
     const at = fakeOrder.indexOf(key);
@@ -144,9 +151,15 @@ function fakeTagList(q: string, category: string, limitRaw?: string | null): unk
     counts,
     categories: [...new Set([...fakeCategories, ...byCategory.keys()])]
       .map((name) => ({ name, count: byCategory.get(name) ?? 0 }))
-      // 并列时按**码点序**（SQLite 的 `name ASC` 是 BINARY 排序）；localeCompare 是另一套，
-      // 用它的话假库和真库的并列顺序会不一样（画/光 就是反的）
-      .sort((a, b) => b.count - a.count || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
+      // 拖过顺序的排在前面（对应真库的 `(sort IS NULL), sort`），没序号的名次一律垫底
+      .sort(
+        (a, b) =>
+          catRank(a.name) - catRank(b.name) ||
+          b.count - a.count ||
+          // 并列时按**码点序**（SQLite 的 `name ASC` 是 BINARY 排序）；localeCompare 是另一套，
+          // 用它的话假库和真库的并列顺序会不一样（画/光 就是反的）
+          (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+      ),
   };
 }
 let translateFails = false;
@@ -166,6 +179,28 @@ Object.defineProperty(globalThis, 'fetch', {
       status: 409,
       text: async () => JSON.stringify({ ok: false, error: { message } }),
     });
+
+    // 分类树的手动顺序：真库是 `categories.sort`，第一次拖整树铺序号（这里只记顺序）
+    if (method === 'PUT' && path.endsWith('/tags/categories/order')) {
+      const names = (body?.names as string[]) ?? [];
+      const rebuilt = fakeCatOrder.length === 0 || names.some((name) => !fakeCatOrder.includes(name));
+      fakeCatOrder = [...names];
+      return reply({ ok: true, written: rebuilt ? names.length : 1, rebuilt });
+    }
+    // **批量删除**这个分类下的词条：`fakeTags` 里真删掉（不是只摘归属），分类留着
+    if (method === 'DELETE' && path.endsWith('/tags/categories/entries')) {
+      const name = String(body?.name ?? '').trim();
+      let deleted = 0;
+      let userDeleted = 0;
+      for (const [key, entry] of Object.entries(fakeTags)) {
+        if (entry.categories.includes(name)) {
+          if (entry.source === 'user') userDeleted += 1;
+          delete fakeTags[key];
+          deleted += 1;
+        }
+      }
+      return reply({ ok: true, deleted, userDeleted });
+    }
 
     // 分类级管理：分类自己是一张表（真库是 categories 表），所以**空分类也要列出来**
     if (method === 'POST' && path.endsWith('/tags/categories')) {
@@ -852,10 +887,15 @@ const catPicks = (): HTMLButtonElement[] => [
 ];
 const catLabels = (): string[] =>
   catPicks().map((el) => (el.textContent ?? '').trim().split(/\s+/)[0] ?? '');
-/** 某个分类那一行上的两个小按钮：`[0]` 改名 `✎`、`[1]` 删除 `×` */
+/** 某个分类那一行上的管理按钮（改 / 清 / 删）。**按文字找**：按钮会增减，按下标会点错 */
 const catRowTools = (name: string): HTMLButtonElement[] => {
   const row = pickAll('.pe-lib-cat-row').find((one) => (one.textContent ?? '').includes(name));
   return row === undefined ? [] : [...row.querySelectorAll<HTMLButtonElement>('.pe-lib-cat-tool')];
+};
+const catTool = (name: string, label: string): HTMLButtonElement => {
+  const hit = catRowTools(name).find((one) => (one.textContent ?? '').trim() === label);
+  if (hit === undefined) throw new Error(`「${name}」这一行没有「${label}」按钮`);
+  return hit;
 };
 /** 面板里的异步：搜索有 250ms 防抖，拉列表 + 渲染还要几轮 */
 const settleLib = async (): Promise<void> => {
@@ -1248,7 +1288,7 @@ check(
 check('提示说清了新建结果', (pick('.pe-hint')?.textContent ?? '').includes('已新建分类'), pick('.pe-hint')?.textContent ?? '');
 
 // 改名：挂着分类的那条要跟着走
-const renameTool = catRowTools('画质')[0] as HTMLButtonElement;
+const renameTool = catTool('画质', '改');
 renameTool.click();
 await nextTick();
 const newRenameInput = pick('.pe-lib-cat-input') as HTMLInputElement | null;
@@ -1264,7 +1304,7 @@ check(
 dispatch(newRenameInput as HTMLInputElement, new window.KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
 await nextTick();
 check('按 Esc 撤掉改名，且一个请求都不发', pick('.pe-lib-cat-input') === null && calls.length === markRename);
-(catRowTools('画质')[0] as HTMLButtonElement).click();
+catTool('画质', '改').click();
 await nextTick();
 if (newRenameInput !== null) {
   await type(newRenameInput, '画质与风格');
@@ -1282,7 +1322,7 @@ check('改名后条目上也是新分类', libRow('masterpiece')?.textContent?.i
 
 // 删除：批量破坏性，所以先摆影响范围再确认
 const markBeforeAsk = calls.length;
-(catRowTools('光照')[1] as HTMLButtonElement).click();
+catTool('光照', '删').click();
 await nextTick();
 const warn = pick('.pe-lib-cat-warn')?.textContent ?? '';
 check('点「×」先出确认，并写清影响多少条', warn.includes('光照') && warn.includes('2'), warn.replace(/\s+/g, ' '));
@@ -1290,7 +1330,7 @@ check('确认之前一个请求都不发', calls.length === markBeforeAsk, JSON.
 (pickAll('.pe-lib-cat-btns .pe-btn')[1] as HTMLButtonElement).click();
 await nextTick();
 check('点「取消」就撤掉，也不发请求', pick('.pe-lib-cat-warn') === null && calls.length === markBeforeAsk);
-(catRowTools('光照')[1] as HTMLButtonElement).click();
+catTool('光照', '删').click();
 await nextTick();
 const markRemove = calls.length;
 (pickAll('.pe-lib-cat-btns .pe-btn')[0] as HTMLButtonElement).click();
@@ -1305,6 +1345,103 @@ check('提示说清了"词条本身没删"', (pick('.pe-hint')?.textContent ?? '
 (pick('.pe-close') as HTMLButtonElement).click();
 await nextTick();
 resetFakeTags();
+
+console.log('词库面板：分类排序 + 清空分类内容');
+(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+await settleLib();
+await editModeOn();
+const catRow = (name: string): HTMLElement | null =>
+  ([...document.querySelectorAll('.pe-lib-cat-row')] as HTMLElement[]).find(
+    (one) => one.querySelector('.pe-lib-cat-name')?.textContent?.trim() === name,
+  ) ?? null;
+check('起点：分类树按计数（光照 2 条在前）', catLabels().join('|') === '全部|未分类|光照|画质', catLabels().join('|'));
+
+// 拖最后一个分类到最前面：happy-dom 拿不到布局，dragover 一律按"插到这一行前面"算
+const markCat = calls.length;
+const catDragStart = (el: Element): void => dispatch(el, new window.DragEvent('dragstart', { bubbles: true }));
+const catDragOver = (el: Element): void =>
+  dispatch(el, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+const catDropOn = (el: Element): void => dispatch(el, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+catDragStart(catRow('画质') as Element);
+catDragOver(catRow('光照') as Element);
+catDropOn(catRow('光照') as Element);
+await settleLib();
+const catCalls = calls.slice(markCat).filter((call) => call.url.endsWith('/tags/categories/order'));
+check(
+  '拖分类发一次 PUT /tags/categories/order，带的是新顺序 + 被拖的那个',
+  catCalls.length === 1 &&
+    JSON.stringify(catCalls[0]?.body) === JSON.stringify({ names: ['画质', '光照'], moved: '画质' }),
+  JSON.stringify(catCalls[0]?.body ?? null),
+);
+check('分类顺序真的变了（光照 退到后面）', catLabels().join('|') === '全部|未分类|画质|光照', catLabels().join('|'));
+check(
+  '第一次拖如实说是重铺序号（分类只有几个，整树铺）',
+  (pick('.pe-hint')?.textContent ?? '').includes('重铺了序号') === true,
+  pick('.pe-hint')?.textContent ?? '',
+);
+
+// 拖回原位不该发请求（不然每点一下都写一遍）
+const markStill = calls.length;
+catDragStart(catRow('画质') as Element);
+catDragOver(catRow('画质') as Element);
+catDropOn(catRow('画质') as Element);
+await settleLib();
+check(
+  '拖回原位不发请求',
+  calls.slice(markStill).every((call) => !call.url.endsWith('/tags/categories/order')),
+  JSON.stringify(calls.slice(markStill).map((call) => call.url)),
+);
+
+// 清空 ≠ 删除：分类留着、计数归零、词条一条不删
+const markClear = calls.length;
+const clearBtn = ([...document.querySelectorAll('.pe-lib-cat-tool')] as HTMLElement[]).find(
+  (one) => one.textContent?.trim() === '清' && one.closest('.pe-lib-cat-row') === catRow('光照'),
+);
+check('编辑模式下每个分类行有三个工具（改 / 清 / 删）', document.querySelectorAll('.pe-lib-cat-tool').length === 6,
+  String(document.querySelectorAll('.pe-lib-cat-tool').length));
+(clearBtn as HTMLButtonElement).click();
+await nextTick();
+check(
+  '点「清」先摆出影响范围（几条会被删掉、不可撤销、分类留着）',
+  (pick('.pe-lib-cat-warn')?.textContent ?? '').includes('2') &&
+    (pick('.pe-lib-cat-warn')?.textContent ?? '').includes('从词库里删掉') &&
+    (pick('.pe-lib-cat-warn')?.textContent ?? '').includes('不可撤销') &&
+    (pick('.pe-lib-cat-warn')?.textContent ?? '').includes('分类本身留着'),
+  (pick('.pe-lib-cat-warn')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+);
+check('清空前分类还在', catLabels().includes('光照') === true, catLabels().join('|'));
+const clearCalls = calls.slice(markClear).filter((call) => call.url.endsWith('/tags/categories/entries'));
+check(
+  '确认前一个请求都没发',
+  clearCalls.length === 0,
+  JSON.stringify(calls.slice(markClear).map((call) => call.url)),
+);
+(pickAll('.pe-lib-cat-btns .pe-btn')[0] as HTMLButtonElement).click();
+await settleLib();
+const doneClear = calls.slice(markClear).filter((call) => call.url.endsWith('/tags/categories/entries'));
+check(
+  '确认后发一次 DELETE /tags/categories/entries，带的是分类名',
+  doneClear.length === 1 && JSON.stringify(doneClear[0]?.body) === JSON.stringify({ name: '光照' }),
+  JSON.stringify(doneClear[0]?.body ?? null),
+);
+check('分类还在，只是计数归零（清空 ≠ 删除）', catLabels().join('|') === '全部|未分类|画质|光照', catLabels().join('|'));
+check('词条真的从库里删掉了（列表里只剩没被删的那两条）', libNames().length === 2, libNames().join('|'));
+check(
+  '提示说清了删了几条、分类留着、其中几条是手改过的',
+  (pick('.pe-hint')?.textContent ?? '').includes('已从库里删掉 2 条') === true &&
+    (pick('.pe-hint')?.textContent ?? '').includes('光照') === true &&
+    (pick('.pe-hint')?.textContent ?? '').includes('其中 1 条是你手改过的') === true,
+  pick('.pe-hint')?.textContent ?? '',
+);
+
+// 这一段是全套里唯一**真删词条**的：删完把假库恢复成种子，后面的章节还要用那 4 条
+// （走搜索框这条最稳：清空输入 + 派发 input 一定会重新拉列表）
+resetFakeTags();
+const seedBox = pick('.pe-lib-bar .pe-input') as HTMLInputElement;
+seedBox.value = '';
+dispatch(seedBox, new window.Event('input', { bubbles: true }));
+await settleLib();
+check('恢复种子（这一段是唯一真删词条的）', libNames().length === 4, `${libNames().join('|')} · 分类 ${catLabels().join('|')}`);
 
 console.log('词库面板：六点手柄 + 拖拽排序 + 拖拽时左侧高亮');
 (pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();

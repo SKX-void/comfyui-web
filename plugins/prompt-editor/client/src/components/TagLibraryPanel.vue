@@ -48,6 +48,11 @@ const {
   editMode,
   toggleEditMode,
   exitEditMode,
+  reorderCategories,
+  deletingCategory,
+  askDeleteEntries,
+  cancelDeleteEntries,
+  submitDeleteEntries,
   canLoadMore,
   loadMore,
   headerLabel,
@@ -145,7 +150,12 @@ const knownCategories = computed(() => data.value.categories.map((one) => one.na
           :confirm="confirmRemove"
           :busy="categoryBusy"
           :edit-mode="editMode"
+          :delete-confirm="deletingCategory"
           @pick="pickCategory"
+          @reorder-categories="reorderCategories"
+          @ask-delete-entries="askDeleteEntries"
+          @cancel-delete-entries="cancelDeleteEntries"
+          @submit-delete-entries="submitDeleteEntries"
           @drag-over="onDragOver"
           @drag-leave="dropTarget = ''"
           @drop="onDrop"
