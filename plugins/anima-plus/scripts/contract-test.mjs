@@ -178,6 +178,28 @@ check('三态：不可达时 ok=null（不谎报缺失）', /ok:\s*null/.test(de
 check('没查成时不拦模板（ready 仍为 true）', /keys === null \? true/.test(depsSrc));
 check('提交前检查走同一份缓存（不再每次拉 9MB）', /this\.deps[\s\S]{0,24}\.nodeKeys\(\)/.test(managerSrc));
 
+section('排队：一条全局事件流 + 逐任务取消');
+const jobsSrc = await readFile(new URL('../server/http/routes/jobs.ts', import.meta.url), 'utf8');
+const comfySrc = await readFile(new URL('../server/comfy/real.ts', import.meta.url), 'utf8');
+// 宿主的路由表是"先注册先匹配"（不是 fastify 的静态段优先）：/api/jobs/events 落到 :id 后面就会被当成 id="events"
+const globalAt = jobsSrc.indexOf("'/api/jobs/events'");
+const byIdAt = jobsSrc.indexOf("'/api/jobs/:id'");
+check(
+  'GET /api/jobs/events 注册在 /api/jobs/:id 之前',
+  globalAt >= 0 && byIdAt > globalAt,
+  `events@${globalAt} · :id@${byIdAt}`,
+);
+check('产物里有这条全局事件流', /\/api\/jobs\/events/.test(serverJs));
+check('前端订阅的是全局流（一条连接盯全部任务）', js.includes('/api/jobs/events'));
+check('前端不再给每个任务各开一条流', !/jobs\/\$\{[^}]*\}\/events/.test(js));
+check('队列行有样式（.queue-item 进了产物 CSS）', /\.queue-item/.test(css));
+check('按钮文案是「加入队列」', js.includes('加入队列'));
+check(
+  '排队的取消是从上游队列里摘（POST /queue {"delete":…}）',
+  /'\/queue'/.test(comfySrc) && /delete:\s*promptIds/.test(comfySrc),
+);
+check('取消先问上游在跑还是在排队（不靠本地状态猜）', /locateUpstream/.test(managerSrc));
+
 section('帮助面板：md 渲染器（零依赖，先转义再套标签）');
 check('renderMarkdown 是函数', typeof renderMarkdown === 'function');
 const scripthtml = renderMarkdown('<script>alert(1)</script>');

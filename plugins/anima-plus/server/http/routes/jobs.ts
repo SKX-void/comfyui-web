@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CreateJobRequest, JobEvent } from '@comfyui-web/shared';
 import { AppError } from '../../errors.js';
+import { TERMINAL } from '../../jobs/terminal.js';
 import { SSE_HEARTBEAT_MS, type RouteDeps } from './shared.js';
 
 export function registerJobs(app: FastifyInstance, deps: RouteDeps): void {
@@ -41,6 +42,69 @@ export function registerJobs(app: FastifyInstance, deps: RouteDeps): void {
   app.delete('/api/jobs', async () => {
     const { cleared, kept } = jobs.clearFinished();
     return { ok: true, cleared, kept, items: jobs.list() };
+  });
+
+  /**
+   * 全局任务事件流（队列视图用）：**一条** SSE 盯住所有在途任务。
+   *
+   * 为什么不让前端每个任务开一条 EventSource：浏览器对同源 HTTP/1.1 只给 6 条连接，
+   * 队列深度默认就是 5 —— 占满之后缩略图、历史刷新全都排不上队。
+   * 事件 data 里因此多一个 `jobId`；连接即发每个在途任务的 snapshot，
+   * 刷新页面/换一台设备打开时队列能自己长回来（快照重建，不依赖断线回放）。
+   *
+   * ⚠️ **必须注册在 `/api/jobs/:id` 之前**：宿主那张可逆路由表是"先注册先匹配"
+   * （apps/server/src/handles/routes.ts 的 RouteTable.match），不像 fastify 的基数树
+   * 会静态段优先 —— 放到后面就会被 `:id` 当成 id="events" 吃掉。
+   */
+  app.get('/api/jobs/events', async (req: FastifyRequest, reply: FastifyReply) => {
+    reply.hijack(); // 原因见下面 /api/jobs/:id/events
+
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    // 必须显式 flush：Node 会把响应头攒到**第一次写 body**才发出去。队列空时下面一条
+    // snapshot 都没有，浏览器（EventSource）就迟迟收不到响应头、连 open 事件都不触发。
+    reply.raw.flushHeaders();
+
+    const send = (evt: JobEvent): void => {
+      reply.raw.write(`event: ${evt.type}\n`);
+      reply.raw.write(`data: ${JSON.stringify(evt.data)}\n\n`);
+    };
+
+    for (const job of jobs.list()) {
+      if (TERMINAL.has(job.status)) continue;
+      send({
+        type: 'snapshot',
+        data: {
+          jobId: job.jobId,
+          status: job.status,
+          progress: job.progress,
+          assets: job.assets,
+          error: job.error,
+          // 带上提交时间：前端刷新页面后靠它把队列排回原顺序
+          createdAt: job.createdAt,
+        },
+      });
+    }
+
+    const unsubscribe = jobs.subscribeAll((job, evt) => {
+      send({ type: evt.type, data: { jobId: job.jobId, ...evt.data } });
+    });
+
+    const heartbeat = setInterval(() => {
+      reply.raw.write(': ping\n\n');
+    }, SSE_HEARTBEAT_MS);
+
+    function cleanup(): void {
+      clearInterval(heartbeat);
+      unsubscribe();
+    }
+
+    req.raw.on('close', cleanup);
+    return reply;
   });
 
   app.get('/api/jobs/:id', async (req) => {
@@ -91,7 +155,7 @@ export function registerJobs(app: FastifyInstance, deps: RouteDeps): void {
     });
 
     // 已终态：发完即关
-    if (['succeeded', 'failed', 'canceled'].includes(job.status)) {
+    if (TERMINAL.has(job.status)) {
       reply.raw.end();
       return reply;
     }

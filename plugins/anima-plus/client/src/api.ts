@@ -247,15 +247,29 @@ export const api = {
 };
 
 /**
- * 订阅任务事件（SSE）。返回取消订阅函数。
- * 服务端连接即发 snapshot，因此断线重连不需要回放。
+ * 全局任务事件流上的一条事件：`jobId` 由服务端补进 data（见 server/http/routes/jobs.ts）。
+ * 队列视图只开这一条连接，所以事件必须自带任务号。
  */
-export function subscribeJob(
-  jobId: string,
-  onEvent: (evt: JobEvent) => void,
-  onError?: (err: Event) => void,
+export interface JobStreamEvent {
+  jobId: string;
+  type: JobEvent['type'];
+  data: Record<string, unknown>;
+}
+
+/**
+ * 订阅**所有**任务的事件（SSE）。返回取消订阅函数。
+ *
+ * 为什么不给每个任务各开一条 EventSource：浏览器对同源 HTTP/1.1 只给 6 条连接，
+ * 队列深度默认 5 —— 占满之后缩略图与历史刷新全被挡住。一条全局流就够了。
+ *
+ * 服务端连接即发每个在途任务的 snapshot，所以**断线不丢状态**：
+ * 浏览器自己重连，重连后队列会按快照重建（这里不 close，交给 EventSource 的重连）。
+ */
+export function subscribeJobs(
+  onEvent: (evt: JobStreamEvent) => void,
+  handlers?: { onOpen?: () => void; onError?: (err: Event) => void },
 ): () => void {
-  const es = new EventSource(apiUrl(`/api/jobs/${encodeURIComponent(jobId)}/events`));
+  const es = new EventSource(apiUrl('/api/jobs/events'));
   const types: JobEvent['type'][] = [
     'snapshot',
     'queued',
@@ -275,12 +289,12 @@ export function subscribeJob(
       } catch {
         /* 忽略坏帧 */
       }
-      onEvent({ type, data });
+      const jobId = typeof data.jobId === 'string' ? data.jobId : '';
+      if (!jobId) return;
+      onEvent({ jobId, type, data });
     });
   }
-  es.onerror = (err) => {
-    onError?.(err);
-    es.close();
-  };
+  es.onopen = () => handlers?.onOpen?.();
+  es.onerror = (err) => handlers?.onError?.(err);
   return () => es.close();
 }

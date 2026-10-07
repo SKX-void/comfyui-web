@@ -3,6 +3,9 @@
 **前后端都在本包里**：12 个表单字段 → 模板渲染 → 显存护栏 → 提交 ComfyUI →
 WS 收进度 → SSE 推浏览器 → 取图。不依赖 8086，也不依赖任何外部服务。
 
+**提交即排队**：POST 一回来表单就解锁，改完参数可以接着排下一条（在途上限＝`maxQueueDepth`）。
+进度卡按队列逐条渲染，取消也逐条生效。
+
 <!-- deps:start 由 scripts/gen-deps.mjs 从 template.json 的 requirements 生成；改声明后跑 pnpm --filter @comfyui-web/anima-plus deps:sync -->
 依赖 ComfyUI 上装好这些自定义节点包。**地址由模板声明手写**（不用 ComfyUI-Manager 的
 推测 —— 它会猜错，且不在 Manager 上的包查不到），机器可读清单见
@@ -39,6 +42,29 @@ ComfyUI 自带（缺了说明版本太老，装插件包解决不了）：`CLIPL
 `API_BASE = '/api/p/anima-plus'` 保持不动就是对的。
 （**不要**把它改成空串：那样会请求 `/api/template`、打到宿主源上 404。）
 
+## 排队与取消
+
+一次「加入队列」= 一次 `POST /api/jobs`；**POST 返回（202）就解锁表单**，所以可以
+改完参数接着排下一条 —— 真正的排队发生在 ComfyUI 那侧，插件只管在途上限
+（`maxQueueDepth`，超了返回 429 `QUEUE_FULL`）。
+
+三件容易踩的事，细节都在代码注释里，这里只留结论：
+
+1. **一条全局事件流**：`GET /api/jobs/events` 盯住所有在途任务，事件 data 里带 `jobId`。
+   不能给每个任务各开一条 `EventSource` —— 浏览器对同源 HTTP/1.1 只给 6 条连接，
+   队列深度默认就是 5，占满之后缩略图和历史刷新全被挡住。连接即发在途任务的 snapshot，
+   所以刷新页面 / 换设备打开时队列能自己长回来（快照重建，不依赖断线回放）。
+2. **SSE 必须显式 `flushHeaders()`**：Node 把响应头攒到第一次写 body 才发出去，
+   队列空时一条 snapshot 都没有，浏览器连 open 事件都收不到。
+3. **取消是逐任务的**：先问一次上游 `/queue` 判断这条在跑还是在排队 ——
+   在跑才 `/interrupt`，排队走 `POST /queue {"delete":[promptId]}`。
+   旧写法无条件 `/interrupt`，会误伤正在跑的那条（`docs/safety.md` §6 有实测记录）。
+   上游清理失败也照样本地终结：不能因为摘不掉队列就把任务永远挂在界面上。
+
+前端状态在 `client/src/composables/useJobs.ts`：`queue` 是队列行（含中文状态与排队位次），
+终态一到就挪出队列、进历史表；SSE 重连时拿 `GET /api/jobs` 对一次账，
+把"断线期间已经跑完"的任务从队列里摘掉。
+
 ## 目录
 
 ```
@@ -57,7 +83,7 @@ plugins/anima-plus/
 │   ├── state.ts            # 上次提交的参数快照（last-state.json）：读写 + 原子替换
 │   ├── deps.ts             # 依赖检查：工作流要的节点类 vs 上游 /object_info（带缓存）
 │   ├── help.ts             # 帮助文档：读包内 readme.md（读不到返回 text:null，界面降级）
-│   └── http/routes.ts      # 薄装配层；各域实现在 http/routes/*.ts（含 SSE hijack、/api/deps、/api/help）
+│   └── http/routes.ts      # 薄装配层；各域实现在 http/routes/*.ts（含两条 SSE、/api/deps、/api/help）
 ├── client/                 # 前端源码：App.vue（只做装配）+ 8 个组件 + composables/（状态与流程）
 │   └── src/                # 每个组件的 scoped 样式在同名 .css（`<style scoped src>`），不塞在 .vue 里
 ├── assets/form.json        # 表单声明（inputs / bindings / outputs / requirements）

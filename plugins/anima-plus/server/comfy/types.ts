@@ -74,7 +74,15 @@ export interface ComfyClient {
   getSystemStats(): Promise<unknown>;
   /** 枚举某类模型（对应 ComfyUI /models/{folder}） */
   getModels(folder: string): Promise<string[]>;
+  /** 打断**正在执行**的那条任务（ComfyUI /interrupt 只作用于当前执行的 prompt） */
   interrupt(): Promise<void>;
+  /**
+   * 把**还在排队**的任务从上游队列里摘掉（ComfyUI `POST /queue {"delete":[…]}`）。
+   *
+   * 和 interrupt 是两件事：排队中的任务 interrupt 打不到它，只会误伤正在跑的那条。
+   * 见 jobs/manager.ts 的 cancel()。
+   */
+  deleteQueueItems(promptIds: string[]): Promise<void>;
 
   /** 订阅上游事件，返回取消订阅函数 */
   subscribe(handler: (evt: ComfyEvent) => void): () => void;

@@ -135,4 +135,13 @@ export class RealComfyClient extends ComfyHttp implements ComfyClient {
   async interrupt(): Promise<void> {
     await this.request<unknown>('/interrupt', { method: 'POST' });
   }
+
+  async deleteQueueItems(promptIds: string[]): Promise<void> {
+    if (promptIds.length === 0) return;
+    await this.request<unknown>('/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delete: promptIds }),
+    });
+  }
 }
