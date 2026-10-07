@@ -23,7 +23,7 @@
 | `pnpm-workspace.yaml`（根） | pnpm（workspace + `storeDir`） | 环境 | ✅ | ✅ |
 | `data/host.json`（偏好段：`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals` / `disabled`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写；手改也行，重扫后生效） | ❌ |
 | `data/plugins/<包名>/…` | 各插件自己（如 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
-| `data/plugins/<包名>/last-state.json` | anima-plus 自己（`plugins/anima-plus/server/state.ts`；`GET/PUT /api/p/anima-plus/api/state`） | 运行期 | ✅ 纯 JSON（点「开始生成」自动写，手改或删掉也行） | ❌ |
+| `data/plugins/<包名>/last-state.json` | anima-plus 自己（`plugins/anima-plus/server/state.ts`；`GET/PUT /api/p/anima-plus/api/state`）；prompt-editor 的跨域调用也**用同一条 PUT** 写它（D24，见 §14.6） | 运行期 | ✅ 纯 JSON（点「开始生成」自动写，手改或删掉也行） | ❌ |
 | `data/plugins/<包名>/presets.json`·`draft.json`·`tags.db`·`settings.json`·`usage.json` | prompt-editor 自己（`plugins/prompt-editor/server/`；`GET/PUT /api/p/prompt-editor/*`） | 运行期 | ✅ 预设库 / 草稿 / 设置 / 用量是纯 JSON（草稿分"组结构 + 条目"两段，编辑时按改动粒度增量写）；**`tags.db` = 词库，SQLite**（一张表两用：翻译按 en/别名命中、面板按分类分组），进库的要么是你手改 / 点「机」存的（`source:'user'`），要么是导入的机翻表（`source:'import'`，重导不覆盖前者）—— 两条入口：面板的「导入内置机翻表」按钮（读产物自带的 `assets/danbooru-zh.csv`）与 `scripts/import-tags.ts`（任意 CSV）；现翻结果只进会话缓存；老 `tags.json` / `dict.json` 读到即自动迁进 `tags.db`、来源文件改名成 `*.migrated`（原件保留）；`settings.json` = provider 与护栏（每日上限、超时、两次调用最小间隔）；`usage.json` = 当日调用次数。删掉＝回到首屏三个空区块 / 空词库 / 默认设置 | ❌ |
 | `plugins/<pkg>/package.json` 的 `plugin.settings[]` | 宿主 → `GET /api/plugins` → 插件自己的设置界面 | 包 | ✅（改包） | ✅ |
 | `plugins/<pkg>/server/config.ts` | 插件自己（运行期默认值 / 范围） | 包 | ✅（改包） | ✅ |
@@ -94,6 +94,8 @@
   空间按**包名**分配（`@comfyui-web+anima-plus`）。删它 = 重置该插件的运行期数据。
 - **`data/plugins/<包名>/last-state.json`**（anima-plus）—— 上次提交的出图参数快照（**运行期状态**，不是配置：
   所以它不进 `settings.json`，也不触发重挂）。点「开始生成」覆盖一次，页面加载时回填；删掉 = 回到模板默认值。
+  两个写入口都走同一条 PUT：anima-plus 自己的提交，以及 prompt-editor 的跨域调用（D24）——
+  后者在提交前先读它当参数基底，没有这份文件就禁用按钮（不猜模板默认值）。
 
 ## 4. 插件自己的设置：默认值存两份
 
