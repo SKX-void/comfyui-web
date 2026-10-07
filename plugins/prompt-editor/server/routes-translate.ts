@@ -146,6 +146,33 @@ export function registerTranslateRoutes({ routes, space, badRequest, log }: Rout
   });
 
   /**
+   * 分类树的手动顺序。跟 `/tags/order` 同一套（`names` = 这一列的新顺序，`moved` = 被拖的那个），
+   * 区别是**第一次拖就整树铺序号** —— 分类只有几个，不用"手动的是前缀"那套。
+   */
+  routes.put('/tags/categories/order', async (request, reply) => {
+    const body = asRecord(request.body);
+    const names = body?.names;
+    const moved = body?.moved;
+    if (!Array.isArray(names) || names.length === 0) return badRequest(reply, '请求体必须是 { names: [...] }（分类树的新顺序）');
+    if (names.length > LIMITS.orderKeys) return badRequest(reply, `一次最多排 ${LIMITS.orderKeys} 个分类`);
+    if (moved !== undefined && moved !== null && typeof moved !== 'string') return badRequest(reply, 'moved 必须是分类名字符串');
+    const clean = names.filter((one): one is string => typeof one === 'string' && one.trim() !== '');
+    if (clean.length !== names.length) return badRequest(reply, 'names 里只能是分类名字符串');
+    return { ok: true, ...tags().setCategoryOrder(clean, typeof moved === 'string' ? moved : null) };
+  });
+
+  /**
+   * **批量删除**一个分类下的词条（`tags` 行真删），分类留着。面板上唯一的批量删除入口。
+   * 手改过的（`source = 'user'`）一样删 —— 返回值里带上其中几条是手改的，面板会说出来。
+   */
+  routes.delete('/tags/categories/entries', async (request, reply) => {
+    const body = asRecord(request.body);
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
+    if (name === '') return badRequest(reply, '请求体必须是 { name }');
+    return { ok: true, ...tags().deleteCategoryEntries(name) };
+  });
+
+  /**
    * 新建一个分类：**只加名字，一条词都不动**（"先建分类、再往里放词"要走得通）。
    * 重名不算错：`created:false` 让面板说"已经有一个同名的了"。
    */

@@ -145,6 +145,8 @@ const plugin = (await import(artifact('client.js').href)).default as {
     'POST /tags/categories',
     'DELETE /tags/categories',
     'PUT /tags/categories',
+    'PUT /tags/categories/order',
+    'DELETE /tags/categories/entries',
   ];
   const registered = tables.at(-1) ?? []; // 宿主最终留下的是最后领的那张表
   check(
@@ -617,6 +619,75 @@ check('坏输入退化成空库', sanitizeTags(null).length === 0 && sanitizeTag
   );
   check('删一个不存在的分类也不炸（返回 0）', db.removeCategory('从来没有过的名字') === 0);
   db.close();
+}
+
+// 分类树的手动顺序 + 清空内容。
+// **计数必须"先去重再 JOIN"**：拿 `tag_categories` 直接 JOIN 自己是"组内每条乘组内每条"，
+// 46075 条的组会算出 21 亿行（面板直接挂住）；小样本上的表现是计数翻倍 —— 所以这里特意
+// 让一个分类装 4 条：真回归了会看到 16 而不是 4。
+{
+  const db = newTags();
+  const names = (): string => db.query().categories.map((one) => `${one.name}:${one.count}`).join(' ');
+  db.importEntries(
+    ['a', 'b', 'c', 'd'].map((key, index) => ({
+      key, en: key, zh: `${key}译`, categories: ['多条的'], aliases: [], source: 'import', hot: 0, updatedAt: index + 1,
+    })),
+  );
+  db.importEntries([
+    { key: 'e', en: 'e', zh: 'e译', categories: ['另一类'], aliases: [], source: 'import', hot: 0, updatedAt: 9 },
+  ]);
+  check('分类计数是"有多少条词"，不是 JOIN 出来的笛卡尔积', names() === '多条的:4 另一类:1', names());
+
+  const first = db.setCategoryOrder(['另一类', '多条的'], '另一类');
+  check('第一次拖分类：整树铺序号（分类只有几个，不用"手动的是前缀"那套）', first.rebuilt === true && first.written === 2, JSON.stringify(first));
+  check('顺序就是你拖出来的', names() === '另一类:1 多条的:4', names());
+  const second = db.setCategoryOrder(['多条的', '另一类'], '多条的');
+  check('第二次拖：取中点只写 1 行', second.rebuilt === false && second.written === 1, JSON.stringify(second));
+  check('顺序跟着变', names() === '多条的:4 另一类:1', names());
+
+  db.createCategory('新的');
+  check('新建的分类没序号，排在最后', names() === '多条的:4 另一类:1 新的:0', names());
+  const third = db.setCategoryOrder(['多条的', '新的', '另一类'], '新的');
+  check('拖一条没序号的 → 整树重铺（不然它永远吊在最后）', third.rebuilt === true && third.written === 3, JSON.stringify(third));
+  check('它落到拖到的位置上', names() === '多条的:4 新的:0 另一类:1', names());
+
+  // 批量删除：**词条真的从库里删掉**（不是只摘归属），分类留着
+  const wiped = db.deleteCategoryEntries('多条的');
+  check('批量删除：返回删了几条', wiped.deleted === 4 && wiped.userDeleted === 0, JSON.stringify(wiped));
+  check('词条真没了（不是变回未分类）', db.count() === 1, String(db.count()));
+  check('这个分类还在，只是计数归零', names() === '多条的:0 新的:0 另一类:1', names());
+  check('别的分类一条没牵连', db.query().categories.find((one) => one.name === '另一类')?.count === 1);
+  check('删一个本来就空的分类也不炸（返回 0）', db.deleteCategoryEntries('新的').deleted === 0);
+  check('删一个不存在的分类也不炸', db.deleteCategoryEntries('从来没有过的').deleted === 0);
+  db.close();
+}
+
+// 批量删除的边界：手改过的（`source='user'`）**一样删**，但返回值要说清楚有几条；
+// 别名行也要跟着走（`tag_aliases` 没有外键，不清就是孤儿行）
+{
+  const file = path.join(tmpDir, 'delete-entries.db');
+  const db = openTagDb({ db: file, tagsJson: path.join(tmpDir, 'no-tags.json'), legacyDictJson: path.join(tmpDir, 'no-dict.json') });
+  db.importEntries([
+    { key: 'a', en: 'a', zh: 'a译', categories: ['待删'], aliases: ['a别名'], source: 'import', hot: 0, updatedAt: 1 },
+    { key: 'b', en: 'b', zh: 'b译', categories: ['待删'], aliases: [], source: 'import', hot: 0, updatedAt: 2 },
+    { key: 'c', en: 'c', zh: 'c译', categories: ['留着的'], aliases: [], source: 'import', hot: 0, updatedAt: 3 },
+  ]);
+  db.upsert({ en: 'd', zh: 'd译（我改的）', categories: ['待删'], source: 'user' });
+  check('前置：这个分类下 3 条，其中 1 条是手改的', db.query().categories.find((one) => one.name === '待删')?.count === 3);
+
+  const wiped = db.deleteCategoryEntries('待删');
+  check('手改过的一起删，但返回值里报出来（面板要说清楚删掉了什么）', wiped.deleted === 3 && wiped.userDeleted === 1, JSON.stringify(wiped));
+  check('词条真没了', db.count() === 1 && db.lookup('a') === null, String(db.count()));
+  check('别的分类一条没牵连', db.lookup('c')?.categories.join() === '留着的');
+  check('分类本身留着（计数归零）', db.query().categories.find((one) => one.name === '待删')?.count === 0);
+  db.close();
+  const raw = new DatabaseSync(file);
+  check(
+    '别名行跟着走（不留孤儿行）',
+    Number(raw.prepare('SELECT COUNT(*) AS c FROM tag_aliases').get()?.c ?? -1) === 0,
+    String(raw.prepare('SELECT COUNT(*) AS c FROM tag_aliases').get()?.c),
+  );
+  raw.close();
 }
 
 // 老库迁移：分类只存在于 `tag_categories` 里，`categories` 表是空的（本轮之前建的库就是这样）

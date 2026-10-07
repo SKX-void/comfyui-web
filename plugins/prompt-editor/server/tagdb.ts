@@ -80,7 +80,8 @@ const SCHEMA = [
   // （新建一个立刻消失）。这张表只存名字，计数仍然从 `tag_categories` 现算 —— 两边都留一份计数
   // 就得同步，而同步一定会漂。写入时顺手注册（见 writeEntry），老库开库时把在用的名字补进来。
   `CREATE TABLE IF NOT EXISTS categories (
-     name TEXT PRIMARY KEY
+     name TEXT PRIMARY KEY,
+     sort REAL
    )`,
   `CREATE TABLE IF NOT EXISTS tag_aliases (
      tag_key TEXT NOT NULL,
@@ -156,6 +157,10 @@ export interface TagDb extends TagLookup {
   count(): number;
   /** 手动排序：把 `moved` 挪到 `keys` 里的位置；`rebuilt` = 序号用尽、整页重铺了 */
   setOrder(keys: string[], moved?: string | null): OrderResult;
+  /** 批量删除：把这个分类下的词条从库里删掉（分类留着）；返回删了几条、其中几条是手改过的 */
+  deleteCategoryEntries(name: string): { deleted: number; userDeleted: number };
+  /** 分类树的手动顺序（浮点中点；第一次拖整树铺序号） */
+  setCategoryOrder(names: string[], moved?: string | null): OrderResult;
   /** 新建分类（只加名字，不动词）；返回是否真的新建了（重名 = false） */
   createCategory(name: string): boolean;
   /** 删掉分类**连它下面的归属**；返回受影响的词条数（`tags` 一条都不删） */
@@ -220,6 +225,13 @@ export function openTagDb(options: TagDbOptions): TagDb {
   }
   db.exec(RANK2_INDEX);
 
+  // `categories.sort` 也是后加的列（老库 `CREATE TABLE IF NOT EXISTS` 补不上，得自己探一下）。
+  // 分类只有几个到几十个，不做表达式索引：`ORDER BY (sort IS NULL), sort, ...` 在这么小的表上
+  // 建临时表排序的开销可以忽略（跟十几万条的 tags 不是一个量级）。
+  if (!(db.prepare('PRAGMA table_info(categories)').all() as { name: string }[]).some((one) => one.name === 'sort')) {
+    db.exec('ALTER TABLE categories ADD COLUMN sort REAL');
+  }
+
   // 老库的分类只存在于 `tag_categories` 里，`categories` 是空的 —— 把在用的名字补进去。
   // `UNION` 而不是只查 `tag_categories`：手工 SQL 造出来的孤儿名字也得认。
   db.exec('INSERT OR IGNORE INTO categories (name) SELECT name FROM tag_categories');
@@ -260,12 +272,18 @@ export function openTagDb(options: TagDbOptions): TagDb {
     const categorized = one('SELECT COUNT(DISTINCT tag_key) AS c FROM tag_categories');
     // 分类树 = `categories`（含空分类）并上 `tag_categories` 里出现过的名字（防手工 SQL 造出的孤儿）。
     // 计数现算：`idx_tag_categories_name` 让 LEFT JOIN 走索引，几个名字的规模实测 ~1ms。
+    // **必须先去重再 JOIN**：`tag_categories` 里每个 (tag_key, name) 都有一行，直接拿它 JOIN
+    // 就是"组内每条乘组内每条"—— 46075 条的组会算出 21 亿行，面板直接卡死（实测挂住）。
+    // 所以里层先按名字收敛成一行（`MAX(sort)`：同名两处都有时以 `categories` 那份为准），
+    // 外层再 JOIN 数个数。里层那个 GROUP BY 走 `idx_tag_categories_name`，实测 ~1ms。
     const rows = stmt(
-      `SELECT x.name AS name, COUNT(tc.tag_key) AS c
-         FROM (SELECT name FROM categories UNION SELECT name FROM tag_categories) AS x
+      `SELECT x.name AS name, x.sort AS sort, COUNT(tc.tag_key) AS c
+         FROM (SELECT name, MAX(sort) AS sort
+                 FROM (SELECT name, sort FROM categories UNION ALL SELECT name, NULL FROM tag_categories)
+                GROUP BY name) AS x
          LEFT JOIN tag_categories tc ON tc.name = x.name
         GROUP BY x.name
-        ORDER BY c DESC, x.name ASC`,
+        ORDER BY (x.sort IS NULL), x.sort ASC, c DESC, x.name ASC`,
     ).all() as unknown as { name: string; c: number }[];
     statsVersion = version;
     statsCache = {
@@ -290,6 +308,68 @@ export function openTagDb(options: TagDbOptions): TagDb {
       db.exec('ROLLBACK');
       throw error;
     }
+  };
+
+  /**
+   * **批量删除**：把这个分类下的词条从库里删掉（`tags` 行真删，不是只摘归属），分类留着。
+   *
+   * 这是面板上唯一的批量删除入口（逐条删要点 N 次「删」）。手改过的（`source = 'user'`）**一样删** ——
+   * 这是"我明确要删这一批"，不是导入那种"别覆盖我的"。返回值里带上其中有多少条是手改的，
+   * 面板会把这件事说出来（删掉的东西不可撤销，至少要让人知道自己删掉了什么）。
+   *
+   * 三条语句的顺序要紧：`tag_categories` 是"待删名单"的来源，必须**最后**才动它。
+   */
+  const deleteCategoryEntries = (name: string): { deleted: number; userDeleted: number } =>
+    transaction(() => {
+      statsCache = null;
+      const doomed = 'SELECT tag_key FROM tag_categories WHERE name = ?';
+      const userDeleted = Number(
+        stmt(`SELECT COUNT(*) AS c FROM tags WHERE source = 'user' AND key IN (${doomed})`).get(name)?.c ?? 0,
+      );
+      // 别名 / 归属先走，最后才删名单本身（`tag_aliases` 没有指向 tags 的外键，得自己清）
+      stmt(`DELETE FROM tag_aliases WHERE tag_key IN (${doomed})`).run(name);
+      const deleted = Number(stmt(`DELETE FROM tags WHERE key IN (${doomed})`).run(name).changes);
+      stmt('DELETE FROM tag_categories WHERE name = ?').run(name);
+      return { deleted, userDeleted };
+    });
+
+  /**
+   * 分类树的手动顺序。跟 tag 的 `setOrder` 同一套浮点中点法，但**第一次拖就整树铺满序号**：
+   * 分类只有几个，一次全写也就几行 —— 铺完顺序就是"你拖出来的那个顺序"，不会出现
+   * "拖了一条、它跳到最前、其余按计数排"这种半手动状态（十几万条的 tags 做不到这样，
+   * 所以那边是"手动的是前缀"）。
+   */
+  const setCategoryOrder = (names: string[], moved?: string | null): OrderResult => {
+    const read = stmt('SELECT sort FROM categories WHERE name = ?');
+    const sorts = names.map((name) => (read.get(name) as { sort: number | null } | undefined)?.sort ?? null);
+
+    /** 整树铺序号：`names` 就是客户端算好的新顺序（已经含这次拖动），所以铺完不用再取中点 */
+    const seed = (): OrderResult =>
+      transaction(() => {
+        statsCache = null; // 顺序变了 → 分类树那份缓存作废（跟 tag 排序不同，它真的影响 stats）
+        const put = stmt('UPDATE categories SET sort = ? WHERE name = ?');
+        let written = 0;
+        for (const [index, name] of names.entries()) written += Number(put.run((index + 1) * SPACING, name).changes);
+        return { written, rebuilt: true };
+      });
+
+    if (sorts.some((one) => one === null)) return seed();
+    const at = moved == null ? -1 : names.indexOf(moved);
+    const name = at < 0 ? undefined : names[at];
+    if (name === undefined) return seed();
+    const prev = at > 0 ? sorts[at - 1] ?? null : null;
+    const next = at + 1 < sorts.length ? sorts[at + 1] ?? null : null;
+    const lo = prev ?? (next === null ? 0 : next - 2 * SPACING);
+    const hi = next ?? (prev === null ? 2 * SPACING : prev + 2 * SPACING);
+    const mid = (lo + hi) / 2;
+    if (!(mid > lo && mid < hi)) return seed();
+    return transaction(() => {
+      statsCache = null;
+      return {
+        written: Number(stmt('UPDATE categories SET sort = ? WHERE name = ?').run(mid, name).changes),
+        rebuilt: false,
+      };
+    });
   };
 
   /**
@@ -509,6 +589,8 @@ export function openTagDb(options: TagDbOptions): TagDb {
 
     count,
     setOrder,
+    setCategoryOrder,
+    deleteCategoryEntries,
     createCategory,
     removeCategory,
     renameCategory,

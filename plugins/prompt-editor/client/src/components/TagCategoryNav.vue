@@ -32,6 +32,8 @@ const props = defineProps<{
   busy: boolean;
   /** 面板的编辑模式：关着时这棵树只是筛选 + 拖拽落点，不出现任何管理入口 */
   editMode: boolean;
+  /** 待确认的"批量删掉这个分类下的词条"（词条真删，分类留着） */
+  deleteConfirm: { name: string; count: number } | null;
 }>();
 const emit = defineEmits<{
   (e: 'pick', name: string): void;
@@ -49,7 +51,48 @@ const emit = defineEmits<{
   (e: 'ask-remove', name: string, count: number): void;
   (e: 'cancel-remove'): void;
   (e: 'submit-remove'): void;
+  (e: 'reorder-categories', names: string[], moved: string): void;
+  (e: 'ask-delete-entries', name: string, count: number): void;
+  (e: 'cancel-delete-entries'): void;
+  (e: 'submit-delete-entries'): void;
 }>();
+
+/**
+ * 分类拖拽的状态**就在这个组件里**（不走父组件 props）：dragstart 和紧接着的 dragover
+ * 必须是同步可见的，绕一趟 props 会慢一拍 —— 那一下落点就是错的（真实浏览器里够快，
+ * 但没有任何理由把正确性押在"两件事之间恰好渲染了一帧"上）。
+ */
+const dragName = ref('');
+const dropAt = ref(-1);
+
+function startDrag(name: string): void {
+  dragName.value = name;
+  dropAt.value = -1;
+}
+
+/** 落在某一行上/下半边 = 插到它前面/后面；拿不到布局时（测试里 rect 全是 0）一律当"插到前面" */
+function overRow(index: number, event: DragEvent): void {
+  if (dragName.value === '') return;
+  const rect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect?.() ?? null;
+  const after = rect !== null && rect.height > 0 && event.clientY > rect.top + rect.height / 2;
+  dropAt.value = after ? index + 1 : index;
+}
+
+function dropRow(): void {
+  const dragged = dragName.value;
+  const to = dropAt.value;
+  dragName.value = '';
+  dropAt.value = -1;
+  if (dragged === '' || to < 0) return;
+  const names = props.categories.map((one) => one.name);
+  const from = names.indexOf(dragged);
+  if (from < 0) return;
+  const at = to > from ? to - 1 : to;
+  if (at === from) return; // 拖回原位 = 没动，不发请求
+  names.splice(from, 1);
+  names.splice(at, 0, dragged);
+  emit('reorder-categories', names, dragged);
+}
 
 /**
  * 输入框出现时要**自己抢焦点**：不抢的话点了「改」之后敲键盘什么也不会发生
@@ -73,7 +116,17 @@ watch(() => props.renaming, (name) => { if (name !== '') grab(renameInput); }, {
     <!-- 分类级管理区：一次只显示一件事（新建 / 改名 / 删除确认），不然左边会变成工具箱。
          整个区跟「改 / 删」一样只在编辑模式出现 —— 浏览模式下这棵树不该有写入口 -->
     <div v-if="editMode" class="pe-lib-cat-manage">
-      <template v-if="confirm !== null">
+      <template v-if="deleteConfirm !== null">
+        <p class="pe-lib-cat-warn">
+          把「{{ deleteConfirm.name }}」下的 <strong>{{ deleteConfirm.count }}</strong> 条词条<strong>从词库里删掉</strong>？<br />
+          删了就没了（不可撤销，手改过的也一样删）。<strong>分类本身留着</strong>，变成一个空分类。
+        </p>
+        <span class="pe-lib-cat-btns">
+          <button class="pe-btn pe-btn-danger" :disabled="busy" @click="emit('submit-delete-entries')">确认删除</button>
+          <button class="pe-btn" @click="emit('cancel-delete-entries')">取消</button>
+        </span>
+      </template>
+      <template v-else-if="confirm !== null">
         <p class="pe-lib-cat-warn">
           删掉「{{ confirm.name }}」？<br />
           <strong>{{ confirm.count }}</strong> 条词条会变回未分类（<strong>词条本身不删</strong>）。
@@ -131,25 +184,58 @@ watch(() => props.renaming, (name) => { if (name !== '') grab(renameInput); }, {
     </button>
     <!-- 一行 = 一个分类：可点的那个是「选它」（也当落点），改名/删除挂在它旁边（button 里不能再套 button） -->
     <div
-      v-for="one in categories"
+      v-for="(one, index) in categories"
       :key="one.name"
       class="pe-lib-cat-row"
-      :class="{ 'pe-lib-cat-row-editing': renaming === one.name }"
+      :class="{
+        'pe-lib-cat-row-editing': renaming === one.name,
+        'pe-lib-cat-row-dragging': dragName === one.name,
+        'pe-lib-cat-row-over-before': dragName !== '' && dropAt === index,
+        'pe-lib-cat-row-over-after': dragName !== '' && dropAt === index + 1,
+      }"
+      :draggable="true"
+      @dragstart="startDrag(one.name)"
+      @dragend="
+        () => {
+          dragName = '';
+          dropAt = -1;
+        }
+      "
+      @dragover.prevent="
+        dragging ? emit('drag-over', one.name) : dragName !== '' ? overRow(index, $event) : undefined
+      "
+      @dragleave="emit('drag-leave')"
+      @drop.prevent="dragName !== '' ? dropRow() : emit('drop', one.name)"
     >
+      <!-- 跟 tag 行同一个六点手柄（内联 SVG）：告诉人"这行能拖"。分类行同样整行可拖 -->
+      <span class="pe-lib-grip" title="拖动调整分类顺序" aria-hidden="true">
+        <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
+          <circle cx="2" cy="3" r="1.4" />
+          <circle cx="8" cy="3" r="1.4" />
+          <circle cx="2" cy="8" r="1.4" />
+          <circle cx="8" cy="8" r="1.4" />
+          <circle cx="2" cy="13" r="1.4" />
+          <circle cx="8" cy="13" r="1.4" />
+        </svg>
+      </span>
       <button
         class="pe-lib-cat-pick"
         :class="{ on: active === one.name, 'pe-lib-drop-on': dragging && dropTarget === one.name }"
         :data-drop="dragging ? 'ok' : ''"
         :title="one.name"
         @click="emit('pick', one.name)"
-        @dragover.prevent="emit('drag-over', one.name)"
-        @dragleave="emit('drag-leave')"
-        @drop.prevent="emit('drop', one.name)"
       >
         <span class="pe-lib-cat-name">{{ one.name }}</span> <em>{{ one.count }}</em>
       </button>
       <span v-if="editMode" class="pe-lib-cat-tools">
         <button class="pe-lib-cat-tool" title="改名" @click="emit('start-rename', one.name)">改</button>
+        <button
+          class="pe-lib-cat-tool"
+          title="批量删掉这个分类下的词条（分类留着）"
+          @click="emit('ask-delete-entries', one.name, one.count)"
+        >
+          清
+        </button>
         <button class="pe-lib-cat-tool" title="删掉这个分类" @click="emit('ask-remove', one.name, one.count)">删</button>
       </span>
     </div>
@@ -280,6 +366,37 @@ watch(() => props.renaming, (name) => { if (name !== '') grab(renameInput); }, {
 
 .pe-lib-cat-row:hover .pe-lib-cat-tools {
   opacity: 1;
+}
+
+/* 六点手柄：跟 tag 行一个样式（平时淡、悬停明显） */
+.pe-lib-cat-row .pe-lib-grip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--muted, #9aa3b2);
+  opacity: 0.35;
+  cursor: grab;
+}
+
+.pe-lib-cat-row:hover .pe-lib-grip {
+  opacity: 0.9;
+}
+
+.pe-lib-cat-row:active .pe-lib-grip {
+  cursor: grabbing;
+}
+
+.pe-lib-cat-row-dragging {
+  opacity: 0.5;
+}
+
+/* 插入位置：上下两条内嵌的线（跟 tag 行同一套视觉） */
+.pe-lib-cat-row-over-before {
+  box-shadow: inset 0 2px 0 0 var(--accent, #6ea8fe);
+}
+
+.pe-lib-cat-row-over-after {
+  box-shadow: inset 0 -2px 0 0 var(--accent, #6ea8fe);
 }
 
 /* 选择器要压过上面那条 `.pe-lib-cats button`（它的 display/padding 会把这俩小按钮撑歪） */
