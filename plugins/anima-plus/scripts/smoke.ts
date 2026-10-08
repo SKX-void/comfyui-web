@@ -209,15 +209,21 @@ async function main(): Promise<void> {
   check('负数种子被拒绝（-1 除外）', /不能小于 -1/.test(errMessage(() => renderTemplate(tpl, { seed: -5 })) ?? ''));
   check('超出安全整数范围的种子被拒绝', /不能大于/.test(errMessage(() => renderTemplate(tpl, { seed: 1e20 })) ?? ''));
 
+  // 默认不加载任何 LoRA（用户自己选），所以默认渲染出的 lora_str 必须是空数组；
+  // 变换本身用**显式值**验，别依赖默认值 —— 默认值一改，靠默认值验的断言就假绿了。
   const loraStr = findInput(r.graph, 'lora_str');
+  check('默认 lora_str 是空数组', loraStr === '[]', String(loraStr).slice(0, 60));
+
+  const withLora = renderTemplate(tpl, { loras: [{ name: 'demo-lora', weight: 0.9 }] }).graph;
+  const explicitLoraStr = findInput(withLora, 'lora_str');
   const lorasParsed = (() => {
     try {
-      return JSON.parse(String(loraStr)) as Array<Record<string, unknown>>;
+      return JSON.parse(String(explicitLoraStr)) as Array<Record<string, unknown>>;
     } catch {
       return null;
     }
   })();
-  check('LoRA 被变换成 lora_str 富 JSON', Array.isArray(lorasParsed) && lorasParsed.length > 0, String(loraStr).slice(0, 60));
+  check('LoRA 被变换成 lora_str 富 JSON', Array.isArray(lorasParsed) && lorasParsed.length > 0, String(explicitLoraStr).slice(0, 60));
   check('lora_str 里带权重字段', lorasParsed?.[0] !== undefined && 'weight' in (lorasParsed[0] ?? {}));
 
   const coerced = renderTemplate(tpl, { steps: '5' }).values;

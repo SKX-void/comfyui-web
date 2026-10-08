@@ -193,8 +193,8 @@
   },
   "58": {
     "inputs": {
-      "lora_str": "[{\"name\":\"Anima\\\\Anima Turbo LoRA-v0.2\",\"weight\":0.9,\"text_encoder_weight\":1,\"hidden\":false,\"display_name\":\"Anima Turbo LoRA - v0.2\",\"lora\":\"Anima\\\\Anima Turbo LoRA-v0.2.safetensors\",\"trigger_weight\":1,\"loraWorks\":\"\"}]",
-      "temp_lora_str": "[{\"name\":\"Anima\\\\Anima Turbo LoRA-v0.2\",\"weight\":0.9,\"text_encoder_weight\":1,\"hidden\":false,\"display_name\":\"Anima Turbo LoRA - v0.2\",\"lora\":\"Anima\\\\Anima Turbo LoRA-v0.2.safetensors\",\"trigger_weight\":1,\"loraWorks\":\"\"}]",
+      "lora_str": "[]",
+      "temp_lora_str": "[]",
       "打开Lora堆": "",
       "clip": [
         "24",
