@@ -29,7 +29,9 @@ log "启动：backend=$BACKEND_PORT  web=$WEB_PORT  日志目录=$LOG_DIR"
 # 1) 后端宿主（tsx watch）
 ( cd "$CD/apps/server" && COMFYUI_WEB_PORT="$BACKEND_PORT" nohup pnpm dev > "$LOG_DIR/devhost.log" 2>&1 & )
 sleep 10
-if curl -s -m 3 "http://127.0.0.1:$BACKEND_PORT/api/host" | grep -q profile; then
+# 探活用 /api/host 的 contract 字段：D19 删掉 profile 之后，原来 grep profile 的写法**永远**失败，
+# 会在后端明明起来了的时候报"❌ 起不来"、然后连前端都不启动。
+if curl -s -m 3 "http://127.0.0.1:$BACKEND_PORT/api/host" | grep -q '"contract"'; then
   log "后端 ✅ http://127.0.0.1:$BACKEND_PORT"
 else
   log "后端 ❌ 起不来（端口被占？），见 $LOG_DIR/devhost.log"
