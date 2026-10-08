@@ -171,6 +171,70 @@
   word-break: break-all;
 }
 
+/*
+ * 首页说明：`public/home.md` 经 marked 渲染出的裸标签（没有类名可用）。
+ * 只补"默认样式太素 / 与暗色主题不搭"的部分，别在这里做版式设计。
+ */
+.doc h1 {
+  font-size: 20px;
+  margin: 0 0 12px;
+}
+
+.doc h2 {
+  font-size: 16px;
+  margin: 20px 0 8px;
+}
+
+.doc h3 {
+  font-size: 14px;
+  margin: 16px 0 6px;
+}
+
+.doc p,
+.doc ul,
+.doc ol {
+  margin: 8px 0;
+}
+
+.doc ul,
+.doc ol {
+  padding-left: 22px;
+}
+
+.doc li {
+  margin: 3px 0;
+}
+
+.doc pre {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.doc code {
+  background: var(--panel-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.doc pre code {
+  background: none;
+  padding: 0;
+}
+
+.doc blockquote {
+  margin: 12px 0;
+  padding: 2px 12px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+
+.doc a {
+  color: var(--accent);
+}
+
 .row {
   display: flex;
   gap: 8px;

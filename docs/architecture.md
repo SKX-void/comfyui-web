@@ -71,6 +71,7 @@
 | D19 | profile 机制与示例 tab 的删除 | **`profiles/`、Include 装配、`apps/server/scripts/plugin.mjs`、清单落盘、契约 patch 层、`fallback`/`following` 全删**：插件唯一来源是 `tabs/<id>/`；统一地址只剩"只读默认值"（宿主不写进任何插件）；`tabs/hello/` 不再作为示例（写法见 `tabs/README.md`） | D16 已把落点定死（`data/host.json` + `tabs/`），留着 profile 只会多一条没人走的装配路径与一份"两个真源"的歧义；示例 tab 的内容已经并进 `tabs/README.md` 的三文件骨架。见 §6/§6.1/§14.5 |
 | D23 | 插件页面崩了怎么办 | **前端渲染错误隔离**：`PluginBoundary` 包住 `<RouterView>`（`onErrorCaptured` → `return false`，且 **slot 永远渲染**），`app.config.errorHandler` 只记录、**不重抛** | dev 构建的 Vue 对**没人接住**的组件错误是 `throw err`（`logError` 的 `throwInDev`），而抛出点在调度器 `flushJobs` 里 —— 一个插件页面抛错就能让整个外壳停摆：插件区域空白、之后每次切 tab 再抛 `Cannot read properties of null (reading 'component')`，只能刷新浏览器（实测复现过）。`return false` 与"slot 永远渲染"缺一不可（前者防 re-throw，后者保证切走后 RouterView 还在树上）。见 §7.2、§14.2 |
 | D24 | 跨插件调用 | **特别允许一条单向依赖**：prompt-editor 的输出可以直接变成 anima-plus 的一次出图 —— 全程走 HTTP 路由（`GET /api/plugins` 看对方装没装 / 启没启、`GET`+`PUT /api/p/anima-plus/api/state`、`POST /api/p/anima-plus/api/jobs`），**不 import 对方代码、不读对方库文件**；参数基底一律取自对方「最后一次状态」，没有就**禁用按钮并把原因说出来**（不猜模板默认值） | "写好的提示词直接发去出图"是这两个插件真实的工作流，隔一层复制粘贴才是假隔离；但隔离规则（§8）不能破，所以对方那几条提交语义（`randomSeed` 开着先抽种子、先写快照再建作业）在适配器里复刻并注明来源。代价：两处逻辑要一起改（对方改了这边不知道），且 prompt-editor 从此知道 anima-plus 存在 —— 方向单向、下游只有一个适配器时这个代价可接受。见 §8、§14.6 |
+| D25 | 首页说明的形状 | **欢迎页文案是外壳的静态资产**：`apps/web/public/home.md`（构建进 `dist/app/web/home.md`），home 路由自己 `fetch` + marked 渲染；**后端不加路由、不参与**；取用带 `no-store`，改产物里那份 md、刷新浏览器即生效 | 一段文案与 `index.html` / `brush.svg` 同类，交给宿主已有的静态托管即可 —— 为它加一条 core 端点等于把"改文案"绑到后端上。宿主用 `@fastify/static`（默认 `wildcard`）按请求现读磁盘，所以 docker 的只读 `/app` 也能"改宿主机文件 → 刷新即生效"；**别用 `wildcard:false`**（启动时按文件登记路由，重新 build:web 换 hash 后会拿 `text/html` 冒充 CSS，见 §5.3、§14.7） |
 
 ```
 ┌─────────────────────────── 浏览器 ───────────────────────────┐
@@ -272,6 +273,7 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
 
 - `ctx.routes.mount(router)` → 框架统一加前缀 `/api/p/<pluginId>`，插件内部只写相对路径（避免打架，也便于卸载）。
 - 插件前端产物由宿主托管在 `/plugins/<id>/*`，**从 tab 目录（`tabs/<id>/`）受控送出**：宿主只发它自己的那几个文件，插件目录不进宿主的 bundle。
+- 外壳自身产物（`dist/app/web`）同样由宿主在启动时挂 `@fastify/static`，**必须用默认的 `wildcard`**：它按请求现读磁盘，文件不存在时 `reply.callNotFound()` 正好接上 SPA 兜底（`/home`、`/w/*` → `index.html`），`/api` 的 JSON 404 也不变。写成 `wildcard: false` 会在启动时 glob 一遍、只给当时存在的文件登记路由 —— 重新 `build:web` 后 vite 换掉 hash 文件名，新资产没有路由，会被 SPA 兜底当成 `text/html` 送出去（浏览器报 "MIME type text/html is not text/css"，外壳样式全丢；实测复现）。
 
 > ⚠️ **这条是「加插件不重编宿主」的后端那一半。**
 > 如果做成「构建时把插件产物拷进 dist」，整个方案就退化成混合编译了。
@@ -753,6 +755,21 @@ comfyui-web/
 - **验收**：`plugins/prompt-editor/scripts/contract-test.ts` 断言组包纯函数；
   `scripts/interaction-test.ts` 用假下游跑通整条链路（探测 → 提交 → 回执 → 「没有最后一次状态」
   与「没装载」两条降级路径），挂载断言里计入跨域区的两次探测 GET。`pnpm verify` 6 步全绿。
+
+### 14.7 D25 的落点（首页说明 = 外壳静态资产）
+
+- **文件**：`apps/web/public/home.md` → vite 原样拷进 `dist/app/web/home.md`（和 `brush.svg` 同一条路）。
+- **渲染**：`apps/web/src/views/WelcomeView.vue` 在 `onMounted` 里 `getText('/home.md')`（`api.ts`，
+  `cache: 'no-store'`）→ `marked.parse()` → `v-html`；动态的「宿主信息卡 + 重新扫描插件目录」仍由 Vue 出。
+- **后端零改动**：`GET /home.md` 由宿主已有的 `@fastify/static` 托管（按请求现读磁盘）。文件缺失时（生产态与
+  vite dev 都回落到 SPA 兜底页，200 + `text/html`）`getText` 会戳穿它，页面给出可读错误而不是空白说明。
+- **顺带修掉的坑**：外壳静态托管原来写的是 `wildcard: false`，它在启动时 glob 一遍、只给当时存在的文件登记路由；
+  重新 `build:web` 后 vite 换掉 hash 文件名，新资产没有路由 → 落到 SPA 兜底 → 浏览器报
+  "MIME type text/html is not text/css"，整个外壳样式全丢（实测复现）。改回默认 `wildcard` 后按请求读盘即修复；
+  文件不存在时 fastify-static 会 `reply.callNotFound()`，所以 SPA 兜底与 `/api` 的 JSON 404 都保持不变（见 §5.3）。
+- **验收**：产物态 `node dist/app/server.mjs` + `curl -D- /home.md` → 200 / `content-type: text/markdown` /
+  `cache-control: public, max-age=0`；追加一行后 etag 变化、正文即变；headless chromium 打开 `/home` 拿到渲染后的
+  `<h1>宿主已就绪</h1>`、两个 `<h2>` 与宿主信息卡。
 
 其余实施细节（每条功能的落地过程、验收证据）见
 [`docs/archive/v2-implementation-notes.md`](./archive/v2-implementation-notes.md)。

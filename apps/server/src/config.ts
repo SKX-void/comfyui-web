@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { loadHostSettings, writeHostSettings, type HostSettings } from './host-settings.js';
+import {
+  DEFAULT_HOST_SETTINGS,
+  loadHostSettings,
+  writeHostSettings,
+  type HostSettings,
+} from './host-settings.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -45,11 +50,22 @@ export function resolveDataDir(): string {
   return path.join(repoRoot, 'data');
 }
 
+/** pino 内置级别（宿主不注册自定义级别，所以这里就是全集） */
+export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
+
+/**
+ * 控制台日志格式。`default` = 能 pretty 就 pretty（开发态且 pino-pretty 可解析），否则 JSON；
+ * `json` = 强制 JSON（喂采集器）。产物态解析不到 pino-pretty，所以那里的 `default` 也是 JSON。
+ */
+export type LogFormat = 'default' | 'json';
+
 export interface HostConfig {
   /** 监听地址与端口（宿主唯一的端口，默认 8087） */
   host: string;
   port: number;
   logLevel: string;
+  /** 控制台日志格式（`COMFYUI_WEB_LOG_FORMAT` 临时覆盖） */
+  logFormat: LogFormat;
   /** 数据目录（绝对）：宿主配置、插件文件空间，都在这个卷里 */
   dataDir: string;
   /** 宿主配置文件：<dataDir>/host.json（不存在时由宿主写出默认值） */
@@ -75,6 +91,8 @@ export interface LoadedHostConfig {
   settingsProblem?: string;
   /** 这次把老的 <dataDir>/ui-prefs.json 搬进了 host.json（旧文件保留在原地） */
   migratedLegacyPrefs?: string;
+  /** 日志级别/格式取值不合法（已回落默认值）；由调用方在 logger 起来之后说出来 */
+  logProblems?: string[];
 }
 
 /**
@@ -121,11 +139,34 @@ export function loadHostConfig(): LoadedHostConfig {
       ? envPort
       : settings.port;
 
+  // 日志是"人盯控制台"的事，所以级别与格式都允许环境变量临时覆盖（同样不写回 host.json）。
+  // 非法值**不抛**：pino 遇到不认识的级别会直接 throw（"default level:verbose must be included
+  // in custom levels"），一个拼错的级别不该让宿主起不来 —— 回落默认值，起来之后 warn 一次。
+  const logProblems: string[] = [];
+  const envLevel = (process.env.COMFYUI_WEB_LOG_LEVEL ?? '').trim();
+  const rawLevel = envLevel !== '' ? envLevel : settings.logLevel;
+  const logLevel = (LOG_LEVELS as readonly string[]).includes(rawLevel)
+    ? rawLevel
+    : DEFAULT_HOST_SETTINGS.logLevel;
+  if (logLevel !== rawLevel) {
+    const from = envLevel !== '' ? 'COMFYUI_WEB_LOG_LEVEL' : 'host.json 的 logLevel';
+    logProblems.push(`${from} = ${rawLevel} 不是合法级别（${LOG_LEVELS.join(' / ')}），本次用 ${logLevel}`);
+  }
+
+  const envFormat = (process.env.COMFYUI_WEB_LOG_FORMAT ?? '').trim().toLowerCase();
+  if (envFormat !== '' && envFormat !== 'default' && envFormat !== 'json') {
+    logProblems.push(
+      `COMFYUI_WEB_LOG_FORMAT = ${envFormat} 不是合法格式（default / json），本次用 default`,
+    );
+  }
+  const logFormat: LogFormat = envFormat === 'json' ? 'json' : 'default';
+
   return {
     config: {
       host: settings.host,
       port,
-      logLevel: process.env.COMFYUI_WEB_LOG_LEVEL ?? settings.logLevel,
+      logLevel,
+      logFormat,
       dataDir,
       settingsFile,
       pluginsDir: path.join(dataDir, 'plugins'),
@@ -137,5 +178,6 @@ export function loadHostConfig(): LoadedHostConfig {
     settingsCreated: loaded.created,
     ...(loaded.problem !== undefined ? { settingsProblem: loaded.problem } : {}),
     ...(migratedLegacy !== undefined ? { migratedLegacyPrefs: migratedLegacy } : {}),
+    ...(logProblems.length > 0 ? { logProblems } : {}),
   };
 }

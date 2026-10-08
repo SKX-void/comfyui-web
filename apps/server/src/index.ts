@@ -4,14 +4,17 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { pino } from 'pino';
 
-import { loadHostConfig } from './config.js';
+import { loadHostConfig, type LogFormat } from './config.js';
 import { bootHost } from './kernel.js';
 
 /**
  * pino-pretty 只在开发态可用（是 devDependency，打包产物里解析不到）。
  * 解析不到就退回 JSON 日志 —— 而不是让宿主起不来。
+ *
+ * `COMFYUI_WEB_LOG_FORMAT=json` 直接跳过这条路径（采集器只认 JSON，也别为一个 worker 花钱）。
  */
-function prettyTransport(): { target: string; options: Record<string, unknown> } | undefined {
+function prettyTransport(format: LogFormat): { target: string; options: Record<string, unknown> } | undefined {
+  if (format === 'json') return undefined;
   if (process.env.NODE_ENV === 'production') return undefined;
   try {
     createRequire(import.meta.url).resolve('pino-pretty');
@@ -26,12 +29,17 @@ async function main(): Promise<void> {
   // （建 data/plugins/、写默认 host.json），所以宿主起来不需要任何"先跑个脚本"的前置。
   const loaded = loadHostConfig();
   const config = loaded.config;
-  const transport = prettyTransport();
+  const transport = prettyTransport(config.logFormat);
 
   const logger = pino({
     level: config.logLevel,
     ...(transport !== undefined ? { transport } : {}),
   });
+
+  // 级别/格式的环境变量写错了：回落默认值跑，但必须让人看见（不然"我明明设了 debug"会变成悬案）
+  for (const problem of loaded.logProblems ?? []) {
+    logger.warn(problem);
+  }
 
   if (loaded.dataDirCreated) {
     logger.info({ dataDir: config.dataDir }, '数据目录不存在，已创建（插件空间 data/plugins/）');
@@ -73,7 +81,13 @@ async function main(): Promise<void> {
   // 宿主前端产物：存在才托管（开发态由 vite dev server 提供）
   const hasWeb = fs.existsSync(config.webDir) && fs.existsSync(`${config.webDir}/index.html`);
   if (hasWeb) {
-    await app.register(fastifyStatic, { root: config.webDir, wildcard: false });
+    // wildcard 必须开着（默认值）：它按**请求**现读磁盘。
+    // 曾经写成 `wildcard: false` —— 那会在启动时 glob 一遍、只给当时存在的文件登记路由，
+    // 于是"重新 build:web 后刷新"这个最正常的动作会碎：vite 换掉 hash 文件名，新文件没有
+    // 路由 → 落到下面的 notFoundHandler → 用 index.html 冒充 CSS，浏览器报
+    // "MIME type text/html is not text/css"，整个外壳的样式全丢（实测复现）。
+    // 文件真不存在时 fastify-static 会 `reply.callNotFound()`，所以 SPA 兜底仍走下面那条。
+    await app.register(fastifyStatic, { root: config.webDir });
     app.setNotFoundHandler((request, reply) => {
       const url = request.raw.url ?? '';
       if (url.startsWith('/api') || url.startsWith('/plugins')) {
