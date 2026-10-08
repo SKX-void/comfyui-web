@@ -1,3 +1,4 @@
+import { pathToFileURL } from 'node:url';
 import type { Context } from 'cordis';
 import type { Logger } from 'pino';
 
@@ -24,11 +25,16 @@ export interface MountRequest {
  * 类型签名把 `id` 排除了（默认由 loader 随机分配），但运行期 `ensureId()` **认调用方给的 id**。
  * 这里必须显式给：**目录名即 id** 是这套东西的全部意义
  * （它同时是路由前缀 `/api/p/<id>` 与前端资源前缀 `/plugins/<id>/`）。
+ *
+ * `name` 必须是 **file:// URL**：loader 对非 `.` 开头的说明符走 `import.meta.resolve(name)`，
+ * Windows 的 `R:\...` 在那里被当成协议 `r:` 直接拒（`ERR_UNSUPPORTED_ESM_URL_SCHEME`），
+ * 而 POSIX 绝对路径恰好能过 —— 所以这条只在 Windows 上炸。
  */
 export async function mountEntry(ctx: Context, request: MountRequest): Promise<void> {
+  const url = pathToFileURL(request.entry).href;
   const options = {
     id: request.id,
-    name: request.token === undefined ? request.entry : `${request.entry}?v=${request.token}`,
+    name: request.token === undefined ? url : `${url}?v=${request.token}`,
     config: {},
     ...(request.disabled ? { disabled: true } : {}),
   } as unknown as Parameters<typeof ctx.loader.create>[0];
