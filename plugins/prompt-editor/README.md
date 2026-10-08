@@ -467,6 +467,10 @@ pnpm -C plugins/prompt-editor import:tags ~/danbooru-zh.csv -- --dry-run        
   回执里报出抽到的数；为假时沿用快照里的种子。
 - **提交两件事**：先 `PUT /api/p/anima-plus/api/state` 把这份值写回对方快照（这样你切过去看到的参数就是这次的），
   再 `POST /api/p/anima-plus/api/jobs` 建作业。回执给 jobId / 排队位，以及一个去 `/w/anima-plus` 看进度的链接。
+- **预热**：探测到对方可用就顺手 `GET /api/p/anima-plus/api/deps`，把对方**提交前那次依赖检查**提前跑掉 ——
+  它要拉 ComfyUI 的 `/object_info`（约 9MB / 2s，对方缓存 5 分钟），提交前的检查走同一份缓存。
+  跨域这条路对方页面常常从没打开过，不预热的话"第一次发图"就干等这 2s（失败静默；适配器内 2 分钟节流，
+  输出一变会再热一次，因为写提示词的时间可能超过它的 TTL）。
 - **依赖边界**：不 import 对方代码、不读对方库文件，全部走 HTTP 路由；`drawSeed()` 的区间与
   「先写快照再建作业」的顺序是**复刻**（跨插件只能这样），注释里写明了来源与同步义务。
   代码在 `client/src/crosscall/`（接口 / anima-plus 适配器 / 注册表三层），加第二个下游只需在注册表加一行。

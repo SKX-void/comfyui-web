@@ -81,10 +81,26 @@ async function saveHomeLabel(): Promise<void> {
   );
 }
 
+/**
+ * 常驻（切走不卸载）开关：**直接存盘**（和「设为首页」一样是一次点击 = 一次决定，没有草稿态）。
+ * 存的名单跟着当前列表顺序走，顺带把已卸载插件留下的残留 id 清掉。
+ */
+async function toggleKeepAlive(plugin: PluginInfo, on: boolean): Promise<void> {
+  const next = orderedPlugins.value
+    .filter((item) => (item.id === plugin.id ? on : uiPrefs.value.keepAlive.includes(item.id)))
+    .map((item) => item.id);
+  await persist(
+    { keepAlive: next },
+    on
+      ? `${plugin.title} 已设为切走不卸载：表单、滚动位置和它开着的连接都留着`
+      : `${plugin.title} 恢复为切走即卸载`,
+  );
+}
+
 async function reset(): Promise<void> {
   await persist(
-    { tabOrder: [], home: null, tabAliases: {}, homeLabel: '' },
-    '已恢复默认：按清单顺序、落到第一个可用标签页，显示别名与品牌名一并清空',
+    { tabOrder: [], home: null, tabAliases: {}, homeLabel: '', keepAlive: [] },
+    '已恢复默认：按清单顺序、落到第一个可用标签页，显示别名、品牌名与常驻一并清空',
   );
 }
 </script>
@@ -105,6 +121,8 @@ async function reset(): Promise<void> {
       顺序决定顶部标签栏的排列，默认首页决定打开站点时落在哪一页。
       <strong>显示别名</strong>只改顶栏上的文字（存在 <code>data/host.json</code> 的偏好段），
       插件自己声明的 title 一个字都不动，也不用重挂插件。
+      <strong>切走不卸载</strong>让这个标签页在离开时留在内存里（表单、滚动位置、展开的状态都在），
+      代价是它占的内存不会释放 —— 默认关闭，即切走就卸载。
       当前生效：<strong>{{ effectiveHome === null ? '（没有可用标签页，先落在欢迎页）' : tabLabel(effectiveHome) }}</strong>
     </p>
     <p v-if="uiPrefs.home !== null && effectiveHome?.id !== uiPrefs.home" class="hint">
@@ -141,6 +159,15 @@ async function reset(): Promise<void> {
           @keyup.enter="saveAlias"
           @blur="saveAlias"
         />
+        <label class="keep" title="切走时把这个标签页留在内存里；默认关闭">
+          <input
+            type="checkbox"
+            :checked="uiPrefs.keepAlive.includes(plugin.id)"
+            :disabled="busy"
+            @change="toggleKeepAlive(plugin, !uiPrefs.keepAlive.includes(plugin.id))"
+          />
+          切走不卸载
+        </label>
         <span class="spacer"></span>
         <button :disabled="busy || index === 0" title="上移" @click="move(plugin.id, -1)">↑</button>
         <button

@@ -72,6 +72,7 @@
 | D23 | 插件页面崩了怎么办 | **前端渲染错误隔离**：`PluginBoundary` 包住 `<RouterView>`（`onErrorCaptured` → `return false`，且 **slot 永远渲染**），`app.config.errorHandler` 只记录、**不重抛** | dev 构建的 Vue 对**没人接住**的组件错误是 `throw err`（`logError` 的 `throwInDev`），而抛出点在调度器 `flushJobs` 里 —— 一个插件页面抛错就能让整个外壳停摆：插件区域空白、之后每次切 tab 再抛 `Cannot read properties of null (reading 'component')`，只能刷新浏览器（实测复现过）。`return false` 与"slot 永远渲染"缺一不可（前者防 re-throw，后者保证切走后 RouterView 还在树上）。见 §7.2、§14.2 |
 | D24 | 跨插件调用 | **特别允许一条单向依赖**：prompt-editor 的输出可以直接变成 anima-plus 的一次出图 —— 全程走 HTTP 路由（`GET /api/plugins` 看对方装没装 / 启没启、`GET`+`PUT /api/p/anima-plus/api/state`、`POST /api/p/anima-plus/api/jobs`），**不 import 对方代码、不读对方库文件**；参数基底一律取自对方「最后一次状态」，没有就**禁用按钮并把原因说出来**（不猜模板默认值） | "写好的提示词直接发去出图"是这两个插件真实的工作流，隔一层复制粘贴才是假隔离；但隔离规则（§8）不能破，所以对方那几条提交语义（`randomSeed` 开着先抽种子、先写快照再建作业）在适配器里复刻并注明来源。代价：两处逻辑要一起改（对方改了这边不知道），且 prompt-editor 从此知道 anima-plus 存在 —— 方向单向、下游只有一个适配器时这个代价可接受。见 §8、§14.6 |
 | D25 | 首页说明的形状 | **欢迎页文案是外壳的静态资产**：`apps/web/public/home.md`（构建进 `dist/app/web/home.md`），home 路由自己 `fetch` + marked 渲染；**后端不加路由、不参与**；取用带 `no-store`，改产物里那份 md、刷新浏览器即生效 | 一段文案与 `index.html` / `brush.svg` 同类，交给宿主已有的静态托管即可 —— 为它加一条 core 端点等于把"改文案"绑到后端上。宿主用 `@fastify/static`（默认 `wildcard`）按请求现读磁盘，所以 docker 的只读 `/app` 也能"改宿主机文件 → 刷新即生效"；**别用 `wildcard:false`**（启动时按文件登记路由，重新 build:web 换 hash 后会拿 `text/html` 冒充 CSS，见 §5.3、§14.7） |
+| D26 | 标签页常驻（切走不卸载） | **可选、逐插件、默认关**：真源是 `data/host.json` 偏好段的 `keepAlive: string[]`（设置页「切走不卸载」勾选 → `PUT /api/ui`），外壳把它翻成 `<KeepAlive :include>` 的名单；组件名由 `apps/web/src/main.ts` 的 `namedPlugin()` 固定成 `plugin:<id>`（插件 SFC 多半没有 name，而 Vue 只按组件名匹配 include）。崩过的页面立刻移出名单。**插件义务**：常驻后切 tab 不再触发 `onUnmounted`，长命资源（SSE / 定时器）改由 `onActivated` / `onDeactivated` 按可见性决定去留 | 诉求是"切回来还是刚才那一页，而不是从空框重建"；但常驻的代价（内存、活着的连接）随插件差得很远，只有用户知道值不值 —— 所以做成**宿主偏好而非插件自述**（与 D21 同款分层），默认关 = 不改任何现有行为。踩过的坑：`<KeepAlive><RouterView /></KeepAlive>` 缓存的是 RouterView 自己（名字恒为 `RouterView`，include 永不匹配，一个都缓存不住），必须写成 `v-slot="{ Component }"` + `<component :is="Component" />`（实测：改前切回来 DOM 照样重建）。见 §7.2、§14.8 |
 
 ```
 ┌─────────────────────────── 浏览器 ───────────────────────────┐
@@ -750,11 +751,15 @@ comfyui-web/
 - **三件事分开**：`probe()`（只读宿主清单判断对方装没装 / 启没启）→ `plan()`（读对方快照、
   把输出填进 `prompt`、按 `randomSeed` 决定是否重抽种子；纯函数 `buildPlan()` 可单测）→
   `submit()`（`PUT` 写回对方快照 + `POST /api/jobs` 建作业，回执报 jobId / 排队位 / 这次用的种子）。
+- **预热**：`probe()` 通过后顺手 `GET /api/p/anima-plus/api/deps`（fire-and-forget、失败静默、
+  适配器内 2 分钟节流；输出内容一变也会再热一次）—— 对方 `POST /api/jobs` 返回前要做的依赖检查
+  判据是 ComfyUI `/object_info`（约 9MB / 2s，`plugins/anima-plus/server/deps.ts` 缓存 5 分钟），
+  而跨域这条路**对方页面常常从没打开过**，不预热的话"第一次发图"就一直干等这 2s。
 - **刻意不做**：没有参数基底时**不猜模板默认值**（对方没跑过一次就直接禁用并写明原因）；
   不引入对方代码 —— `drawSeed()` 与「先写快照再建作业」是复刻，注释里写明来源与同步义务。
 - **验收**：`plugins/prompt-editor/scripts/contract-test.ts` 断言组包纯函数；
-  `scripts/interaction-test.ts` 用假下游跑通整条链路（探测 → 提交 → 回执 → 「没有最后一次状态」
-  与「没装载」两条降级路径），挂载断言里计入跨域区的两次探测 GET。`pnpm verify` 6 步全绿。
+  `scripts/interaction-test.ts` 用假下游跑通整条链路（探测 → 预热 → 提交 → 回执 → 「没有最后一次状态」
+  与「没装载」两条降级路径），挂载断言里计入跨域区的三次 GET（清单 / 预热 / 快照）。`pnpm verify` 6 步全绿。
 
 ### 14.7 D25 的落点（首页说明 = 外壳静态资产）
 
@@ -770,6 +775,27 @@ comfyui-web/
 - **验收**：产物态 `node dist/app/server.mjs` + `curl -D- /home.md` → 200 / `content-type: text/markdown` /
   `cache-control: public, max-age=0`；追加一行后 etag 变化、正文即变；headless chromium 打开 `/home` 拿到渲染后的
   `<h1>宿主已就绪</h1>`、两个 `<h2>` 与宿主信息卡。
+
+### 14.8 D26 的落点（标签页常驻）
+
+- **偏好与新键**：`data/host.json` 偏好段的 `keepAlive: string[]`（`apps/server/src/host-settings.ts` 里
+  复用 `sanitizeIdList` 清洗；`PUT /api/ui` 白名单加这一个键，`settingsView` 一并回吐）。宿主**只存不解释**。
+- **设置页**：`views/settings/TabsPrefsCard.vue` 每行一个「切走不卸载」复选框，勾一下就存盘
+  （与「设为首页」同类：一次点击 = 一次决定，没有草稿态）；「恢复默认」也会把它清空。
+- **外壳**：`main.ts` 的 `namedPlugin(id, component)` 把每个插件 route 组件包一层 `name: 'plugin:<id>'`；
+  `App.vue` 写成 `<RouterView v-slot="{ Component }"><KeepAlive :include="keepAliveNames"><component :is="Component" /></KeepAlive></RouterView>`。
+  名单 = 「清单里真挂起来的」∩「偏好开了的」−「崩过的」，由 `tabs` + `uiPrefs` 驱动 —— 所以取消勾选、
+  停用、卸载都会让名单收缩，Vue 自己把对应缓存剪掉（不需要版本指纹：重扫后前端本来就要刷新浏览器）。
+- **和 D23 的交点**：`PluginBoundary` 捕获到错误时 `emit('broken', pluginId)`，外壳把该 id 移出名单 ——
+  缓存里那份实例是"补丁停在半路"的状态，留着只会让人下次看到一块没有线索的空框。失败提示按 `kept` 分两种写法。
+- **插件义务（常驻后 `onUnmounted` 只在真卸载时跑）**：anima-plus 的 SSE 改成"可见 ∨ 有在途任务"
+  （`onActivated` / `onDeactivated` + `watch(queueCount)`：切走时还在跑就留着，跑完立刻断）；
+  prompt-editor 的跨域区在 `onActivated` 重探一次（下游可能已被停用/卸载）。anima-example 的流是
+  **每作业一条、终态由服务端关闭**，天然满足这条规则，故未改。
+- **验收**：headless chromium 打产物宿主（`:8087`）+ **应用内点击**切 tab（`page.goto` 是整页刷新，会冲掉要验的东西），
+  给插件根元素打标记后：默认态切回来标记消失（重建）、勾选后标记还在（实例留住）、取消勾选后又消失（名单收缩剪了缓存）；
+  输入框里打的字在常驻态留着；SSE 在"切走且队列为空"时被中止、切回来重开一条；全程无未捕获异常。
+  `pnpm verify` 6 步全绿。
 
 其余实施细节（每条功能的落地过程、验收证据）见
 [`docs/archive/v2-implementation-notes.md`](./archive/v2-implementation-notes.md)。

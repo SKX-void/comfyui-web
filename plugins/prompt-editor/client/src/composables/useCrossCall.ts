@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { crossCallTargets } from '../crosscall';
 import type { CrossCallAvailability, CrossCallPlan, CrossCallReceipt, CrossCallTarget } from '../crosscall';
@@ -77,6 +77,12 @@ export function useCrossCall(currentText: () => string) {
       busy.value = false;
     }
   }
+
+  // 输出一变就顺手预热下游（适配器内部按分钟节流）：写提示词要几分钟，只靠挂载那一次，
+  // 按下「发图」时对方那份缓存可能已经过期（它的 TTL 是 5 分钟）。
+  watch(currentText, () => {
+    if (availability.value?.ok === true) target.value?.warm?.();
+  });
 
   return { targets, selectedId, target, availability, plan, blocked, busy, receipt, error, refresh, run };
 }

@@ -1,4 +1,4 @@
-import { createApp } from 'vue';
+import { createApp, defineComponent, h } from 'vue';
 import { createRouter, createWebHistory, type Router } from 'vue-router';
 
 import App from './App.vue';
@@ -34,6 +34,23 @@ function runnable(plugin: PluginInfo): boolean {
  *
  * 于是插件组件能直接渲染进宿主的组件树，宿主不需要知道插件是谁。
  */
+/**
+ * 给插件 route 组件套一层**有稳定名字**的壳：`plugin:<插件 id>`。
+ *
+ * 外壳的 `<KeepAlive :include>` 只能按**组件名**匹配（Vue 把 include 里的字符串按 `,` 拆开做精确
+ * 比对），而插件 bundle 里的 SFC 大多没有 name —— 少了这一层名，"切走不卸载"就没有东西可指。
+ * 名字只由插件 id 决定，不带版本指纹：重扫之后前端本来就必须刷新浏览器才认识新插件
+ * （见 PluginMissingView），所以不存在"缓存里跑着旧模块"的窗口。
+ */
+function namedPlugin(id: string, component: unknown) {
+  return defineComponent({
+    name: `plugin:${id}`,
+    setup(_props, { attrs }) {
+      return () => h(component as never, attrs);
+    },
+  });
+}
+
 async function mountPlugin(router: Router, plugin: PluginInfo): Promise<TabEntry> {
   const url = plugin.clientUrl as string;
   // 说明符是运行期才知道的（来自 /api/plugins），必须让打包器放手
@@ -49,7 +66,7 @@ async function mountPlugin(router: Router, plugin: PluginInfo): Promise<TabEntry
     router.addRoute({
       path,
       name: `${plugin.id}:${String(index)}`,
-      component: route.component as never,
+      component: namedPlugin(plugin.id, route.component) as never,
     });
   }
   // 诊断用：落到兜底页时能列出"它到底声明了哪些路径"

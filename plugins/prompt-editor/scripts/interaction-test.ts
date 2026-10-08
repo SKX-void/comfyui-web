@@ -555,12 +555,14 @@ check('首屏三个区块各带风格开关', pickAll('.pe-block-modes').length 
 // onMounted 里先 await 草稿、再取设置：等两轮都发出去再断言
 await settle();
 check(
-  '装载阶段不写回（只有 4 次 GET：/draft、/settings，加跨域区的探测与参数快照）',
+  '装载阶段不写回（只有 5 次 GET：/draft、/settings，加跨域区的探测、预热与参数快照）',
   calls.every((call) => call.method === 'GET') &&
-    calls.length === 4 &&
+    calls.length === 5 &&
     calls.some((call) => call.url.endsWith('/draft') === true) &&
     calls.some((call) => call.url.endsWith('/settings') === true) &&
     calls.some((call) => call.url === '/api/plugins') &&
+    // 探测成功后顺手预热：对方 /object_info 那 2s 的检查不能留到第一次发图时才做
+    calls.some((call) => call.url.endsWith('/anima-plus/api/deps') === true) &&
     calls.some((call) => call.url.endsWith('/anima-plus/api/state') === true),
   JSON.stringify(calls),
 );

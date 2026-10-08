@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { HealthResponse } from '@comfyui-web/shared';
 import { api } from '@/api';
 import TemplateForm from '@/components/TemplateForm.vue';
@@ -87,11 +87,39 @@ onMounted(() => {
   // 依赖检查独立于 bootstrap：即使模板加载失败，也能看到这台机器缺什么
   void checkDeps();
   // 全局任务事件流：一条 SSE 盯住队列里所有任务（连接即发在途快照，刷新页面也能接回来）
-  start();
+  syncStream();
 });
 
+/**
+ * 任务事件流的去留：**可见就开着；不可见时只有还有在途任务才留着**。
+ *
+ * 开了常驻（设置页的「切走不卸载」，D26）之后 `onUnmounted` 不再随切 tab 触发，
+ * 光靠它管这条连接就会攒下一堆没人读的连接 —— 所以改成"可见性 + 队列"两条判据：
+ * 切走时还在跑的就留着（切回来即见进度，不用等重连），队列空了立刻断；
+ * 切回来马上重连（连接即发在途快照，断线期间跑完的任务靠 onOpen 对账补上）。
+ */
+const visible = ref(true);
+
+function syncStream(): void {
+  if (visible.value || queueCount.value > 0) start();
+  else stop();
+}
+
+onActivated(() => {
+  visible.value = true;
+  syncStream();
+});
+
+onDeactivated(() => {
+  visible.value = false;
+  syncStream();
+});
+
+// 切走时队列非空、之后又跑完了：这时连接已经没人看，补一次收尾
+watch(queueCount, syncStream);
+
 onUnmounted(() => {
-  // tab 卸载要断开 SSE，否则反复切 tab 会攒下一堆没人读的连接
+  // tab 真的卸载了（没开常驻时"切走"就等于卸载）必须断流，否则反复切 tab 会攒下一堆没人读的连接
   stop();
 });
 </script>

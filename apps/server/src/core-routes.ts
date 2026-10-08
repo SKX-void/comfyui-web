@@ -120,6 +120,7 @@ export function registerCoreRoutes(host: CoreHost): void {
       tabAliases?: unknown;
       homeLabel?: unknown;
       globals?: unknown;
+      keepAlive?: unknown;
     };
   }>('/api/ui', async (request, reply) => {
     try {
@@ -132,6 +133,7 @@ export function registerCoreRoutes(host: CoreHost): void {
         tabAliases: body.tabAliases,
         homeLabel: body.homeLabel,
         globals: body.globals,
+        keepAlive: body.keepAlive,
       };
       for (const key of Object.keys(patch)) {
         if (patch[key] === undefined) delete patch[key];
