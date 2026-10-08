@@ -105,13 +105,7 @@
       "label": "LoRA",
       "type": "lora-select",
       "required": false,
-      "default": [
-        {
-          "name": "Anima\\Anima Turbo LoRA-v0.2",
-          "lora": "Anima\\Anima Turbo LoRA-v0.2.safetensors",
-          "weight": 0.9
-        }
-      ],
+      "default": [],
       "ui": {
         "multiple": true
       }
