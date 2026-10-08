@@ -239,10 +239,14 @@ onUnmounted(() => {
             <div class="progress-bar">
               <div class="progress-fill" :style="{ width: row.percent + '%' }" />
             </div>
+            <!-- 进度条是**整条工作流**的总进度（服务端算的 overall），不是当前节点那一段 -->
             <div class="status-line small">
-              <span v-if="row.progress">{{ row.progress.value }} / {{ row.progress.max }} 步</span>
+              <span v-if="row.progress">总进度 {{ row.percent }}%</span>
               <span v-else>等上游调度…</span>
-              <span v-if="row.progress?.node" class="dim">节点 {{ row.progress.node }}</span>
+              <span v-if="row.progress?.label" class="dim">{{ row.progress.label }}</span>
+              <span v-if="row.progress?.max" class="dim">
+                {{ row.progress.value }} / {{ row.progress.max }} 步
+              </span>
             </div>
             <p v-if="row.error" class="error">{{ row.error }}</p>
           </li>

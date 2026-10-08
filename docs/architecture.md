@@ -1,6 +1,6 @@
 # 架构设计：工作流插件化
 
-> 状态：**现行设计文档**。决策 D1–D21（§2 的表格），§14 记录落地现状，过程叙事在 [`docs/archive/`](./archive/README.md)。
+> 状态：**现行设计文档**。决策 D1–D26（§2 的表格），§14 记录落地现状，过程叙事在 [`docs/archive/`](./archive/README.md)。
 > 新增决策追加到 §2，落地状态追加到 §14 —— **不要往回写过程叙事**，那正是文档开始拖慢开发的原因。
 
 ---
@@ -65,14 +65,16 @@
 | D16 | 配置的落点与 profile 的去留 | **宿主唯一配置文件 = `data/host.json`**（部署段 + 偏好段同处一个文件；不存在就写默认 —— 挂空 `data/` 卷即可启动；坏文件不覆盖）；**退役 profile**：npm 包形态、Include 装配、清单落盘一起删，插件只剩一种形态 —— `tabs/<id>/` 里**编译完的产物**，源码与构建留在 `plugins/*`；**不存在库形态插件**（没有被别的插件 import 的能力包），共享代码只在构建时 bundle 进产物 | 非 tab 插件没有规划，profile 的依赖解析 / 清单落盘 / 契约 patch 层全被 tabs 覆盖（tabs 自己的契约检查就在 `scanTabs()`）；统一地址只剩"作默认值只读下发"一条语义。见 §6.2、§14.5 |
 | D17 | 产物的入库形态 | **`tabs/` 不入库**：它是 `plugins/*` 的构建产物（可复现：重建 16/16 文件字节一致），仓库只留 `tabs/README.md`（`.gitignore`: `/tabs/*/`）；`pnpm verify` 的 `tabs-sync` 步只做结构性检查（每个带 `scripts/pack.mjs` 的源码工程都有可装载的产物） | D16 之后 `plugins/*` 是唯一真源，产物入库换来的只有 788KB diff / 冲突 / 过期产物静默，而 `dist/`（宿主产物）本来就不入库；一致性由"构建可复现 + `tabs-sync`"保证。见 §4.1、§14.5 |
 | D18 | 交付物的形状 | **`dist/` 是完整可跑的一包**：`app/`（`server.mjs` + `web/`）+ `tabs/`（`tabs/` 下每个子目录的**拷贝**）+ `data/`（空目录，首次启动写 `host.json`）；产物态 `repoRoot = dist/`（不再往上看 `pnpm-workspace.yaml`）；入口 `server.mjs`、**不出 sourcemap**；`docker-compose.yml` 把 `dist/` 的三段挂进容器（`app`/`tabs` 只读、`data` 可写） | 既然 `tabs/` 不入库（D17），交付物里必须有它，「把 `dist/` 拷到机器上就能跑」才成立；软链会让 dist 不可搬，所以用拷贝。副作用：仓库里跑产物与部署跑产物语义一致（都看 `dist/{tabs,data}`） |
-| D21 | 启停落点 | **插件的启停写进 `data/host.json` 的 `disabled: []`**（宿主自己的部署事实）：`PUT /api/plugins/:id/enabled` 原子落盘后再改运行期状态；装载时（启动 / 重扫 / 重挂）一律**以盘上的值为准**，调用方不许把"这一行现在是停用的"再传下去；清单的 `enabled` 报当前事实（Loader 行优先，行还没落地才回落到盘） | "这个插件在这台装置上停用了"是**部署事实**，跟 tab 顺序/首页/统一地址同类 —— 归宿主；而插件的配置/库是**插件自己的数据**，归插件（D15）。两个真源各管各的，才不会出现"点了停用、重启又活了"。代价：多一个能写坏的状态位（清洗规则与其它偏好字段同款：非字符串丢弃、去重、限长）。见 §14.5 |
-| D20 | 扫描时机 | **不监听、不轮询**：宿主只在**启动**与 `POST /api/tabs/rescan`（设置页/欢迎页的「重新扫描插件目录」按钮）时扫 `tabsDir`；重扫是**增量**的（只重挂指纹变了的），结果分项回报（`added`/`reloaded`/`removed`/`failed`），前端如实转述；`GET /api/plugins` 只列**已装载**的 tab（含没通过检查、已挂成 `rejected` 的）—— 不放"看得见但点不开"的条目 | 目录里什么时候有新东西，**改的人自己知道** —— 自动扫描换来的只有"改到一半被装成一份半成品"和一套没人看的 2s 心跳；顺带消掉"容器挂载 / 网络盘上 `fs.watch` 静默失聪"这个只有实测才会发现的坑（旧实现靠 2s 指纹轮询兜底，见 §14.5）。代价：放进去 / 改完必须点一下按钮（或 `curl -X POST /api/tabs/rescan`）才生效 |
-| D22 | 工作流定义的形状 | **一个插件 = 一份工作流定义，不存在"模板"这层抽象**：图是插件根的 `workflow.json`（与 `package.json` 并列、`pack.mjs` 按名打包，跟 `anima-example` 一致），表单/绑定/产出/依赖声明在 `assets/form.json`；没有 `source.file` 指针（图不存第二份），没有多模板注册表 / 按 id 查 / id 唯一性校验（D16/D19 之后一个工作流 = 一个 tab，多模板能力从未被用过），HTTP 也随之去 `templateId`：`GET /api/template`（单数）、`POST /api/jobs` 只收 `values` | v1 的「模板数据」层是单体应用的产物（§0），v2 用「一个工作流 = 一个 tab」（G1）取代了它：一个插件里再分"模板"是重复抽象，而它唯一独有的能力（一格挂多套表单/图）没有任何使用者。旧形状还实际制造过事故：`workflow.json` 与 `graph.json` 两份图靠 `source.file` 指针连着，改一份忘另一份就悄悄跑偏。见 §10、§14 |
 | D19 | profile 机制与示例 tab 的删除 | **`profiles/`、Include 装配、`apps/server/scripts/plugin.mjs`、清单落盘、契约 patch 层、`fallback`/`following` 全删**：插件唯一来源是 `tabs/<id>/`；统一地址只剩"只读默认值"（宿主不写进任何插件）；`tabs/hello/` 不再作为示例（写法见 `tabs/README.md`） | D16 已把落点定死（`data/host.json` + `tabs/`），留着 profile 只会多一条没人走的装配路径与一份"两个真源"的歧义；示例 tab 的内容已经并进 `tabs/README.md` 的三文件骨架。见 §6/§6.1/§14.5 |
+| D20 | 扫描时机 | **不监听、不轮询**：宿主只在**启动**与 `POST /api/tabs/rescan`（设置页/欢迎页的「重新扫描插件目录」按钮）时扫 `tabsDir`；重扫是**增量**的（只重挂指纹变了的），结果分项回报（`added`/`reloaded`/`removed`/`failed`），前端如实转述；`GET /api/plugins` 只列**已装载**的 tab（含没通过检查、已挂成 `rejected` 的）—— 不放"看得见但点不开"的条目 | 目录里什么时候有新东西，**改的人自己知道** —— 自动扫描换来的只有"改到一半被装成一份半成品"和一套没人看的 2s 心跳；顺带消掉"容器挂载 / 网络盘上 `fs.watch` 静默失聪"这个只有实测才会发现的坑（旧实现靠 2s 指纹轮询兜底，见 §14.5）。代价：放进去 / 改完必须点一下按钮（或 `curl -X POST /api/tabs/rescan`）才生效 |
+| D21 | 启停落点 | **插件的启停写进 `data/host.json` 的 `disabled: []`**（宿主自己的部署事实）：`PUT /api/plugins/:id/enabled` 原子落盘后再改运行期状态；装载时（启动 / 重扫 / 重挂）一律**以盘上的值为准**，调用方不许把"这一行现在是停用的"再传下去；清单的 `enabled` 报当前事实（Loader 行优先，行还没落地才回落到盘） | "这个插件在这台装置上停用了"是**部署事实**，跟 tab 顺序/首页/统一地址同类 —— 归宿主；而插件的配置/库是**插件自己的数据**，归插件（D15）。两个真源各管各的，才不会出现"点了停用、重启又活了"。代价：多一个能写坏的状态位（清洗规则与其它偏好字段同款：非字符串丢弃、去重、限长）。见 §14.5 |
+| D22 | 工作流定义的形状 | **一个插件 = 一份工作流定义，不存在"模板"这层抽象**：图是插件根的 `workflow.json`（与 `package.json` 并列、`pack.mjs` 按名打包，跟 `anima-example` 一致），表单/绑定/产出/依赖声明在 `assets/form.json`；没有 `source.file` 指针（图不存第二份），没有多模板注册表 / 按 id 查 / id 唯一性校验（D16/D19 之后一个工作流 = 一个 tab，多模板能力从未被用过），HTTP 也随之去 `templateId`：`GET /api/template`（单数）、`POST /api/jobs` 只收 `values` | v1 的「模板数据」层是单体应用的产物（§0），v2 用「一个工作流 = 一个 tab」（G1）取代了它：一个插件里再分"模板"是重复抽象，而它唯一独有的能力（一格挂多套表单/图）没有任何使用者。旧形状还实际制造过事故：`workflow.json` 与 `graph.json` 两份图靠 `source.file` 指针连着，改一份忘另一份就悄悄跑偏。见 §10、§14 |
 | D23 | 插件页面崩了怎么办 | **前端渲染错误隔离**：`PluginBoundary` 包住 `<RouterView>`（`onErrorCaptured` → `return false`，且 **slot 永远渲染**），`app.config.errorHandler` 只记录、**不重抛** | dev 构建的 Vue 对**没人接住**的组件错误是 `throw err`（`logError` 的 `throwInDev`），而抛出点在调度器 `flushJobs` 里 —— 一个插件页面抛错就能让整个外壳停摆：插件区域空白、之后每次切 tab 再抛 `Cannot read properties of null (reading 'component')`，只能刷新浏览器（实测复现过）。`return false` 与"slot 永远渲染"缺一不可（前者防 re-throw，后者保证切走后 RouterView 还在树上）。见 §7.2、§14.2 |
 | D24 | 跨插件调用 | **特别允许一条单向依赖**：prompt-editor 的输出可以直接变成 anima-plus 的一次出图 —— 全程走 HTTP 路由（`GET /api/plugins` 看对方装没装 / 启没启、`GET`+`PUT /api/p/anima-plus/api/state`、`POST /api/p/anima-plus/api/jobs`），**不 import 对方代码、不读对方库文件**；参数基底一律取自对方「最后一次状态」，没有就**禁用按钮并把原因说出来**（不猜模板默认值） | "写好的提示词直接发去出图"是这两个插件真实的工作流，隔一层复制粘贴才是假隔离；但隔离规则（§8）不能破，所以对方那几条提交语义（`randomSeed` 开着先抽种子、先写快照再建作业）在适配器里复刻并注明来源。代价：两处逻辑要一起改（对方改了这边不知道），且 prompt-editor 从此知道 anima-plus 存在 —— 方向单向、下游只有一个适配器时这个代价可接受。见 §8、§14.6 |
 | D25 | 首页说明的形状 | **欢迎页文案是外壳的静态资产**：`apps/web/public/home.md`（构建进 `dist/app/web/home.md`），home 路由自己 `fetch` + marked 渲染；**后端不加路由、不参与**；取用带 `no-store`，改产物里那份 md、刷新浏览器即生效 | 一段文案与 `index.html` / `brush.svg` 同类，交给宿主已有的静态托管即可 —— 为它加一条 core 端点等于把"改文案"绑到后端上。宿主用 `@fastify/static`（默认 `wildcard`）按请求现读磁盘，所以 docker 的只读 `/app` 也能"改宿主机文件 → 刷新即生效"；**别用 `wildcard:false`**（启动时按文件登记路由，重新 build:web 换 hash 后会拿 `text/html` 冒充 CSS，见 §5.3、§14.7） |
 | D26 | 标签页常驻（切走不卸载） | **可选、逐插件、默认关**：真源是 `data/host.json` 偏好段的 `keepAlive: string[]`（设置页「切走不卸载」勾选 → `PUT /api/ui`），外壳把它翻成 `<KeepAlive :include>` 的名单；组件名由 `apps/web/src/main.ts` 的 `namedPlugin()` 固定成 `plugin:<id>`（插件 SFC 多半没有 name，而 Vue 只按组件名匹配 include）。崩过的页面立刻移出名单。**插件义务**：常驻后切 tab 不再触发 `onUnmounted`，长命资源（SSE / 定时器）改由 `onActivated` / `onDeactivated` 按可见性决定去留 | 诉求是"切回来还是刚才那一页，而不是从空框重建"；但常驻的代价（内存、活着的连接）随插件差得很远，只有用户知道值不值 —— 所以做成**宿主偏好而非插件自述**（与 D21 同款分层），默认关 = 不改任何现有行为。踩过的坑：`<KeepAlive><RouterView /></KeepAlive>` 缓存的是 RouterView 自己（名字恒为 `RouterView`，include 永不匹配，一个都缓存不住），必须写成 `v-slot="{ Component }"` + `<component :is="Component" />`（实测：改前切回来 DOM 照样重建）。见 §7.2、§14.8 |
+
+## 3. 系统结构与职责边界
 
 ```
 ┌─────────────────────────── 浏览器 ───────────────────────────┐
@@ -307,7 +309,8 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
   "tabAliases": { "anima-plus": "画图" },
   "homeLabel": "我的工作台",
   "globals": { "comfyuiBaseUrl": "" },
-  "disabled": ["anima-example"]
+  "disabled": ["anima-example"],
+  "keepAlive": []
 }
 ```
 
@@ -329,9 +332,8 @@ migrate(db)   // 自己实现：PRAGMA user_version + 只追加的迁移数组�
   （`comfyui-web`），回退在外壳（`apps/web/src/store.ts` 的 `tabLabel` / `homeLabel`）。
 - **后端只保证三件事**：读得到、写得进、坏文件不炸。文件缺失 / 不是 JSON / 类型不对
   一律退化成默认值；写入先写 `.tmp` 再 `rename`（原子替换）；清洗规则 = 去重、丢非字符串、
-  限长限条数。测试口径见 §14.1e。
+  限长限条数。测试口径见 `docs/archive/v2-implementation-notes.md` 的 14.1e。
 
-### 5.6 设置
 ### 5.6 设置（归插件自己，D15/D19）
 
 - 插件在 `package.json` 的 `plugin.settings[]` 里声明字段（`type`/`label`/`default`/`options`…），
@@ -399,8 +401,10 @@ D19 删掉的正是「宿主写进插件行配置 + `following` 名单 + `fallba
 
 代价是明确的：**宿主侧看不到一份「这批部署装了什么、怎么配的」清单**。补偿：`tabs/` 目录就是
 那份清单（它是构建产物、可复现），而「怎么配的」本来就该在本机的 `data/` 里看。
-- 保存配置会**就地重载**该插件（`loader.update` → fiber 重建 → 立即生效，不用重启）。
-- `disable` / `enable` 走 `loader.update`，**运行期即生效，不用重启**；`add` / `remove` 需要重启后端 + 刷新浏览器。这层差别在 CLI 与设置页里都写明了。
+生效方式（D15/D20/D21）：改插件自己的配置 → 插件请求 `POST /api/tabs/:id/reload` 重挂；
+启停 → `PUT /api/plugins/:id/enabled` 写 `data/host.json` 的 `disabled`，运行期即生效；
+增 / 删 / 改目录 → 设置页点一次「重新扫描插件目录」（`POST /api/tabs/rescan`）—— **三种都不用重启后端**。
+宿主**没有**写插件配置的端点（D15），也没有 CLI。
 
 ### 6.2 目录型 tab：`tabs/<id>/`（唯一的插件来源）
 
@@ -482,10 +486,12 @@ vue-router 的 `install()` 会立刻用 `history.location` 发起**首次导航*
 
 ### 7.4 开发态
 
-主机稳定、插件各自 HMR——**这才是真正的「不重新混合编译」**：
+宿主稳定 —— **改插件不需要重新构建宿主**（D18 的核心主张）；热更新只到「重挂」这一层，**不做前端 HMR**（N1）：
 
-- 插件前端自己 `vite dev` 起端口；开发态清单里 `clientUrl` 指向该 dev server。
-- 插件后端改代码：`tsx watch` 重启插件进程段，或接 `@cordisjs/plugin-hmr`（可选，不进第一轮）。
+- 插件源码：`pnpm dev:plugins`（`pack.mjs --watch`）常驻出产物 → 设置页点一次「重新扫描插件目录」重挂（D20）；
+  只改了产物里的 `client.js` 时，后端重挂后还要**刷新浏览器**（`/plugins/<id>/*` 不缓存）。
+- 宿主源码：`pnpm dev:host`（`tsx watch`，已排除 `tabs/` / `data/` 等）只重启宿主进程，插件装载不受影响。
+- 前端没有 per-plugin dev server：页面的 Vue 由 import map 提供，插件 bundle 必须自包含（§7.1）。
 
 ---
 
@@ -527,7 +533,7 @@ v1（已删除的 `apps/server/src/store/db.ts`）用 `PRAGMA user_version` 记�
 
 D12 把库拆给插件自己之后，一个库只有一个所有者，这个前提消失了 —— `PRAGMA user_version`
 重新成为**正确**的机制（SQLite 原生、零额外表、事务内可更新）。本仓库的 `anima-example`
-与 `demo` 都是这么做的：
+就是这么做的：
 
 ```js
 const MIGRATIONS = [{ version: 1, sql: `CREATE TABLE jobs (...)` }]
@@ -669,10 +675,14 @@ comfyui-web/
 | `apps/server/` | 宿主后端：`config.ts` 配置、`kernel.ts` 装配（Loader + tabs）、`core-plugin.ts` + `core-{host,rows,routes,assets}.ts` 宿主端点、`tabs.ts` + `tabs-{scan,loader,service}.ts` 目录型插件、`host-settings.ts` 唯一配置文件（D16）、`handles/{space,routes}.ts` 两个句柄、`plugin-package.ts` 包清单解析、`scripts/build.mjs` |
 | `apps/web/` | 宿主前端：`index.html`（import map 是核心）、`src/main.ts` 插件装载器、`App.vue` tab 栏壳、`views/SettingsView.vue` + `views/settings/*`（设置页只读展示插件设置，D15）、`styles/*.css`（`style.css` 只是 `@import` 入口） |
 | `tabs/` | 工作流插件交付物（D14/D15/D16）：一个子目录一个插件、目录名即 id、自包含；装载时机见 D20（启动 + 手动重扫） |
-| `plugins/anima-plus/` | **v1 整体搬完**：前端是 v1 的 `App.vue` + 8 个组件，后端是 v1 那 14 个模块逐字搬进 `server/`（渲染/显存护栏/任务编排/LoRA/标签/预设），反代已删；另加依赖检查（`server/deps.ts`，见 §14.1f）。工作流定义形状见 D22（`workflow.json` + `assets/form.json`）。见 §13 与 `plugins/anima-plus/README.md` |
+| `plugins/anima-plus/` | **v1 整体搬完**：前端是 v1 的 `App.vue` + 8 个组件，后端是 v1 那 14 个模块逐字搬进 `server/`（渲染/显存护栏/任务编排/LoRA/标签/预设），反代已删；另加依赖检查（`server/deps.ts`，见 `docs/archive/v2-implementation-notes.md` 的 14.1f）。工作流定义形状见 D22（`workflow.json` + `assets/form.json`）。见 §13 与 `plugins/anima-plus/README.md` |
 | `data/host.json` | 宿主唯一配置文件（部署段 + 偏好段）；不存在时宿主写默认值，挂空 data 卷即可启动（D16） |
 
 ### 14.1 落地时的三处偏离（都要记住）
+
+> 本节 3 条是结论。逐条过程叙事（含 **14.1b–14.1h** 的实测证据）在
+> [`docs/archive/v2-implementation-notes.md`](./archive/v2-implementation-notes.md) —— 引用 `14.1x`
+> 字母编号时一律指那份归档的子节，不是本节的子项。
 
 1. **设置渲染不用 schemastery，改用 `plugin.settings[]` 静态 JSON**（D10）。
    原方案要执行插件代码才能拿到 schema；插件导入失败时设置页会瞎，而坏插件恰恰最需要改配置。
@@ -697,10 +707,9 @@ comfyui-web/
 
 ### 14.3 已知限制
 
-- 插件前端入口**运行时动态 import**，不使用打包器的静态分析：插件 bundle 要自己保证是自包含的 ESM
-  （只 external `vue` / `vue-router`）。
-- 插件前端入口**运行时动态 import**（不经打包器改写），所以坏插件的报错只到"加载失败 + 原因"这一层；`tabs/` 里没有构建脚本可用，产物必须是编译完的。
-- 前端 `import(...)` 的调试栈跨包，坏插件的报错目前只到"加载失败 + 原因"这一层。
+- 插件前端入口**运行时动态 import**（不经打包器改写）：插件 bundle 要自己保证是自包含的 ESM
+  （只 external `vue` / `vue-router`；`tabs/` 里没有构建脚本可用，产物必须是编译完的）。
+- 坏插件的报错只到"加载失败 + 原因"这一层 —— 调试栈跨包，`import(...)` 的失败点不在插件代码里。
 - 本仓库的开发沙箱里，跨 `bash` 调用启动的后台进程无法回收（PID namespace 限制），
   所以验证时统一用「同一次调用内启动 + kill」，或换空闲端口。
 
@@ -718,8 +727,8 @@ comfyui-web/
   + `config.ts` 的"先定 dataDir 再读文件"。宿主启动即初始化：建 `data/plugins/`、没有 `host.json`
   就写默认（端口 / 日志级别 / `tabsDir` / 偏好段），旧的 `data/ui-prefs.json` 会被一次性搬进来。
 - **已删**（D16）：根目录 `host.config.json`、`ui-prefs.ts`、`host-globals.ts`；
-  `PUT /api/ui` 只认偏好段的 `tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals`
-  （`following` 随 D19 删了；`disabled` 由启停端点单独写，见 D21），
+  `PUT /api/ui` 只认偏好段的 `tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals` / `keepAlive`
+  （`following` 随 D19 删了；`disabled` 由启停端点单独写，见 D21；`keepAlive` 是 D26 的常驻名单），
   设置页不会连带改掉端口等部署段。
 - **已落地（Step 2）**：`tabs/<id>/` 放**编译完的产物**（源码与构建留在 `plugins/*`，
   `scripts/pack-tab.mjs` 直接输出到 `tabs/<id>/`）；`tabs/` **不入库**（D17），`verify` 补了

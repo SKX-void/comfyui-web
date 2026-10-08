@@ -11,8 +11,9 @@
 | `v1-plan.md` | v1 项目计划（目标、调研结论、风险登记） | 无 |
 | `v1-roadmap.md` | v1 里程碑 M0–M5 与验收标准 | 无 |
 | `v1-api.md` | v1 的对外 API 讨论稿 + ComfyUI 上游接口笔记 | 对外接口看 `architecture.md` §5；上游调用看 `plugins/anima-*/server/` |
-| `v1-templates.md` | 模板层设计（`ui.max` / `transform` 那套） | 模板现在是插件私有资产，见 `plugins/anima-plus/README.md` |
+| `v1-templates.md` | 模板层设计（`ui.max` / `transform` 那套） | 工作流定义现在是插件私有资产（D22：不存在「模板」这层抽象），见 `plugins/anima-plus/README.md` |
 | `v2-implementation-notes.md` | v2 第一批落地的过程记录（交付计划、14.1b–14.1h、实测证据） | `architecture.md` §11–§14 |
+| `架构思路.md` | v1 时代的架构思路稿（这套插件化设计的出发点，中文） | `architecture.md` §0–§2 |
 
 两个**插件的**设计记录没有放这里，而是放在插件旁边（它们是活文档，只是写得比代码早）：
 

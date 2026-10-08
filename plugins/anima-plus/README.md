@@ -61,6 +61,13 @@ ComfyUI 自带（缺了说明版本太老，装插件包解决不了）：`CLIPL
    旧写法无条件 `/interrupt`，会误伤正在跑的那条（`docs/safety.md` §6 有实测记录）。
    上游清理失败也照样本地终结：不能因为摘不掉队列就把任务永远挂在界面上。
 
+**进度是整条工作流的总进度，不是当前节点那一段** —— 上游 `progress` 事件只给「当前节点的第几步」，
+照它画条会每换节点归零一次，看起来像分段条。`server/jobs/plan.ts` 按 `class_type` 建计划：
+每个节点一个人话标签（`VAEDecode` → VAE 解码、sampler → K 采样）加经验权重（采样占大头），
+事件层把 `executing` / `progress` / `execution_cached` / `executed` 折成单调不减的 `overall`（0~100）
+随 `progress` 事件下发，前端直接用它当条宽。**界面不显示节点号**：上游给的是「节点 27」这类编号，
+对用户没有意义；表外的类退回类名（`Foo` → `Foo`），也绝不退回编号。
+
 前端状态在 `client/src/composables/useJobs.ts`：`queue` 是队列行（含中文状态与排队位次），
 终态一到就挪出队列、进历史表；SSE 重连时拿 `GET /api/jobs` 对一次账，
 把"断线期间已经跑完"的任务从队列里摘掉。
