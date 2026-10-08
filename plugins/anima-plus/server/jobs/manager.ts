@@ -12,12 +12,13 @@ import type { WorkflowDefinition } from '../templates/loader.js';
 import { renderTemplate } from '../templates/render.js';
 import { MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../safety/quota.js';
 import { applyComfyEvent } from './comfy-events.js';
+import { cancelJob } from './cancel.js';
 import { JobEventBus } from './event-bus.js';
 import { finalizeJob } from './finalize.js';
 import type { ManagerOptions } from './options.js';
 import { clearFinishedJobs, countInFlightJobs, evictOldJobsOverLimit } from './retention.js';
+import { planFor } from './plan.js';
 import { sweepJobs } from './sweep.js';
-import { TERMINAL } from './terminal.js';
 
 // assetId 的编解码仍从这个模块路径对外（server/http/** 从这里 import，实现见 jobs/asset-id.ts）
 export { decodeAssetId, encodeAssetId } from './asset-id.js';
@@ -236,48 +237,17 @@ export class JobManager {
     return this.events.subscribeAll(handler);
   }
 
-  /**
-   * 取消一个任务。
-   *
-   * 上游的真相优先：同一条 prompt 可能"本地还写着 queued，上游其实已经在跑"（WS 掉帧），
-   * 所以先问一次 /queue 再决定 —— `/interrupt` 打断的是**当前执行**的那条，
-   * 对排队中的任务调它只会误伤正在跑的那个。
-   *
-   * 上游清理失败（断线等）也照样本地终结：不能因为摘不掉队列就把任务永远挂在界面上。
-   * 已经终态的任务不再变（finalize 里同样先看终态，所以不会"取消完又被判成功"）。
-   */
+  /** 取消一个任务（上游真相优先的细节见 jobs/cancel.ts） */
   async cancel(jobId: string): Promise<Job> {
-    const job = this.get(jobId);
-    if (TERMINAL.has(job.status)) {
-      return job;
-    }
-
-    if (job.promptId) {
-      try {
-        const where = await this.locateUpstream(job.promptId);
-        if (where === 'running') await this.client.interrupt();
-        else if (where === 'pending') await this.client.deleteQueueItems([job.promptId]);
-      } catch (err) {
-        this.opts.log('取消时清理上游失败（本地仍标记取消）', {
-          jobId,
-          promptId: job.promptId,
-          err: String(err),
-        });
-      }
-    }
-
-    job.status = 'canceled';
-    job.finishedAt = new Date().toISOString();
-    this.emit(job, 'canceled', { status: job.status });
-    return job;
-  }
-
-  /** 这条 prompt 在上游是"正在跑"、"还在排队"，还是已经不在了 */
-  private async locateUpstream(promptId: string): Promise<'running' | 'pending' | null> {
-    const q = await this.client.getQueue();
-    if (q.running.some((r) => r.promptId === promptId)) return 'running';
-    if (q.pending.some((r) => r.promptId === promptId)) return 'pending';
-    return null;
+    return cancelJob(
+      {
+        jobs: this.jobs,
+        client: this.client,
+        log: this.opts.log,
+        emit: (job, data) => this.emit(job, 'canceled', data),
+      },
+      jobId,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -295,6 +265,8 @@ export class JobManager {
         promptToJob: this.promptToJob,
         events: this.events,
         finalize: (job) => this.finalize(job),
+        // 计划按图缓存（plan.ts）；工作流重载后 get() 换成新对象，会重算
+        plan: planFor(this.workflow.get().graph),
       },
       evt,
     );

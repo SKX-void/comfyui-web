@@ -8,7 +8,7 @@
 | 文档 | 回答什么 |
 |---|---|
 | 本文 | 怎么跑起来、怎么装插件、怎么自己写一个插件、目录约定 |
-| [`architecture.md`](./architecture.md) | 架构与决策（D1–D21）、插件契约（§4）、核给的句柄（§5）、配置分层（§6）、落地现状（§14） |
+| [`architecture.md`](./architecture.md) | 架构与决策（D1–D26）、系统结构（§3）、插件契约（§4）、核给的句柄（§5）、配置分层（§6）、落地现状（§14） |
 | [`config.md`](./config.md) | 十几个"配置"文件分别属于随包发布 / 随部署 / 随机器 / 随用户 / 随目录哪一层，谁能改，入不入库 |
 | [`../tabs/README.md`](../tabs/README.md) | 目录型插件（`tabs/<id>/`）：怎么写、热到什么程度、收尾契约 |
 | [`archive/`](./archive/README.md) | **历史文档**（v1 单体时代 + v2 落地过程），只作来龙去脉参考 |
@@ -141,6 +141,6 @@ nginx.conf            反向代理（conf.d 片段，只有 server 块）
 ## 自检
 
 ```bash
-pnpm verify                  # typecheck + 构建 + 冒烟（日志与产物在 .cache/verify/）
+pnpm verify                  # typecheck → isolation → smoke → build → tabs-sync → contract（日志与产物在 .cache/verify/）
 pnpm -r typecheck
 ```

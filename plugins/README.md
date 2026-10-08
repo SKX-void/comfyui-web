@@ -112,7 +112,7 @@ export default {
 ```
 
 - `vue` / `vue-router` 由页面的 import map 提供：**不要**把它们打进 bundle（`vite.config.ts` 里 external）。
-- 页面里调自己的后端：`fetch('/api/p/mine/api/settings')`；取自己的静态资产：`/plugins/mine/<文件>`。
+- 页面里调自己的后端：`fetch('/api/p/mine/settings')`；取自己的静态资产：`/plugins/mine/<文件>`。
 
 ### 2.4 构建脚本 `scripts/pack.mjs`
 
@@ -138,8 +138,7 @@ export default {
 - **工作流模板**：把 API 格式的 workflow JSON 放工程里（构建时作为 extra 拷进 tab 根），运行时按表单值改节点输入；
   表单字段 ↔ 模板节点的对应关系是插件自己的约定，写在插件里（别指望宿主理解工作流）。
 - **产物存放**：出图、缩略图、缓存都放 `ctx.space` 目录下；宿主不代管、不迁移、不清理。
-- 参考实现：`plugins/anima-plus/`（进度、模板、缓存、帮助页都有）· `plugins/anima-example/`（最小形态：一个 tab、一个自建库、一套设置项）。
-- （待补：错误重试 / 取消 / 并发上限 / 断线重连 —— 把你自己的调用约定写在这几条下面。）
+- 参考实现：`plugins/anima-plus/`（进度、工作流定义、缓存、帮助页都有）· `plugins/anima-example/`（最小形态：一个 tab、一个自建库、一套设置项）。
 
 ## 4. 前端 tab 的约定
 

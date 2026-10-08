@@ -172,6 +172,7 @@ section('依赖检查：前后端都接上了');
 const serverJs = await readFile(path.join(tabDir, 'server.js'), 'utf8');
 const depsSrc = await readFile(new URL('../server/deps.ts', import.meta.url), 'utf8');
 const managerSrc = await readFile(new URL('../server/jobs/manager.ts', import.meta.url), 'utf8');
+const cancelSrc = await readFile(new URL('../server/jobs/cancel.ts', import.meta.url), 'utf8');
 check('产物里有 GET /api/deps 路由', /\/api\/deps/.test(serverJs));
 check('客户端调它、并且能绕过缓存', /\/api\/deps/.test(js) && /refresh=1/.test(js));
 check('三态：不可达时 ok=null（不谎报缺失）', /ok:\s*null/.test(depsSrc));
@@ -198,7 +199,10 @@ check(
   '排队的取消是从上游队列里摘（POST /queue {"delete":…}）',
   /'\/queue'/.test(comfySrc) && /delete:\s*promptIds/.test(comfySrc),
 );
-check('取消先问上游在跑还是在排队（不靠本地状态猜）', /locateUpstream/.test(managerSrc));
+check(
+  '取消先问上游在跑还是在排队（不靠本地状态猜）',
+  /locateUpstream/.test(cancelSrc) && /cancelJob/.test(managerSrc),
+);
 
 section('帮助面板：md 渲染器（零依赖，先转义再套标签）');
 check('renderMarkdown 是函数', typeof renderMarkdown === 'function');
@@ -283,6 +287,30 @@ check(
     /depsCacheTtlMs/.test(serverJs),
 );
 check('配置解析留了排障出口（configFiles 记来源）', /configFiles/.test(serverJs));
+
+section('进度：整条工作流的总进度 + 节点人话标签（不再显示「节点 27」）');
+const planSrc = await readFile(new URL('../server/jobs/plan.ts', import.meta.url), 'utf8');
+const comfyEventsSrc = await readFile(new URL('../server/jobs/comfy-events.ts', import.meta.url), 'utf8');
+// 服务端产物里的中文被 esbuild 转成了 \uXXXX 转义，比对前先还原：换个 charset 也不该误报
+const serverText = serverJs.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
+  String.fromCharCode(parseInt(hex, 16)),
+);
+check(
+  '节点标签表进了产物（VAE 解码 / K 采样这类人话）',
+  serverText.includes('VAE 解码') && serverText.includes('K 采样'),
+);
+check(
+  '总进度追踪器进了产物（快照带 overall 0~100）',
+  /ProgressTracker/.test(serverText) && serverText.includes('overall'),
+);
+check(
+  '计划由 class_type 建表，事件层真的接了它',
+  planSrc.includes('nodeLabel') && /planFor/.test(managerSrc) && /trackerFor/.test(comfyEventsSrc),
+);
+check('前端显示「总进度 %」', js.includes('总进度'));
+check('进度条宽度取总进度 percent', /width: \w+\.percent \+ "%"/.test(js));
+check('前端不再把节点号当进度文案渲染', !/"节点 "\s*\+/.test(js));
+check('前端读服务端下发的 overall', /overall/.test(js));
 
 section('缩略图：纯 JS 引擎真的进了产物（没有原生模块）');
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');

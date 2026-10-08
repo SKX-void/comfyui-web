@@ -20,12 +20,16 @@ import { crc32, deflateSync } from 'node:zlib';
 
 import { createImageLibrary } from 'purejsimage';
 import { jpegCodec } from 'purejsimage/codecs/jpeg';
-import type { TemplateInput } from '@comfyui-web/shared';
+import type { Job, JobProgress, TemplateInput } from '@comfyui-web/shared';
 
 import { WorkflowDefinition } from '../server/templates/loader.js';
 import { buildConfig, normalizeBaseUrl } from '../server/config.js';
 import { renderTemplate } from '../server/templates/render.js';
 import { applyTransform } from '../server/templates/transforms.js';
+import { applyComfyEvent } from '../server/jobs/comfy-events.js';
+import { JobEventBus } from '../server/jobs/event-bus.js';
+import { buildPlan, planFor } from '../server/jobs/plan.js';
+import type { ComfyEvent } from '../server/comfy/types.js';
 import {
   MAX_LORAS,
   MAX_SIDE,
@@ -373,6 +377,125 @@ async function main(): Promise<void> {
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
+
+  // ── 进度：节点号 -> 人话 + 整条工作流的总进度（jobs/plan.ts） ─────────────
+  section('进度：节点标签与总进度');
+  const plan = planFor(tpl.graph);
+  const nodeOfClass = (cls: string): string | undefined =>
+    Object.entries(tpl.graph).find(([, n]) => n.class_type === cls)?.[0];
+  const samplerId = nodeOfClass('ClownsharKSampler_Beta') ?? '';
+  const labelOf = (nodeId: string): string | undefined => plan.stages.get(nodeId)?.label;
+
+  check(
+    '计划覆盖图里每个节点',
+    plan.stages.size === Object.keys(tpl.graph).length,
+    `${plan.stages.size}/${Object.keys(tpl.graph).length}`,
+  );
+  check('VAE 解码有标签', labelOf(nodeOfClass('VAEDecode') ?? '') === 'VAE 解码', String(labelOf(nodeOfClass('VAEDecode') ?? '')));
+  check('采样节点按 Sampler 归类（不写死节点号/类名）', labelOf(samplerId) === 'K 采样', String(labelOf(samplerId)));
+  check(
+    '任何节点的标签都不会是「节点 N」那种纯编号',
+    [...plan.stages.values()].every((s) => s.label.length > 0 && !/^\d+$/.test(s.label)),
+  );
+  check(
+    '未知节点类退回类型名（不炸、也不显示节点号）',
+    buildPlan({ '99': { class_type: 'TotallyUnknownNode', inputs: {} } }).stages.get('99')?.label ===
+      'TotallyUnknownNode',
+  );
+  check(
+    '采样权重占大头（总进度得跟着采样走）',
+    (plan.stages.get(samplerId)?.weight ?? 0) > plan.total / 2,
+    `${plan.stages.get(samplerId)?.weight}/${plan.total}`,
+  );
+
+  /** 造一条任务 + 一条事件总线，喂 ComfyUI 事件进去（不用连上游） */
+  function progressRun(promptId: string) {
+    const bus = new JobEventBus();
+    const job: Job = {
+      jobId: `j_${promptId}`,
+      promptId,
+      workflowVersion: tpl.def.version,
+      status: 'queued',
+      progress: null,
+      values: {},
+      seeds: {},
+      assets: [],
+      error: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      startedAt: null,
+      finishedAt: null,
+      queuePosition: null,
+    };
+    const shots: JobProgress[] = [];
+    const nodeEvents: Array<{ node: string; label?: string | null }> = [];
+    bus.subscribeAll((_job, evt) => {
+      if (evt.type === 'progress') shots.push(evt.data as unknown as JobProgress);
+      if (evt.type === 'node') nodeEvents.push(evt.data as unknown as { node: string; label?: string | null });
+    });
+    const push = (evt: ComfyEvent): void =>
+      applyComfyEvent(
+        {
+          jobs: new Map([[job.jobId, job]]),
+          promptToJob: new Map([[promptId, job.jobId]]),
+          events: bus,
+          finalize: async () => {},
+          plan,
+        },
+        evt,
+      );
+    return { job, shots, nodeEvents, push };
+  }
+
+  // 一次"全部节点都真跑"的任务：executing 逐个节点，采样节点内部再走几步
+  const run = progressRun('p_full');
+  const graphOrder = Object.keys(tpl.graph);
+  for (const nodeId of graphOrder) {
+    run.push({ type: 'executing', data: { prompt_id: 'p_full', node: nodeId } });
+    if (nodeId === samplerId) {
+      for (const value of [1, 5, 10]) {
+        run.push({ type: 'progress', data: { prompt_id: 'p_full', node: nodeId, value, max: 20 } });
+      }
+    }
+  }
+  run.push({ type: 'executing', data: { prompt_id: 'p_full', node: null } });
+
+  const overalls = run.shots.map((s) => s.overall ?? 0);
+  check('总进度单调不减', overalls.every((v, i) => i === 0 || v >= overalls[i - 1]!));
+  check('执行结束收在 100%', overalls.at(-1) === 100, `last=${overalls.at(-1)}`);
+  check('没跑完不谎报 100%', overalls.slice(0, -1).every((v) => v <= 99));
+  check(
+    '每条进度都带人话标签（收尾那条除外：它没有"当前节点"）',
+    run.shots.slice(0, -1).every((s) => typeof s.label === 'string' && !/^\d+$/.test(s.label)),
+  );
+  check(
+    '节点事件也带标签（运行日志用它，不再只写节点号）',
+    run.nodeEvents.length === graphOrder.length && run.nodeEvents.every((e) => Boolean(e.label)),
+    `${run.nodeEvents.length}/${graphOrder.length}`,
+  );
+  const midSampling = run.shots.find(
+    (s) => s.node === samplerId && s.value === 10 && s.max === 20,
+  );
+  check(
+    '采样中段的步进体现在总进度里（不是一潭死水）',
+    (midSampling?.overall ?? 0) > (overalls[0] ?? 0) && (midSampling?.overall ?? 0) < 100,
+    `overall=${midSampling?.overall}`,
+  );
+
+  // 上游复用缓存：这些节点不会再发 executing，分母照样要能填满
+  const cached = progressRun('p_cached');
+  cached.push({
+    type: 'execution_cached',
+    data: { prompt_id: 'p_cached', nodes: graphOrder.filter((id) => id !== samplerId) },
+  });
+  cached.push({ type: 'executing', data: { prompt_id: 'p_cached', node: samplerId } });
+  const cachedOverall = cached.shots.at(-1)?.overall ?? 0;
+  check(
+    '被缓存跳过的节点也计入已完成（进度条不会卡在 9x%）',
+    cachedOverall > 0 && cachedOverall < 100,
+    `overall=${cachedOverall}`,
+  );
+  cached.push({ type: 'executing', data: { prompt_id: 'p_cached', node: null } });
+  check('缓存任务跑完照样收在 100%', cached.shots.at(-1)?.overall === 100);
 
   // ── 提示词整理（手动按钮；换行/句号/行尾逗号一律不动） ──────────────────
   section('提示词整理');

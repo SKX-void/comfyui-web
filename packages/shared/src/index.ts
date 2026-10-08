@@ -211,9 +211,14 @@ export type JobStatus =
   | 'canceled';
 
 export interface JobProgress {
+  /** 当前节点内部的步数（采样那种）；没有进度事件的节点为 0 */
   value: number;
   max: number;
   node?: string | null;
+  /** 当前节点在干什么（人话，由服务端的执行计划给出；见 anima-plus 的 server/jobs/plan.ts） */
+  label?: string | null;
+  /** **整条工作流**的总进度 0~100（不是当前节点那一段） */
+  overall?: number;
 }
 
 export interface JobAsset {

@@ -139,7 +139,7 @@ SSE 是**连接即发 snapshot**，所以断线重连不需要回放历史；终
 
 1. 把新工作流（ComfyUI 的 **API 格式**，不是界面导出的 workflow 格式）放到
    `plugins/anima-example/workflow.json`；
-2. 重启宿主。绑定是推导的，只要节点类型是上面那套，一行代码都不用改；
+2. 重新构建（`pnpm build:plugins`）后在设置页点一次「重新扫描插件目录」（D20）；绑定是推导的，只要节点类型是上面那套，一行代码都不用改；
 3. 若新图里没有 `LatentRotate` / `LoraLoader`，对应表单项会自动隐藏
    （`hasRotateNode` / `hasLoraNode`）。
 

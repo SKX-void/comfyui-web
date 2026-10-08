@@ -9,7 +9,7 @@ A lightweight frontend and workflow plugin host for ComfyUI: wrap a workflow in 
 
 ## Why
 
-In the agent era, turning a ComfyUI workflow into a frontend page no longer needs to be slow or expensive. Once a workflow is built it rarely changes; the real work is generating images. Wrapping the workflow in a web page that calls the API lets an AI add auxiliary features far more easily than modifying ComfyUI plugins. As a bonus, the Vue 3 single-page shell also solves the loading problems ComfyUI has on weak and mobile browsers. The original architecture notes are in [架构思路.md](./架构思路.md) (Chinese).
+In the agent era, turning a ComfyUI workflow into a frontend page no longer needs to be slow or expensive. Once a workflow is built it rarely changes; the real work is generating images. Wrapping the workflow in a web page that calls the API lets an AI add auxiliary features far more easily than modifying ComfyUI plugins. As a bonus, the Vue 3 single-page shell also solves the loading problems ComfyUI has on weak and mobile browsers. The original architecture notes are archived at [docs/archive/架构思路.md](docs/archive/架构思路.md) (Chinese, historical).
 
 ## Architecture
 
@@ -55,7 +55,7 @@ ComfyUI can export a workflow as API-format JSON (pictured above). Hand that JSO
 | Topic | Read |
 | --- | --- |
 | How to run, install and write a plugin, directory conventions | **[docs/README.md](docs/README.md)** (the entry point) |
-| Architecture and decisions (D1–D21), plugin contract, handle API | [docs/architecture.md](docs/architecture.md) |
+| Architecture and decisions (D1–D26), plugin contract, handle API | [docs/architecture.md](docs/architecture.md) |
 | Which of the many config files belongs to which layer, who may edit, what is committed | [docs/config.md](docs/config.md) |
 | Directory-style plugins (`tabs/`): usage and hot-reload behavior | [tabs/README.md](tabs/README.md) |
 | Settings and internal structure of a plugin | the `README.md` inside that plugin |
@@ -66,6 +66,6 @@ ComfyUI can export a workflow as API-format JSON (pictured above). Hand that JSO
 ## Verify
 
 ```bash
-pnpm verify          # typecheck + build + smoke; logs and artifacts in .cache/verify/
+pnpm verify          # typecheck → isolation → smoke → build → tabs-sync → contract; logs in .cache/verify/
 pnpm -r typecheck
 ```

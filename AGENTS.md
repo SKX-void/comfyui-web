@@ -69,6 +69,13 @@ pnpm -r typecheck
   别用"构建期拷贝插件"之类的做法破坏它。
 - 前端共享代码放 `packages/shared`（纯类型/常量）。
 
+## 工程实践（模块化）
+
+- **单个源文件 ≤ 300 行**：手写 TS 源码（`apps/*/src/`、`packages/shared/src/`、`plugins/*/src/`、`plugins/*/server/`）
+  超了就拆成多个文件，按什么维度拆由你自己判断。
+- 不约束：测试与脚本（`scripts/`、`*-test.ts`、`plugins/*/scripts/`）、构建产物（`lib/`、`tabs/`、`dist/`）、vendor。
+- 既有超 300 行的文件不要求立刻重构，**动到它时顺手拆**；新写的文件直接守住这条。
+
 ## 文档与注释纪律（这一条就是为了让下一个智能体少读几千行）
 
 - `docs/` 只放**现行**结论：`README.md`（索引）· `architecture.md`（设计与决策）· `config.md`（配置分层）。

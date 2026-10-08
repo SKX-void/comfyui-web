@@ -10,51 +10,20 @@
  * 变成连接数上限，缩略图和历史刷新就都排不上了。
  *
  * 提交要用表单值和"存快照"，这两样在 `useTemplate()` 手里，所以从外面传进来（App.vue 接线）。
+ * 队列行的形状与"事件 → 该做什么"的翻译在 `jobs-stream.ts`（纯函数，本文件只接线 + 副作用）。
  */
 import { computed, ref, type Ref } from 'vue';
-import type { Job, JobProgress, TemplateDetail } from '@comfyui-web/shared';
+import type { Job, TemplateDetail } from '@comfyui-web/shared';
 import { api, apiUrl, assetUrl, subscribeJobs, type JobStreamEvent } from '@/api';
 import { drawSeed, normalizeValues, type FieldModel } from '@/form';
-
-/** 终态：到了就从队列里挪走，只剩历史表里那一行 */
-const TERMINAL = new Set(['succeeded', 'failed', 'canceled']);
-
-/** 队列里的一条在途任务（进度卡按它渲染） */
-export interface QueueJob {
-  jobId: string;
-  promptId: string | null;
-  status: string;
-  progress: JobProgress | null;
-  /** 0~100，由 progress 算出（不单独维护，免得两处漂移） */
-  percent: number;
-  error: string | null;
-  createdAt: string;
-  /** 本次提交时定下的种子（界面回显；服务端渲染时还会再抽一次兜底，见 templates/render.ts） */
-  seed: number | null;
-}
-
-/** 队列行：多两个给界面用的派生字段 */
-export interface QueueRow extends QueueJob {
-  /** 中文状态（进度卡的 pill 用它，所以别把英文状态直接摊给用户） */
-  label: string;
-  /** 排队位次（1 起）；已经在跑的是 null */
-  waiting: number | null;
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  created: '已创建',
-  queued: '排队中',
-  running: '执行中',
-};
-
-export function statusLabel(status: string): string {
-  return STATUS_LABEL[status] ?? status;
-}
-
-function percentOf(progress: JobProgress | null): number {
-  if (!progress || !progress.max) return 0;
-  return Math.min(100, Math.round((progress.value / progress.max) * 100));
-}
+import {
+  mergeJob,
+  reduceStreamEvent,
+  statusLabel,
+  TERMINAL,
+  type QueueJob,
+  type QueueRow,
+} from './jobs-stream';
 
 export function useJobs(
   pushLog: (line: string) => void,
@@ -78,26 +47,8 @@ export function useJobs(
 
   // ---- 队列维护 ----------------------------------------------------------
 
-  /** 合并一条任务状态；队列里没有就按"新任务"补进来（别的浏览器标签提交的也会这么出现） */
   function applyJob(jobId: string, patch: Partial<QueueJob>): void {
-    const at = queue.value.findIndex((q) => q.jobId === jobId);
-    const base: QueueJob = at === -1
-      ? {
-          jobId,
-          promptId: null,
-          status: 'created',
-          progress: null,
-          percent: 0,
-          error: null,
-          createdAt: new Date().toISOString(),
-          seed: null,
-        }
-      : queue.value[at]!;
-    const merged: QueueJob = { ...base, ...patch };
-    merged.percent = percentOf(merged.progress);
-    const rest = queue.value.filter((q) => q.jobId !== jobId);
-    // 按提交时间排 = 队列视图的顺序（快照不带时间时用到达顺序兜底，见下面的 createdAt）
-    queue.value = [...rest, merged].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    queue.value = mergeJob(queue.value, jobId, patch);
   }
 
   function dropJob(jobId: string): void {
@@ -109,71 +60,30 @@ export function useJobs(
   }
 
   function onStreamEvent(evt: JobStreamEvent): void {
-    const { jobId, type, data } = evt;
-    const known = hasJob(jobId);
-    switch (type) {
-      case 'snapshot': {
-        const patch: Partial<QueueJob> = {
-          status: String(data.status ?? 'created'),
-          progress: (data.progress as JobProgress | null) ?? null,
-          error: (data.error as { message?: string } | null)?.message ?? null,
-        };
-        // 服务端带上了提交时间：刷新页面后队列顺序不会乱（不带就用"现在"兜底）
-        const createdAt = asText(data.createdAt);
-        if (createdAt) patch.createdAt = createdAt;
-        applyJob(jobId, patch);
-        break;
+    for (const effect of reduceStreamEvent(evt, hasJob(evt.jobId))) {
+      switch (effect.kind) {
+        case 'patch':
+          applyJob(effect.jobId, effect.patch);
+          break;
+        case 'log':
+          pushLog(effect.line);
+          break;
+        case 'assets':
+          // SSE 是绕开 api 层的第二条数据入口，产出图 URL 同样要改写到反代前缀下
+          recentAssets.value = effect.assets.map((a) => ({ ...a, url: assetUrl(a.url) }));
+          recentJobId.value = effect.jobId;
+          break;
+        case 'error':
+          errorMessage.value = effect.message;
+          break;
+        case 'drop':
+          dropJob(effect.jobId);
+          break;
+        case 'refresh':
+          void refreshHistory();
+          break;
       }
-      case 'queued':
-        applyJob(jobId, { status: 'queued', promptId: asText(data.promptId) });
-        break;
-      case 'started':
-        applyJob(jobId, { status: 'running' });
-        break;
-      case 'progress':
-        applyJob(jobId, {
-          status: 'running',
-          progress: {
-            value: Number(data.value ?? 0),
-            max: Number(data.max ?? 0),
-            node: (data.node as string | null) ?? null,
-          },
-        });
-        break;
-      case 'node':
-        pushLog(`${jobId.slice(0, 12)}… 执行节点 ${String(data.node)}`);
-        break;
-      case 'completed': {
-        if (!known) return; // 已经不在队列里（本地已清 / 历史里的旧任务），别凭空长出来
-        const raw = (data.assets as Array<{ assetId: string; url: string; filename: string }>) ?? [];
-        // SSE 是绕开 api 层的第二条数据入口，产出图 URL 同样要改写到反代前缀下
-        recentAssets.value = raw.map((a) => ({ ...a, url: assetUrl(a.url) }));
-        recentJobId.value = jobId;
-        pushLog(`完成 ${jobId.slice(0, 12)}… · 产出 ${raw.length} 张`);
-        dropJob(jobId);
-        void refreshHistory();
-        break;
-      }
-      case 'error': {
-        if (!known) return;
-        const message = String(data.message ?? '执行失败');
-        errorMessage.value = message;
-        pushLog(`失败 ${jobId.slice(0, 12)}…: ${message}`);
-        dropJob(jobId);
-        void refreshHistory();
-        break;
-      }
-      case 'canceled':
-        if (!known) return;
-        pushLog(`已取消 ${jobId.slice(0, 12)}…`);
-        dropJob(jobId);
-        void refreshHistory();
-        break;
     }
-  }
-
-  function asText(value: unknown): string | null {
-    return typeof value === 'string' && value ? value : null;
   }
 
   /**

@@ -9,7 +9,7 @@
 工作流一旦搭建完毕，一般不会经常更改，此事主要精力都聚焦在ai出图上。
 将工作流编写为前端页面，走api调用，ai就可以轻松增加各种辅助功能，这比编写改动ComfyUI插件轻松多了。
 意外之喜，项目结构使用Vue3构建为前端单网页应用，解决了手机等弱主机浏览器环境下，ComfyUI难以加载的问题。
-所以我设计了以下软件架构，并让ai负责实现。我的架构思路见[架构思路](./架构思路.md)。
+所以我设计了以下软件架构，并让ai负责实现。我的架构思路见[架构思路（历史稿）](./docs/archive/架构思路.md)。
 
 ## 介绍
 
@@ -61,7 +61,7 @@ ComfyUI 可以把工作流导出为 API 格式 JSON（如上图）。把它交�
 | 想知道                                           | 看                                                                |
 | ------------------------------------------------ | ----------------------------------------------------------------- |
 | 怎么跑、怎么装插件、怎么自己写一个插件、目录约定 | **[`docs/README.md`](docs/README.md)**（唯一入口）                |
-| 架构与决策（D1–D21）、插件契约、句柄 API         | [`docs/architecture.md`](docs/architecture.md)                    |
+| 架构与决策（D1–D26）、插件契约、句柄 API         | [`docs/architecture.md`](docs/architecture.md)                    |
 | 十几个"配置"文件分别属于哪一层、谁能改、入不入库 | [`docs/config.md`](docs/config.md)                                |
 | 目录型插件（`tabs/`）怎么用、热到什么程度        | [`tabs/README.md`](tabs/README.md)                                |
 | 某个插件的设置项与内部结构                       | 那个插件自己的 `README.md`                                        |
@@ -73,6 +73,6 @@ ComfyUI 可以把工作流导出为 API 格式 JSON（如上图）。把它交�
 ## 自检
 
 ```bash
-pnpm verify          # typecheck + 构建 + 冒烟；日志与产物在 .cache/verify/
+pnpm verify          # typecheck → isolation → smoke → build → tabs-sync → contract；日志与产物在 .cache/verify/
 pnpm -r typecheck
 ```
