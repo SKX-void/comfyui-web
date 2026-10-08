@@ -403,7 +403,8 @@ async function main(): Promise<void> {
 
   // ── 显存护栏（最关键） ──────────────────────────────────────────────────
   section('显存护栏');
-  check('步数越界被拒绝', /不能大于 24/.test(errMessage(() => renderTemplate(tpl, { steps: 999 })) ?? ''));
+  // 上限写死在断言里就会跟着漂：直接引用 MAX_STEPS
+  check('步数越界被拒绝', new RegExp('不能大于 ' + MAX_STEPS).test(errMessage(() => renderTemplate(tpl, { steps: 999 })) ?? ''));
   check('尺寸越界被拒绝', /不能大于 1216/.test(errMessage(() => renderTemplate(tpl, { width: 99999 })) ?? ''));
 
   const nineLoras = Array.from({ length: MAX_LORAS + 1 }, (_, i) => ({
