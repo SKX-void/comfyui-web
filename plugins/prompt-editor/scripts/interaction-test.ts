@@ -1594,6 +1594,16 @@ check(
 check('拖完顺序真的变了（服务端记下后再读回来）', rowKeys()[0] === orderBefore[3], rowKeys().join(' | '));
 check('第一次拖是"整页铺序号"，提示如实说出来', (pick('.pe-hint')?.textContent ?? '').includes('重排了序号'), pick('.pe-hint')?.textContent ?? '');
 
+// 拖完要重新拉一次列表 —— 「读取中…」**必须待在头部常驻**（只切 visibility）：
+// 它原来是列表里的第一行，出现/消失就把下面所有行顶下去再弹回来（布局抖一下）
+const loadingNode = pick('.pe-panel-head .pe-lib-loading');
+check(
+  '「读取中…」在头部、不在列表里',
+  loadingNode !== null && pick('.pe-lib-list .pe-lib-loading') === null,
+  loadingNode?.className,
+);
+check('闲着的时候它只是占位（不显示，但盒子一直在）', loadingNode?.className === 'pe-lib-loading', loadingNode?.className);
+
 // 第二次拖（序号已经铺过了）= 只写一行，提示不该再说"重排了序号"
 const seededKeys = rowKeys();
 dispatch(libRow(seededKeys[2] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('dragstart', { bubbles: true }));
@@ -1603,6 +1613,10 @@ await nextTick();
 dispatch(libRow(seededKeys[0] as string)?.querySelector('.pe-lib-line') as Element, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
 await settleLib();
 check('铺过序号之后再拖：提示就是「顺序已记下」（不喊重排）', (pick('.pe-hint')?.textContent ?? '') === '顺序已记下', pick('.pe-hint')?.textContent ?? '');
+check(
+  '再拉一次数据后它还是同一个节点（只切 class，不增删 → 不动布局）',
+  pick('.pe-panel-head .pe-lib-loading') === loadingNode,
+);
 
 // 拖回原位 = 不发请求（不然随手一点就写一整页）
 const markNoop = calls.length;
