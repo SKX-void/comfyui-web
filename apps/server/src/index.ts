@@ -57,6 +57,10 @@ async function main(): Promise<void> {
   const app = Fastify({
     loggerInstance: logger,
     bodyLimit: 4 * 1024 * 1024,
+    // 插件的 SSE（任务事件流）是 `reply.hijack()` 后永不结束的响应。fastify 5 的
+    // forceCloseConnections 默认是 'idle'（只关空闲连接），这类**活跃**请求会让
+    // app.close() 永不返回 —— 退出时表现为"打完中断后挂住"。见下面的 shutdown。
+    forceCloseConnections: true,
   }) as unknown as FastifyInstance;
 
   const host = await bootHost({
@@ -89,12 +93,40 @@ async function main(): Promise<void> {
     );
   }
 
+  /**
+   * 退出：先卸插件树，再关 HTTP。
+   *
+   * 两条都是踩过的坑：
+   * - 信号会来好几次（连按 Ctrl+C、或 cmd 的 "Terminate batch job"）：重复进入会让
+   *   dispose/close 并发跑，所以第二次信号直接强退。
+   * - 任何一步都可能卡住（SSE 那条见 Fastify 的 forceCloseConnections），所以兜一个超时：
+   *   用户按了 Ctrl+C 就不该再等。
+   */
+  const SHUTDOWN_TIMEOUT_MS = 5_000;
+  let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) {
+      logger.warn({ signal }, '再次收到退出信号，强制退出');
+      process.exit(0);
+    }
+    shuttingDown = true;
     logger.info({ signal }, '收到退出信号，正在卸载');
+
+    // 兜底：正常路径会 clearTimeout，这里只是"卡住也不吊着用户"。
+    // unref 是为了它自己不成为活锁——真卡住时是别的句柄撑着事件循环。
+    const hardExit = setTimeout(() => {
+      logger.warn({ timeoutMs: SHUTDOWN_TIMEOUT_MS }, '卸载超时，强制退出');
+      process.exit(0);
+    }, SHUTDOWN_TIMEOUT_MS);
+    hardExit.unref();
+
     try {
       await host.dispose();
       await app.close();
+    } catch (err) {
+      logger.warn({ err: String(err) }, '卸载时出错');
     } finally {
+      clearTimeout(hardExit);
       process.exit(0);
     }
   };
