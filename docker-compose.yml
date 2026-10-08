@@ -40,9 +40,10 @@ services:
       TZ: Asia/Shanghai # 日志时间用的时区（系统级，不属于应用配置）
       NODE_ENV: production # 生产日志走 JSON（关掉 pino-pretty 那条可选路径）
       # 日志的两个临时旋钮（见 docs/config.md §1）：级别 fatal/error/warn/info/debug/trace/silent，
-      # 格式 default | json。写错不致命 —— 回落默认值并在启动日志里 warn。
+      # 格式 default | text | json（text = 宿主自带、不依赖 pino-pretty，容器里推荐）。
+      # 请求级日志在 debug；写错不致命 —— 回落默认值并在启动日志里 warn。
       # COMFYUI_WEB_LOG_LEVEL: debug
-      # COMFYUI_WEB_LOG_FORMAT: json
+      # COMFYUI_WEB_LOG_FORMAT: text
       REPO_ROOT: / # 三个挂载点都在根上：tabsDir=/tabs、dataDir=/data
 
     volumes:

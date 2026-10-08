@@ -57,9 +57,13 @@
 
 **控制台日志的两个环境变量**（都只临时覆盖、不写回文件）：
 
-- `COMFYUI_WEB_LOG_LEVEL` —— 覆盖 `logLevel`。想看请求级细节就 `debug`，想安静就 `warn` / `silent`。
-- `COMFYUI_WEB_LOG_FORMAT` = `default` | `json`。`default` 是"能 pretty 就 pretty"（开发态且 `pino-pretty`
-  可解析；产物态解析不到，就是 JSON）；`json` 强制一行一条 JSON（喂采集器，也省掉 pretty 那个 worker）。
+- `COMFYUI_WEB_LOG_LEVEL` —— 覆盖 `logLevel`（默认 `info`）。**请求级日志（`incoming request` /
+  `request completed`）在 `debug`**，所以 `info` 只剩下启动信息与失败；想看每个请求就 `debug`，想安静就 `warn` / `silent`。
+- `COMFYUI_WEB_LOG_FORMAT` = `default` | `text` | `json`：
+  - `default` —— "能 pretty 就 pretty"：开发态且 `pino-pretty` 可解析就用它，否则 JSON（产物态/容器里就是这一支）。
+  - `text` —— 宿主**自带**的文本格式（`[15:33:25] WARN: ...  key=value`，错误另起一段缩进栈）。
+    **不依赖 `pino-pretty`**，所以 docker 里也能拿到给人看的日志 —— 加它的理由就是这个。
+  - `json` —— 强制一行一条 JSON（喂采集器，也省掉 pretty 那个 worker）。
 
 **值不合法不抛**：回落默认值并在启动日志里 warn 一次 —— pino 遇到不认识的级别会直接 throw
 （`default level:verbose must be included in custom levels`），一个拼错的级别不该让宿主起不来。
@@ -182,7 +186,7 @@
 | 改 tab 的设置项 | 在该插件自己的页面里改 —— 它写进自己的空间并请求宿主 `POST /api/tabs/:id/reload`；宿主设置页只读 |
 | 给 tab 换配置界面 | 改 `package.json` 的 `plugin.settings[]`（形状，宿主清单端点下发）+ 插件自己的表单；运行期默认与范围仍在插件自己的 `config.ts` |
 | 临时换端口起第二个实例 | `COMFYUI_WEB_PORT=18087 pnpm start`（env，不改文件） |
-| 看 debug 日志 / 把日志喂采集器 | `COMFYUI_WEB_LOG_LEVEL=debug`、`COMFYUI_WEB_LOG_FORMAT=json`（env，不改文件；见 §1） |
+| 看 debug 日志 / 把日志喂采集器 / 容器里要人看的日志 | `COMFYUI_WEB_LOG_LEVEL=debug`、`COMFYUI_WEB_LOG_FORMAT=json\|text`（env，不改文件；见 §1） |
 | 重置某个插件的运行期数据 | 删 `data/plugins/<包名>/` |
 | 改插件的可配项 / 默认值 | 设置项清单与表单默认在 `plugins/<pkg>/package.json`；运行期默认与范围在 `plugins/<pkg>/server/config.ts` |
 
