@@ -113,6 +113,9 @@ const knownCategories = computed(() => data.value.categories.map((one) => one.na
       <header class="pe-panel-head">
         <strong>词库</strong>
         <span class="pe-lib-stat">{{ headerLabel }}</span>
+        <!-- 「读取中…」原来在列表第一行：拖完一行要重新拉数据，那一行插进去就把下面全顶下去，
+             松手后列表跳一下。挪到头部，并且**常驻占位**（只切 visibility）—— 出现/消失都不动布局 -->
+        <span class="pe-lib-loading" :class="{ on: loading }">读取中…</span>
         <button class="pe-close" title="关闭" @click="emit('close')">×</button>
       </header>
 
@@ -174,10 +177,10 @@ const knownCategories = computed(() => data.value.categories.map((one) => one.na
 
         <div class="pe-lib-list">
           <p v-if="error !== ''" class="pe-error">{{ error }}</p>
-          <p v-if="loading" class="pe-lib-tip">读取中…</p>
 
-          <!-- 空库：给一条"不用自己收集 CSV"的路。导入是手动动作，不在这里自动跑 -->
-          <div v-else-if="data.counts.total === 0" class="pe-lib-empty">
+          <!-- 空库：给一条"不用自己收集 CSV"的路。导入是手动动作，不在这里自动跑。
+               加载中不画空态：打开面板的首帧 `data` 还是空表，画出来就是一闪的"词库是空的" -->
+          <div v-if="!loading && data.counts.total === 0" class="pe-lib-empty">
             <p class="pe-lib-tip">词库还是空的。手改译文、或在工作区点译文格上的「机」，都会存进这里。</p>
             <template v-if="bundled !== null && bundled.available">
               <p class="pe-lib-tip">
@@ -191,7 +194,7 @@ const knownCategories = computed(() => data.value.categories.map((one) => one.na
             <p v-else class="pe-lib-tip">产物里没有内置机翻表（assets/danbooru-zh.csv）—— 先 pnpm build:plugins。</p>
           </div>
 
-          <p v-else-if="data.tags.length === 0" class="pe-lib-tip">
+          <p v-else-if="!loading && data.tags.length === 0" class="pe-lib-tip">
             没有匹配的条目。手改译文、或在工作区点译文格上的「机」，都会存进这里。
           </p>
 
@@ -294,6 +297,18 @@ const knownCategories = computed(() => data.value.categories.map((one) => one.na
 .pe-lib-stat {
   font-size: 11px;
   color: var(--muted, #9aa3b2);
+}
+
+/* 常驻占位：文字一直在，只切 visibility —— 宽度天然留出来，出现/消失都不挤旁边的计数 */
+.pe-lib-loading {
+  font-size: 11px;
+  color: var(--accent, #6ea8fe);
+  white-space: nowrap;
+  visibility: hidden;
+}
+
+.pe-lib-loading.on {
+  visibility: visible;
 }
 
 .pe-lib-bar {
