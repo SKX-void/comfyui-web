@@ -20,6 +20,7 @@
 | `data/host.json`（部署段） | 宿主启动：`apps/server/src/config.ts` → `loadHostConfig()` | 部署 | ✅ 改完要重启 | ❌（本机状态；不存在时宿主写默认值） |
 | `docker-compose.yml` | `docker compose` | 部署 | ✅ | ✅ |
 | `nginx.conf` | 外部/容器 nginx（**conf.d 片段**） | 部署 | ✅ | ✅ |
+| `apps/web/public/home.md` → `dist/app/web/home.md` | 外壳 `WelcomeView.vue`（客户端 marked 渲染）；**后端不参与** | 包（外壳静态资产，D25） | ✅ 改产物里那份、刷新浏览器即生效（`no-store`；docker 改宿主机文件即可 —— `/app` 只读也能读） | ✅ |
 | `pnpm-workspace.yaml`（根） | pnpm（workspace + `storeDir`） | 环境 | ✅ | ✅ |
 | `data/host.json`（偏好段：`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals` / `disabled`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写；手改也行，重扫后生效） | ❌ |
 | `data/plugins/<包名>/…` | 各插件自己（如 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
@@ -51,10 +52,19 @@
 | `port` | `8087` | 监听端口（宿主是唯一后端） | `COMFYUI_WEB_PORT` |
 | `dataDir` | `data` | 唯一可写卷：宿主配置 `host.json` + `plugins/<包名>/`（也在文件外 —— 它管着这个文件在哪儿） | `COMFYUI_WEB_DATA_DIR` |
 | `tabsDir` | `tabs` | tab 的根：每个子目录一个插件，**目录名即 id**（见 §6） | — |
-| `logLevel` | `info` | pino 级别 | `COMFYUI_WEB_LOG_LEVEL` |
+| `logLevel` | `info` | pino 级别：`fatal` / `error` / `warn` / `info` / `debug` / `trace` / `silent` | `COMFYUI_WEB_LOG_LEVEL` |
 | `webDir` | 源码态 `<仓库根>/dist/app/web`；打包态 `<server.mjs 所在目录>/web` | 宿主前端产物目录（存在才托管） | — |
 
-另有 `REPO_ROOT`（显式指定仓库根，测试用）与 `NODE_ENV=production`（关掉 `pino-pretty`，退回 JSON 日志）。
+**控制台日志的两个环境变量**（都只临时覆盖、不写回文件）：
+
+- `COMFYUI_WEB_LOG_LEVEL` —— 覆盖 `logLevel`。想看请求级细节就 `debug`，想安静就 `warn` / `silent`。
+- `COMFYUI_WEB_LOG_FORMAT` = `default` | `json`。`default` 是"能 pretty 就 pretty"（开发态且 `pino-pretty`
+  可解析；产物态解析不到，就是 JSON）；`json` 强制一行一条 JSON（喂采集器，也省掉 pretty 那个 worker）。
+
+**值不合法不抛**：回落默认值并在启动日志里 warn 一次 —— pino 遇到不认识的级别会直接 throw
+（`default level:verbose must be included in custom levels`），一个拼错的级别不该让宿主起不来。
+
+另有 `REPO_ROOT`（显式指定仓库根，测试用）与 `NODE_ENV=production`（= `default` 格式下的 JSON 分支）。
 
 **产物态（D18）**：`dist/` 自成一体 —— `repoRoot` = `dist/`，于是 `tabsDir = dist/tabs`、`dataDir = dist/data`、
 `webDir = dist/app/web`。整包搬走后无需任何配置；要外挂卷/端口再给 `REPO_ROOT`、`COMFYUI_WEB_DATA_DIR`。
@@ -163,6 +173,7 @@
 | 想干的事 | 改哪里 |
 |---|---|
 | 换宿主端口 | `data/host.json` 的 `port` + `docker-compose.yml` healthcheck 的 URL + `nginx.conf` 的 upstream，然后重启 |
+| 改首页说明文案 | 改 `apps/web/public/home.md`（产物里是 `dist/app/web/home.md`）—— 刷新浏览器即生效，不用重构建、不用重启（D25） |
 | 统一各插件的 ComfyUI 地址 | 设置页的"统一 ComfyUI 地址"（写 `data/host.json` 的偏好段）—— 它只是**只读默认值**，宿主不下发；**今天没有插件读它**，等于一份备忘录 |
 | 给 tab 换个顶栏显示名 | 设置页「标签页」里的别名输入框（写 `data/host.json` 的 `tabAliases`；顶栏品牌链接的名字是 `homeLabel`）—— 只改外壳显示，插件自己的 title 不动，也不用重挂 |
 | 给某个插件单独地址 | 在那个插件自己的设置界面里改（值存在 `data/plugins/<包名>/`） |
@@ -171,6 +182,7 @@
 | 改 tab 的设置项 | 在该插件自己的页面里改 —— 它写进自己的空间并请求宿主 `POST /api/tabs/:id/reload`；宿主设置页只读 |
 | 给 tab 换配置界面 | 改 `package.json` 的 `plugin.settings[]`（形状，宿主清单端点下发）+ 插件自己的表单；运行期默认与范围仍在插件自己的 `config.ts` |
 | 临时换端口起第二个实例 | `COMFYUI_WEB_PORT=18087 pnpm start`（env，不改文件） |
+| 看 debug 日志 / 把日志喂采集器 | `COMFYUI_WEB_LOG_LEVEL=debug`、`COMFYUI_WEB_LOG_FORMAT=json`（env，不改文件；见 §1） |
 | 重置某个插件的运行期数据 | 删 `data/plugins/<包名>/` |
 | 改插件的可配项 / 默认值 | 设置项清单与表单默认在 `plugins/<pkg>/package.json`；运行期默认与范围在 `plugins/<pkg>/server/config.ts` |
 

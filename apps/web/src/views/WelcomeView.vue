@@ -1,9 +1,28 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
+import { marked } from 'marked';
+
+import { getText } from '../api';
 import { hostInfo, plugins, rescanTabs } from '../store';
+
+/**
+ * 首页说明来自 `public/home.md` —— 外壳把它当**静态资源**直接送出（生产态是
+ * `dist/app/web/home.md`），所以改产物里的那个文件、刷新浏览器就生效，不用重构建。
+ * 后端不参与这条链路：渲染（md → HTML）在 home 路由自己做。
+ */
+const doc = ref('');
+const docError = ref('');
 
 const scanBusy = ref(false);
 const scanNotice = ref('');
+
+onMounted(async () => {
+  try {
+    doc.value = await marked.parse(await getText('/home.md'));
+  } catch (err) {
+    docError.value = err instanceof Error ? err.message : String(err);
+  }
+});
 
 async function rescan(): Promise<void> {
   scanBusy.value = true;
@@ -25,12 +44,9 @@ async function rescan(): Promise<void> {
 
 <template>
   <div class="page">
-    <h2>宿主已就绪</h2>
-    <p class="muted">
-      这是一个只有框架的宿主：前端只提供 tab 挂载点与设置页，后端只提供路由挂载点与
-      <strong>按包名分配的插件文件空间</strong>（建库、写 JSON 都由插件自己决定）。
-      所有业务能力都来自插件。
-    </p>
+    <p v-if="docError" class="error">首页说明（/home.md）加载失败：{{ docError }}</p>
+    <!-- v-html 是刻意的：内容是部署者自己的 md（与宿主同权限），不是用户输入 -->
+    <div v-else class="doc" v-html="doc"></div>
 
     <div v-if="hostInfo" class="card">
       <div class="kv"><span>数据目录</span><code>{{ hostInfo.dataDir }}</code></div>
@@ -39,17 +55,11 @@ async function rescan(): Promise<void> {
       <div class="kv"><span>已登记插件</span><code>{{ plugins.length }}</code></div>
     </div>
 
-    <h3>装一个插件</h3>
-    <pre class="code">把编译好的目录放进 tabs/：tabs/&lt;id&gt;/{package.json,server.js,client.js}
-# 然后点下面的按钮（或 POST /api/tabs/rescan）—— 宿主不监听目录，只在你要求时扫描</pre>
     <p>
       <button :disabled="scanBusy" @click="rescan">
         {{ scanBusy ? '扫描中…' : '重新扫描插件目录' }}
       </button>
     </p>
     <p v-if="scanNotice" class="muted">{{ scanNotice }}</p>
-    <p class="muted">
-      装插件<strong>不需要重新构建宿主</strong> —— 宿主产物里既没有插件代码，也没有 Vue 本体。
-    </p>
   </div>
 </template>
