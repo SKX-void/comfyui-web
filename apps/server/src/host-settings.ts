@@ -42,6 +42,13 @@ export interface HostSettings {
   homeLabel: string;
   /** 被停用的插件 id（**要落盘**：重启后仍然停用；D21） */
   disabled: string[];
+  /**
+   * 常驻（切走不卸载）的插件 id。
+   *
+   * 是**宿主偏好**而不是插件自述：常驻的代价是内存与可能活着的 SSE 连接，该由用户在设置页
+   * 按插件拍板（D26）。默认空 = 每个 tab 切走就卸载，与历史行为逐字一致。
+   */
+  keepAlive: string[];
   globals: HostGlobals;
 }
 
@@ -55,6 +62,7 @@ export const DEFAULT_HOST_SETTINGS: HostSettings = {
   tabAliases: {},
   homeLabel: '',
   disabled: [],
+  keepAlive: [],
   globals: { ...EMPTY_HOST_GLOBALS },
 };
 
@@ -155,6 +163,7 @@ export function sanitizeHostSettings(value: unknown): HostSettings {
     tabAliases: sanitizeAliasMap(source.tabAliases),
     homeLabel: sanitizeAlias(source.homeLabel),
     disabled: sanitizeIdList(source.disabled),
+    keepAlive: sanitizeIdList(source.keepAlive),
     globals: sanitizeHostGlobals(source.globals),
   };
 }
@@ -163,8 +172,8 @@ export function sanitizeHostSettings(value: unknown): HostSettings {
 export function settingsView(
   settings: HostSettings,
 ): Omit<HostSettings, 'host' | 'port' | 'logLevel' | 'tabsDir'> {
-  const { tabOrder, home, tabAliases, homeLabel, disabled, globals } = settings;
-  return { tabOrder, home, tabAliases, homeLabel, disabled, globals };
+  const { tabOrder, home, tabAliases, homeLabel, disabled, keepAlive, globals } = settings;
+  return { tabOrder, home, tabAliases, homeLabel, disabled, keepAlive, globals };
 }
 
 export interface LoadedHostSettings {

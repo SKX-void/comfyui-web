@@ -140,6 +140,25 @@
   width: 130px;
 }
 
+/*
+ * 常驻开关：全局输入框规则给的宽度会把复选框撑成一条，这里按行内窄控件收回来
+ * （与上面的别名输入框同一个原因）。
+ */
+.tab-order .keep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tab-order .keep input {
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+
 /* 品牌名输入：标签与输入框同行，其余按全局输入框规则 */
 .home-label {
   display: flex;

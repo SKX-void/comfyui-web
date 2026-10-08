@@ -6,7 +6,7 @@
  * 参数基底一律取自对方「最后一次状态」（last-state.json）—— 对方没跑过一次就没有基底，
  * 这里不给猜模板默认值，直接把原因写出来（跨插件依赖是特别允许的，但边界要看得见）。
  */
-import { computed, onMounted, watch } from 'vue';
+import { computed, onActivated, onMounted, watch } from 'vue';
 
 import { useCrossCall } from '../composables/useCrossCall';
 
@@ -29,6 +29,9 @@ const hint = computed(() => {
 const link = computed(() => `/w/${target.value?.id ?? ''}`);
 
 onMounted(refresh);
+// 开了常驻（设置页的「切走不卸载」，D26）后 onMounted 不再随切 tab 触发，而下游可能已经被停用/卸载：
+// 每次切回来重探一次（三个 GET，很便宜），行为和"切走即卸载"时逐字一致
+onActivated(refresh);
 watch(selectedId, refresh);
 </script>
 

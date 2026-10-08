@@ -12,7 +12,7 @@ ComfyUI 的**轻前端 + 工作流插件宿主**。三个概念：
 | 要改什么 | 先看 |
 |---|---|
 | 跑起来 / 装插件 / 写插件 / 目录约定 | `docs/README.md` |
-| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D21 | `docs/architecture.md` §4 / §5 / §2 |
+| 插件契约、句柄（`ctx.routes`/`ctx.space`）、决策 D1–D26 | `docs/architecture.md` §4 / §5 / §2 |
 | 某个配置该写进哪个文件、入不入库 | `docs/config.md`（五层表） |
 | 插件源码放哪、产物怎么来（`plugins/*` → `tabs/*`） | `docs/architecture.md` §4.1 + `tabs/README.md` |
 | 从 0 写一个插件（路由/存储/前端 tab/构建/调 ComfyUI） | `plugins/README.md` |
@@ -62,6 +62,9 @@ pnpm -r typecheck
 - **profile 机制已删除（D19）**：`profiles/`、Include 装配、清单落盘、契约 patch 层、`pnpm plugin`、
   `fallback`/`following` 全没了 —— `tabs/` 是唯一的插件来源，别在这上面加新东西。
   统一 ComfyUI 地址只剩「只读默认值」一条语义（`data/host.json` 的 `globals`）。
+- **标签页常驻是用户偏好（D26）**：`data/host.json` 偏好段的 `keepAlive`（设置页每个插件的「切走不卸载」，
+  默认关 = 切走即卸载）。插件**不许假设切 tab 会触发 `onUnmounted`** —— 长命资源（SSE、定时器）用
+  `onActivated` / `onDeactivated` 按可见性决定去留。
 - 装插件 / 加 tab **不需要重新构建宿主**（`sha256(dist/app/**)` 前后逐字节一致）；这条是方案的核心主张，
   别用"构建期拷贝插件"之类的做法破坏它。
 - 前端共享代码放 `packages/shared`（纯类型/常量）。

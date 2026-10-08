@@ -7,7 +7,7 @@
 | **随包发布** | 插件自带的事实：默认值、合法范围、表单字段 | 插件作者，跟版本走 | `plugins/*/package.json` 的 `plugin.settings[]`、`plugins/*/server/config.ts` |
 | **随部署变化** | 这台装置怎么跑：端口、路径 | 部署的人；宿主首次启动也会写默认值 | `data/host.json`（部署段，不存在时自动生成）、`docker-compose.yml`、`nginx.conf` |
 | **随机器变化** | 这批部署装了哪些插件、各配了什么（本机状态） | 你 / 插件自己的设置界面 | `tabs/<id>/`（装了哪些）、`data/plugins/<包名>/`（各配了什么） |
-| **随用户变化** | 运行期偏好：tab 顺序、默认首页、tab 显示别名、统一地址、插件启停 | 设置页，随时改 | `data/host.json`（偏好段，含 `disabled: []` —— 启停是宿主的事实，D21）、`data/plugins/<包名>/` |
+| **随用户变化** | 运行期偏好：tab 顺序、默认首页、tab 显示别名、统一地址、插件启停、哪些 tab 常驻（切走不卸载） | 设置页，随时改 | `data/host.json`（偏好段，含 `disabled: []` —— 启停是宿主的事实，D21；含 `keepAlive: []` —— 常驻是用户拍板的开销，D26）、`data/plugins/<包名>/` |
 | **随目录** | 工作流插件：整个目录就是一个插件（自包含、无 `node_modules`） | 你，往 `tabs/` 丢目录 | `tabs/<id>/`（**不入库**：编译产物，见 §6）、配置与状态自持在 `data/plugins/<包名>/` |
 
 层与层的边界是锁过的：D6（§4.2 / §6）、D15/D16/D19、D21（启停归宿主、配置归插件）。**不要跨层放值** ——
@@ -22,7 +22,7 @@
 | `nginx.conf` | 外部/容器 nginx（**conf.d 片段**） | 部署 | ✅ | ✅ |
 | `apps/web/public/home.md` → `dist/app/web/home.md` | 外壳 `WelcomeView.vue`（客户端 marked 渲染）；**后端不参与** | 包（外壳静态资产，D25） | ✅ 改产物里那份、刷新浏览器即生效（`no-store`；docker 改宿主机文件即可 —— `/app` 只读也能读） | ✅ |
 | `pnpm-workspace.yaml`（根） | pnpm（workspace + `storeDir`） | 环境 | ✅ | ✅ |
-| `data/host.json`（偏好段：`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals` / `disabled`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写；手改也行，重扫后生效） | ❌ |
+| `data/host.json`（偏好段：`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals` / `disabled` / `keepAlive`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写、`keepAlive` 由「切走不卸载」勾选写；手改也行，重扫后生效） | ❌ |
 | `data/plugins/<包名>/…` | 各插件自己（如 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
 | `data/plugins/<包名>/last-state.json` | anima-plus 自己（`plugins/anima-plus/server/state.ts`；`GET/PUT /api/p/anima-plus/api/state`）；prompt-editor 的跨域调用也**用同一条 PUT** 写它（D24，见 §14.6） | 运行期 | ✅ 纯 JSON（点「开始生成」自动写，手改或删掉也行） | ❌ |
 | `data/plugins/<包名>/presets.json`·`draft.json`·`tags.db`·`settings.json`·`usage.json` | prompt-editor 自己（`plugins/prompt-editor/server/`；`GET/PUT /api/p/prompt-editor/*`） | 运行期 | ✅ 预设库 / 草稿 / 设置 / 用量是纯 JSON（草稿分"组结构 + 条目"两段，编辑时按改动粒度增量写）；**`tags.db` = 词库，SQLite**（一张表两用：翻译按 en/别名命中、面板按分类分组），进库的要么是你手改 / 点「机」存的（`source:'user'`），要么是导入的机翻表（`source:'import'`，重导不覆盖前者）—— 两条入口：面板的「导入内置机翻表」按钮（读产物自带的 `assets/danbooru-zh.csv`）与 `scripts/import-tags.ts`（任意 CSV）；现翻结果只进会话缓存；老 `tags.json` / `dict.json` 读到即自动迁进 `tags.db`、来源文件改名成 `*.migrated`（原件保留）；`settings.json` = provider 与护栏（每日上限、超时、两次调用最小间隔）；`usage.json` = 当日调用次数。删掉＝回到首屏三个空区块 / 空词库 / 默认设置 | ❌ |
@@ -94,6 +94,7 @@
   "home": "anima-plus",                          // 默认首页
   "tabAliases": { "anima-plus": "画图" },         // 标签栏显示别名（键 = 插件 id；缺键 = 用插件自己的 title）
   "homeLabel": "我的工作台",                      // 顶栏品牌链接（首页 /home）的显示名；空串 = 内置名 comfyui-web
+  "keepAlive": ["anima-plus"],                   // 常驻（切走不卸载）的插件 id；空 = 每个 tab 切走就卸载（D26）
   "globals": { "comfyuiBaseUrl": "http://10.0.0.5:8188" }  // 宿主全局设置
 }
 ```
@@ -104,6 +105,10 @@
   清洗规则：内部空白折成一个空格、截断到 40 字符、空值等于没配（回落 title / 内置名）。
 - `globals.comfyuiBaseUrl` 是**只读默认值**：宿主不把它写进任何插件，插件可以拿它当兜底
   （自己的设置留空），也可以自己配（D16）。
+- `keepAlive` 是**外壳渲染偏好**（设置页的「切走不卸载」，D26）：值是一串插件 id，宿主只存不解释，
+  外壳把它翻成 `<KeepAlive :include>` 的名单；不在名单里的 tab 与历史行为逐字一致（切走即卸载）。
+  清洗：插件 id 列表（同 `disabled`），空 = 全卸载。它是**用户偏好**而不是插件自述 —— 常驻的代价
+  （内存、可能活着的连接）由用户按插件拍板。
 - **`data/plugins/<包名>/`** —— 每个插件的私有空间（SQLite、缓存、缩略图、设置…），核不解析内容；
   空间按**包名**分配（`@comfyui-web+anima-plus`）。删它 = 重置该插件的运行期数据。
 - **`data/plugins/<包名>/last-state.json`**（anima-plus）—— 上次提交的出图参数快照（**运行期状态**，不是配置：

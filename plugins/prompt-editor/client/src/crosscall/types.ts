@@ -52,6 +52,8 @@ export interface CrossCallTarget {
   label: string;
   /** 对方装没装、能不能用 —— 只读宿主清单，不发对方的插件请求 */
   probe(): Promise<CrossCallAvailability>;
+  /** 可选：预热对方"提交前那一步"要用的昂贵检查（省掉第一次提交的干等）；失败必须静默 */
+  warm?(): void;
   /** 读对方的参数基底 + 把输出填进它的描述提示词（不发写请求） */
   plan(text: string): Promise<CrossCallPlanResult>;
   /** 写回对方状态 + 发起调用 */

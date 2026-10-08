@@ -78,6 +78,13 @@ export interface UiPrefs {
   tabAliases: Record<string, string>;
   /** 顶栏品牌链接（首页 `/home`）的显示名；空串 = 用外壳内置名 */
   homeLabel: string;
+  /**
+   * 常驻（切走不卸载）的插件 id；空 = 全部切走即卸载（默认，= 历史行为）。
+   *
+   * 真源是宿主偏好（`data/host.json`），不是插件自述：常驻的代价是内存和可能活着的连接，
+   * 由用户在设置页按插件决定。外壳只把它翻成 `<KeepAlive :include>` 的名单（D26）。
+   */
+  keepAlive: string[];
   globals: HostGlobals;
 }
 

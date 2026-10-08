@@ -76,6 +76,35 @@ async function sendJson<T>(url: string, method: 'PUT' | 'POST', body: unknown): 
   return data as T;
 }
 
+/**
+ * 预热：让对方把**提交前那一步**要用的昂贵检查提前做掉。
+ *
+ * 对方的 `POST /api/jobs` 在返回前要确认工作流需要的节点类都装了，判据是 ComfyUI 的
+ * `/object_info`（约 9MB / 2s，对方缓存 5 分钟 —— plugins/anima-plus/server/deps.ts），
+ * 提交前的检查走同一份缓存。跨域这条路对方页面常常**从没打开过**（没人做过这次检查），
+ * 于是"第一次发图"要干等 2s。读一次它的依赖报告，把那份缓存热起来。
+ *
+ * 节流取 2 分钟（小于对方的 5 分钟 TTL）：写提示词往往要几分钟，只在挂载时热一次不够，
+ * 边写边热才能保证按下按钮时缓存还是热的。失败一律静默 —— 预热只省时间，
+ * 真提交时对方会给出准确的错误（上游不可达时它的检查本来就跳过）。
+ */
+const WARM_MIN_INTERVAL_MS = 2 * 60_000;
+let warmedAt = 0;
+
+export function warm(): void {
+  const now = Date.now();
+  if (now - warmedAt < WARM_MIN_INTERVAL_MS) return;
+  warmedAt = now;
+  try {
+    void fetch(`${API_BASE}/api/deps`).then(
+      () => undefined,
+      () => undefined,
+    );
+  } catch {
+    // 没有 fetch 的环境（SSR 桩 / 老浏览器）：不预热，也不该影响任何事
+  }
+}
+
 /** 对方在不在、能不能用。宿主清单是唯一的真源：没装载的 tab 根本不出现在里面 */
 export async function probe(): Promise<CrossCallAvailability> {
   let rows: PluginRow[];
@@ -95,6 +124,8 @@ export async function probe(): Promise<CrossCallAvailability> {
     const why = row.error === undefined ? '' : `：${row.error}`;
     return { ok: false, detail: `${TARGET_ID} 现在不可用（${row.phase ?? '未知状态'}）${why}` };
   }
+  // 能用就顺手预热：探测成功 = 马上要发图了，这时把对方 2s 的检查提前跑掉
+  warm();
   return { ok: true, detail: `${row.title ?? TARGET_ID} 已就绪` };
 }
 
@@ -196,6 +227,7 @@ export const animaPlus: CrossCallTarget = {
   id: TARGET_ID,
   label: TARGET_LABEL,
   probe,
+  warm,
   plan,
   submit,
 };

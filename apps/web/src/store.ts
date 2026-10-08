@@ -33,6 +33,7 @@ function emptyUiPrefs(): UiPrefs {
     home: null,
     tabAliases: {},
     homeLabel: '',
+    keepAlive: [],
     globals: { comfyuiBaseUrl: '' },
   };
 }
@@ -51,6 +52,15 @@ function readAliases(value: unknown): Record<string, string> {
 }
 
 /**
+ * 插件 id 列表只取"非空字符串"的条目：宿主已经洗过一遍，这里同样不信任网络输入
+ * （拼进 `<KeepAlive :include>` 的东西不能有 `,` —— 那是 Vue 的分隔符语义）。
+ */
+function readIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((id): id is string => typeof id === 'string' && id !== '' && !id.includes(','));
+}
+
+/**
  * 读外壳偏好。**读失败不算错误**：偏好只决定"顺序、落点和显示名"，
  * 拿不到就按默认走（清单顺序 + 第一个可用 tab + 插件自己的名字），不该把整个外壳一起拖下水。
  */
@@ -63,6 +73,7 @@ export async function fetchUiPrefs(): Promise<void> {
       home: typeof prefs?.home === 'string' && prefs.home !== '' ? prefs.home : null,
       tabAliases: readAliases(prefs?.tabAliases),
       homeLabel: typeof prefs?.homeLabel === 'string' ? prefs.homeLabel : '',
+      keepAlive: readIdList(prefs?.keepAlive),
       // 宿主全局设置：拿不到就是空（= 不统一），不该把外壳一起拖下水
       globals: {
         comfyuiBaseUrl:
