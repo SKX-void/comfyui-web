@@ -4,8 +4,7 @@
  * | 方法 | 路径 | 作用 |
  * |---|---|---|
  * | GET | `/settings` | 盘上的原始值 + 本次装载生效值 |
- * | PUT | `/settings` | 写设置（整体替换，收敛在 settings.ts 一处发生） |
- * | PUT | `/params` | 把「这次用的参数」**并进**默认值（不含地址与模型；下次挂载生效） |
+ * | PUT | `/settings` | 写设置（整体替换，收敛在 settings.ts 一处发生；要重挂才生效） |
  * | GET | `/model` | 工作流指定的模型 + 本机装没装（插件不提供选模型） |
  * | GET | `/status` | ComfyUI 连没连上（设置页显示用） |
  * | POST | `/infer` | 上传 base64 图 → 反推 → 返回 tags |
@@ -16,7 +15,6 @@
  */
 import { MAX_IMAGE_BYTES } from './meta.js';
 import { extractTags } from './comfy.js';
-import { pickParams } from './settings.js';
 import { imageInputValue, renderGraph } from './workflow.js';
 import type { ComfyClient } from './comfy.js';
 import type { Graph, InferResult, TaggerParams, WorkflowBindings } from './model.js';
@@ -135,29 +133,6 @@ export function registerRoutes({
     const file = settings.write(incoming);
     log(`设置已更新 ${file}（重新挂载后生效）`);
     return { values: incoming, file, reloadRequired: true };
-  });
-
-  /**
-   * 「这次用的参数」写回默认值（前端在**点开始反推**时顺手调一次）。
-   *
-   * 与 `PUT /settings` 的两点区别都是刻意的：
-   *   - 只并参数键，不碰 `comfyuiBaseUrl`（反推一次不该把地址洗掉）；
-   *   - `reloadRequired: false`：本次请求的参数是前端显式送来的，运行中的 fiber
-   *     不需要换默认值；落盘只是为了让**下次挂载**看到同样的值。
-   */
-  routes.put('/params', async (request, reply) => {
-    const body =
-      request.body !== null && typeof request.body === 'object' && !Array.isArray(request.body)
-        ? (request.body as RequestBody)
-        : {};
-    const incoming = body.params;
-    if (incoming === null || typeof incoming !== 'object' || Array.isArray(incoming)) {
-      return badRequest(reply, '请求体必须是 { params: {…} }：键与本次反推用到的参数同名');
-    }
-    const values = pickParams(incoming);
-    const file = settings.merge(values);
-    log(`本次参数已写回默认值 ${file}（下次挂载生效）`);
-    return { values, file, reloadRequired: false };
   });
 
   /**

@@ -36,10 +36,8 @@ export interface StoredSettings {
 export interface ResolvedSettings {
   values: SettingsValues;
   stored: StoredSettings;
-  /** 整体替换（设置面板用） */
+  /** 整体替换（设置面板用；落盘 ≠ 生效，要重挂才进 ComfyClient） */
   write(incoming: unknown): string;
-  /** 读改写：只覆盖提到的键（「这次用的参数」写回默认值用） */
-  merge(incoming: unknown): string;
 }
 
 // ---------------------------------------------------------------------------

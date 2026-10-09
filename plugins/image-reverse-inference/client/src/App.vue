@@ -83,7 +83,6 @@
         {{ busy ? '反推中…' : '开始反推' }}
       </button>
       <span v-if="elapsed" class="iri-meta">上次耗时 {{ elapsed }} ms</span>
-      <span v-if="note" class="iri-meta">{{ note }}</span>
     </div>
 
     <section class="iri-result">
@@ -122,8 +121,6 @@ const error = ref('');
 const tags = ref('');
 const copied = ref(false);
 const elapsed = ref(0);
-/** 「参数写回默认值」的结果，只在 actions 行说一句 */
-const note = ref('');
 const showSettings = ref(false);
 const status = ref<StatusResponse | null>(null);
 
@@ -202,9 +199,6 @@ async function run(): Promise<void> {
   busy.value = true;
   error.value = '';
   copied.value = false;
-  note.value = '';
-  // 与反推**并行**：把参数写回默认值不该拖慢出结果（失败也不影响这次反推）
-  const saving = persistParams();
   try {
     const result = await api.infer({
       dataUrl: image.dataUrl,
@@ -218,17 +212,6 @@ async function run(): Promise<void> {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {
     busy.value = false;
-  }
-  await saving;
-}
-
-/** 参数行的持久化时机 = 点「开始反推」（值本来就随这次请求送过去，落盘只为下次打开） */
-async function persistParams(): Promise<void> {
-  try {
-    await api.saveParams({ ...params.value });
-    note.value = '参数已存为默认';
-  } catch (err) {
-    note.value = `参数没存下来：${err instanceof Error ? err.message : String(err)}`;
   }
 }
 
