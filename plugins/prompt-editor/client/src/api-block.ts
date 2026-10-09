@@ -78,6 +78,27 @@ export async function deleteBlockPreset(id: string): Promise<boolean> {
   ).removed;
 }
 
+/** 导出选中的块（`ids` 空数组 = 全选）：返回值原样下载，形状只有服务端那一份定义 */
+export async function exportBlockPresets(ids: string[]): Promise<unknown> {
+  return request<unknown>('/block-presets/export', { method: 'POST', body: JSON.stringify({ ids }) });
+}
+
+/**
+ * 导入：**追加**（同名的照收，不覆盖）。分类按名字对齐，文件里认不出的名字会新建一个分类 ——
+ * `categoriesCreated` / `categoriesDropped`（分类满员，退到未分类）就是这件事的回执。
+ */
+export async function importBlockPresets(file: unknown): Promise<{
+  imported: number;
+  skipped: number;
+  categoriesCreated: number;
+  categoriesDropped: number;
+}> {
+  return request<{ imported: number; skipped: number; categoriesCreated: number; categoriesDropped: number }>(
+    '/block-presets/import',
+    { method: 'POST', body: JSON.stringify(file) },
+  );
+}
+
 /** 左栏要的东西：分类（含计数）+ 未分类的块数（未分类不是一个分类，所以单独给） */
 export async function listBlockCategories(): Promise<{ categories: BlockCategorySummary[]; uncategorized: number }> {
   return request<{ categories: BlockCategorySummary[]; uncategorized: number }>('/block-categories');

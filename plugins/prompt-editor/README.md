@@ -160,6 +160,8 @@ extras 拷进 `tabs/prompt-editor/assets/`，服务端按 `import.meta.url` 读�
 | POST | `/presets` | 另存为新预设 `{ name, doc }` |
 | PUT | `/presets/:id` | 改名 / 覆盖保存 `{ name?, doc? }` |
 | DELETE | `/presets/:id` | 删除 |
+| POST | `/presets/export` | 导出选中的预设 `{ ids }`（缺省 / 空 = 全选）→ 导出文件 |
+| POST | `/presets/import` | 导入一份导出文件（**追加**，同名不覆盖）→ `{ imported, skipped, total }` |
 | GET | `/draft` | 读当前草稿（两段装配成整份 Doc；盘上还是老格式也认） |
 | PUT | `/draft/structure` | 写事件 1：`{ blocks: [{ id, title, color, mode }] }` |
 | PUT | `/draft/blocks/:id/items` | 写事件 2：`{ items: [...] }` |
@@ -175,6 +177,8 @@ extras 拷进 `tabs/prompt-editor/assets/`，服务端按 `import.meta.url` 读�
 | POST | `/block-presets` | 存一块 `{ name, categoryId?, title, color, mode, items }`（`categoryId` 认不出就当未分类） |
 | PUT | `/block-presets/:id` | 改名 / 改归类 `{ name?, categoryId? }`（内容不在这里改） |
 | DELETE | `/block-presets/:id` | 删一条 |
+| POST | `/block-presets/export` | 导出选中的块 `{ ids }`（缺省 / 空 = 全选）→ 导出文件（分类只带名字） |
+| POST | `/block-presets/import` | 导入一份导出文件（追加）→ `{ imported, skipped, categoriesCreated, categoriesDropped }` |
 | PUT | `/block-presets/order` | 列表拖完的新顺序 `{ ids: [...] }`（整列重排，回新列表；**注册在 `/:id` 之前**，别让 `order` 被当成 id） |
 | GET | `/block-categories` | 左栏要的：`{ categories: [{ id, name, count }], uncategorized }`（计数现算） |
 | POST | `/block-categories` | 新建分类 `{ name }` → 201（**一块都不动**：先建分类再往里放块） |
@@ -243,6 +247,29 @@ extras 拷进 `tabs/prompt-editor/assets/`，服务端按 `import.meta.url` 读�
 - **只有「全部」视图给拖排序**：筛过的子集里拖出来的新顺序是**相对子集**说的，服务端拿到的 `ids`
   只是整库的一部分，拼回去必然错位（词库那边同一个坑）。
 - `ids` 里没提到的垫在后面并**保持原相对次序**（稳定排序）—— 手工挑着排也不算错，不必 500。
+
+## 导入导出：多选 + 全选
+
+两个库都能**挑几条一起导出**，也能把一份文件**一次导进来**。入口在面板顶栏：`多选` 进多选模式
+（行首出现勾，整行都是落点），`全选` 勾上**当前列表**（左栏筛着某个分类时就是那一堆），
+`导出选中` 存成 `预设库-20250101-1200.json` / `区块库-20250101-1200.json`；`导入…` 挑一份文件，多条一起进。
+
+- **文件形状只有服务端那一份定义**（`server/exportdoc.ts`）：导出的文件就是导入能认的文件；
+  客户端只管"下载"和"读文件"，不解析也不重拼 —— 拼一份就是第二份定义，迟早对不上。
+- **文件里不带 id / 时间**：id 是这台机器内部的寻址键，跨文件没有意义，导入时现场生成。
+- **导入是追加，不是覆盖**：同名的照收（"库里两份同名"本来就被允许），不覆盖 —— 这条路是"从另一台机器
+  搬过来"，不是"导一次把本地的改掉"。要覆盖就删掉旧的再导。
+- **认不出的行跳过并计数**：一份文件里坏了一行，不该让整次导入失败；回执里会报"跳过 N 条"。
+- **超上限整份拒掉**（`LIMITS.presets` / `LIMITS.blockPresets` 都是 300）：导一半的文件没法核对，也没法重来。
+- **区块库的分类按名字对齐**：分类 id 只在本地有效，文件里带的是**名字**。认得出的名字归到已有分类上，
+  认不出的**建一个**（不然搬过来的库全挤进「未分类」，分组等于丢了），分类满员了才退到未分类并在回执里报数。
+  重名的分类按第一个同名的认 —— 名字是跨文件唯一能对上的东西。
+- **拿错文件要能说清**：`kind` 对不上当场 400（把区块库的文件丢进预设库）；手写的 `{ presets: [...] }` 也认
+  （没有 `kind` 就不查），这样"自己手搓几块导进去"这条路是通的。
+- 导出走 **POST**（几百个 uuid 塞进 query string 太长），`ids` 缺省 / 空 = 全选 ——
+  `curl -X POST .../presets/export -d '{}'` 就能导整库。
+- **导入是写动作，所以收在编辑模式里**（区块库；跟改名 / 删除一个道理）；多选与导出是只读的，浏览模式就能用。
+  进多选会退出编辑模式，进编辑模式会退出多选 —— 一个在行上拖和删，一个在行上打勾，混在一起点哪都不是。
 
 ## 翻译怎么来的
 

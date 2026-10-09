@@ -23,6 +23,7 @@ import {
   type Preset,
   type Stored,
 } from './doc.js';
+import { PRESETS_KIND, presetExportDoc, readExportIds, readPresetImport } from './exportdoc.js';
 import { registerBlockCategoryRoutes } from './routes-block-categories.js';
 import { registerBlockPresetRoutes } from './routes-block-presets.js';
 import { registerTranslateRoutes } from './routes-translate.js';
@@ -118,6 +119,40 @@ export function registerRoutes(ctx: PluginContext): void {
     if (next.length === list.length) return notFound(reply);
     savePresets(next);
     return { ok: true, remaining: next.length };
+  });
+
+  // ---- 导入导出：多选一份 / 全选 ----
+  //
+  // 导出走 POST（选择集在请求体里）：几百个 uuid 塞进 query string 太长。
+  // `ids` 缺省或空 = 全选，所以 `curl -X POST .../presets/export -d '{}'` 就能导整库。
+  // 导入是**追加**：同名的照收（"库里两份同名"本来就被允许），不覆盖 —— 想覆盖就删掉旧的再导。
+
+  routes.post('/presets/export', async (request, reply) => {
+    const ids = readExportIds(request.body);
+    const all = loadPresets();
+    const picked = ids === null ? all : all.filter((one) => ids.includes(one.id));
+    if (picked.length === 0) {
+      return badRequest(reply, ids === null ? '预设库还是空的，没有可导出的' : '选中的预设都不在了（另一个页面删掉了？）');
+    }
+    return presetExportDoc(picked);
+  });
+
+  routes.post('/presets/import', async (request, reply) => {
+    const parsed = readPresetImport(request.body);
+    if (parsed === null) {
+      return badRequest(reply, `这不是预设库的导出文件（应为 { kind: "${PRESETS_KIND}", presets: [...] }）`);
+    }
+    if (parsed.rows.length === 0) return badRequest(reply, '这份文件里没有能认出来的预设');
+    const list = loadPresets();
+    // 超上限就整份拒掉，不导一半：导进去一半的文件没法核对，也没法重来
+    if (list.length + parsed.rows.length > LIMITS.presets) {
+      return badRequest(reply, `预设上限 ${LIMITS.presets} 条：现在 ${list.length} 条，这份文件 ${parsed.rows.length} 条，先删掉一些再导`);
+    }
+    const now = Date.now();
+    for (const row of parsed.rows) list.push({ id: randomUUID(), name: row.name, updatedAt: now, doc: row.doc });
+    savePresets(list);
+    log(`导入 ${parsed.rows.length} 份预设（共 ${list.length} 条）`);
+    return { imported: parsed.rows.length, skipped: parsed.skipped, total: list.length };
   });
 
   // ---- 草稿：刷新页面不丢工作；只留一份，不做历史 ----

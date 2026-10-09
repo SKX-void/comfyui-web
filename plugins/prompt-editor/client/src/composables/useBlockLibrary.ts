@@ -11,7 +11,9 @@ import { computed, ref, watch } from 'vue';
 import {
   createBlockPreset,
   deleteBlockPreset,
+  exportBlockPresets,
   getBlockPreset,
+  importBlockPresets,
   listBlockCategories,
   listBlockPresets,
   updateBlockPreset,
@@ -22,6 +24,7 @@ import {
 import type { Mode } from '../model';
 import { useBlockCategoryManage } from './useBlockCategoryManage';
 import { useBlockDrag } from './useBlockDrag';
+import { useImportExport } from './useImportExport';
 
 /** 从区块表头「存」送来的一块快照（要存进库的那个；译文与 id 不在里面） */
 export interface PendingBlock {
@@ -96,6 +99,26 @@ export function useBlockLibrary(hooks: {
       error.value = err instanceof Error ? err.message : String(err);
     }
   }
+
+  /**
+   * 多选 + 导入导出。导入是**写**动作，所以只在编辑模式露出入口（见下面的互斥），
+   * 导出与多选是只读的，浏览模式下也能用。
+   */
+  const transfer = useImportExport({
+    error,
+    hint,
+    label: '区块库',
+    exportFile: exportBlockPresets,
+    importFile: async (data) => {
+      const done = await importBlockPresets(data);
+      await refresh();
+      const extra: string[] = [];
+      if (done.categoriesCreated > 0) extra.push(`新建 ${done.categoriesCreated} 个分类`);
+      if (done.categoriesDropped > 0) extra.push(`${done.categoriesDropped} 块因分类满员落到未分类`);
+      if (done.skipped > 0) extra.push(`跳过 ${done.skipped} 条认不出的`);
+      return `已导入 ${done.imported} 块${extra.length > 0 ? `（${extra.join('，')}）` : ''}`;
+    },
+  });
 
   /** 存一块：分类认不出时后端会当未分类，所以这里不校验 `saveCategoryId` */
   async function save(pending: PendingBlock | null): Promise<void> {
@@ -211,9 +234,18 @@ export function useBlockLibrary(hooks: {
 
   // 退出编辑模式就把行上的半成品一起收掉（改名框 / 删确认）——跟左栏管理区一个道理
   watch(manage.editMode, (on) => {
-    if (on) return;
+    if (on) {
+      // 编辑模式与多选互斥：一个在行上拖和删，一个在行上打勾，混在一起点哪都不是
+      transfer.stop();
+      return;
+    }
     cancelRename();
     cancelRemove();
+  });
+
+  // 反过来：进多选就退出编辑模式（`stop` 不会反向触发上面的 watch，它只认"打开"那一下）
+  watch(transfer.on, (on) => {
+    if (on) manage.exitEditMode();
   });
 
   return {
@@ -244,6 +276,7 @@ export function useBlockLibrary(hooks: {
     askRemove,
     cancelRemove,
     submitRemove,
+    transfer,
     ...manage,
     ...drag,
   };

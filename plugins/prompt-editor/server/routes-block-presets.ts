@@ -22,12 +22,14 @@ import { BLOCK_PRESETS_FILE, LIMITS } from './constants.js';
 import {
   knownCategoryId,
   loadBlockLibrary,
+  nextSort,
   reorderBlockPresets,
   sanitizeBlockPreset,
   saveBlockLibrary,
   summarize,
   type BlockPreset,
 } from './blockstore.js';
+import { BLOCKS_KIND, blockExportDoc, readBlockImport, readExportIds } from './exportdoc.js';
 import type { RouteHelpers } from './routes-translate.js';
 import type { RouteReply } from './types.js';
 import { asRecord } from './util.js';
@@ -118,5 +120,65 @@ export function registerBlockPresetRoutes({ routes, space, badRequest, log }: Ro
     const removed = remaining.length !== library.presets.length;
     if (removed) saveBlockLibrary(file, { categories: library.categories, presets: remaining });
     return { removed };
+  });
+
+  // ---- 导入导出：多选一份 / 全选 ----
+  //
+  // 导出走 POST（选择集在请求体里），`ids` 缺省或空 = 全选。导入是**追加**，同名的照收不覆盖。
+  //
+  // 分类按**名字**对齐（文件里没有本机的分类 id —— id 只在本地有效）：认得出的名字归到已有分类上，
+  // 认不出的**建一个**（不然搬过来的库全挤进「未分类」，分组等于丢了）；分类满员了才退到未分类，
+  // 并在回执里报数。重名的分类按第一个同名的认 —— 名字是跨文件唯一能对上的东西。
+
+  routes.post('/block-presets/export', async (request, reply) => {
+    const ids = readExportIds(request.body);
+    const library = loadBlockLibrary(file);
+    const picked = ids === null ? library.presets : library.presets.filter((one) => ids.includes(one.id));
+    if (picked.length === 0) {
+      return badRequest(reply, ids === null ? '区块库还是空的，没有可导出的' : '选中的区块都不在了（另一个页面删掉了？）');
+    }
+    return blockExportDoc(library, picked);
+  });
+
+  routes.post('/block-presets/import', async (request, reply) => {
+    const parsed = readBlockImport(request.body);
+    if (parsed === null) {
+      return badRequest(reply, `这不是区块库的导出文件（应为 { kind: "${BLOCKS_KIND}", presets: [...] }）`);
+    }
+    if (parsed.rows.length === 0) return badRequest(reply, '这份文件里没有能认出来的区块');
+    const library = loadBlockLibrary(file);
+    if (library.presets.length + parsed.rows.length > LIMITS.blockPresets) {
+      return badRequest(
+        reply,
+        `区块库上限 ${LIMITS.blockPresets} 条：现在 ${library.presets.length} 条，这份文件 ${parsed.rows.length} 条，先删掉一些再导`,
+      );
+    }
+    let categoriesCreated = 0;
+    let categoriesDropped = 0;
+    for (const row of parsed.rows) {
+      let categoryId = '';
+      if (row.category !== '') {
+        const known = library.categories.find((one) => one.name === row.category);
+        if (known !== undefined) {
+          categoryId = known.id;
+        } else if (library.categories.length < LIMITS.blockCategories) {
+          const fresh = { id: randomUUID(), name: row.category, sort: nextSort(library) };
+          library.categories.push(fresh);
+          categoryId = fresh.id;
+          categoriesCreated += 1;
+        } else {
+          categoriesDropped += 1;
+        }
+      }
+      library.presets.push({ ...row.preset, categoryId });
+    }
+    saveBlockLibrary(file, library);
+    log(`导入 ${parsed.rows.length} 块（新建 ${categoriesCreated} 个分类，共 ${library.presets.length} 块）`);
+    return {
+      imported: parsed.rows.length,
+      skipped: parsed.skipped,
+      categoriesCreated,
+      categoriesDropped,
+    };
   });
 }

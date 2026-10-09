@@ -221,3 +221,25 @@
     height: 26px;
   }
 }
+
+/* 多选：勾在行首，整行都是落点（行上的按钮这会儿收起来了，见模板的 v-if） */
+.pe-item-picking {
+  cursor: pointer;
+}
+
+.pe-pick {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent, #6ea8fe);
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  /* 触屏上 18px 的方框点不准 */
+  .pe-pick {
+    width: 26px;
+    height: 26px;
+  }
+}

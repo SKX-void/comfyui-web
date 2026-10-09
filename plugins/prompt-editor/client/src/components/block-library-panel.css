@@ -58,6 +58,48 @@
   color: var(--accent, #6ea8fe);
 }
 
+/* 原生文件框藏起来：点「导入…」按钮代它挨这一下 */
+.pe-file {
+  display: none;
+}
+
+/* 多选那一条：占的是「存块」那一栏的位置（都是"这一栏现在能干什么"） */
+.pe-selbar {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pe-pick-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.pe-pick {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent, #6ea8fe);
+  cursor: pointer;
+}
+
+.pe-sel-count {
+  flex: 1;
+  font-size: 12px;
+  color: var(--muted, #9aa3b2);
+  white-space: nowrap;
+}
+
+.pe-panel-head .pe-btn.on {
+  border-color: var(--accent, #6ea8fe);
+  color: var(--accent, #6ea8fe);
+}
+
 /* 存块那一行（没有待存的块时就是一句提示）：定高的一条，列表不因为它出现/消失而上下跳 */
 .pe-blk-bar {
   display: flex;
@@ -169,5 +211,19 @@
 
   .pe-btn {
     padding: 8px 12px;
+  }
+}
+
+@media (max-width: 720px) {
+  /* 顶栏现在是 标题 + 统计 + 导入 + 多选 + 编辑模式 + 关闭：手机上让它换行 */
+  .pe-panel-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* 触屏上 18px 的方框点不准 */
+  .pe-pick {
+    width: 26px;
+    height: 26px;
   }
 }

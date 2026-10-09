@@ -36,6 +36,10 @@ const props = defineProps<{
   dropIndex: number;
   /** 筛过的视图里不给排序（新顺序是相对子集说的，落盘会错位） */
   sortable: boolean;
+  /** 多选模式：行上出现勾，操作按钮收起来（这会儿是在挑要导出的几块） */
+  picking: boolean;
+  /** 已经勾上的块 id（选择集在面板那一侧，这里只画） */
+  pickedIds: string[];
   /** 正在就地改名的那一行 / 名字草稿 / 待确认删除的那一行（一次只有一行） */
   renamingId: string;
   renameTo: string;
@@ -48,6 +52,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'insert', preset: BlockPresetSummary): void;
+  (e: 'toggle-pick', id: string): void;
   (e: 'toggle-expand', preset: BlockPresetSummary): void;
   (e: 'start-rename', preset: BlockPresetSummary): void;
   (e: 'cancel-rename'): void;
@@ -101,6 +106,7 @@ watch(
       :class="{
         'pe-item-open': expandedId === preset.id,
         'pe-item-dragging': draggingKey === preset.id,
+        'pe-item-picking': picking,
         'pe-item-over-before': sortable && draggingKey !== '' && dropIndex === index,
         'pe-item-over-after': sortable && draggingKey !== '' && dropIndex === index + 1,
       }"
@@ -109,7 +115,18 @@ watch(
       @dragend="emit('drag-end')"
       @dragover.prevent="sortable && emit('row-drag-over', index, $event)"
       @drop.prevent="sortable && emit('row-drop')"
+      @click="picking && emit('toggle-pick', preset.id)"
     >
+      <!-- 多选：勾在行首，点行上哪儿都算（手机上 18px 的方框点不准） -->
+      <input
+        v-if="picking"
+        class="pe-pick"
+        type="checkbox"
+        :checked="pickedIds.includes(preset.id)"
+        :aria-label="`选择「${preset.name}」`"
+        @click.stop
+        @change="emit('toggle-pick', preset.id)"
+      />
       <!-- 六点手柄（内联 SVG）：告诉人"这行能拖"。只在编辑模式出现，浏览模式这行是只读的 -->
       <span v-if="editMode" class="pe-grip" title="拖动：排顺序 / 拖到左栏分类上归类" aria-hidden="true">
         <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
@@ -137,7 +154,7 @@ watch(
           v-else
           class="pe-item-head"
           :title="expandedId === preset.id ? '收起条目' : '点开看这一块的全部条目'"
-          @click="draggingKey === '' && emit('toggle-expand', preset)"
+          @click="!picking && draggingKey === '' && emit('toggle-expand', preset)"
         >
           <span class="pe-item-name">
             <!-- 展开开关就摆在色点左边的小方块里：这是个动作，别做成一个看不见的符号 -->
@@ -159,7 +176,7 @@ watch(
           </template>
         </span>
       </div>
-      <div class="pe-item-actions">
+      <div v-if="!picking" class="pe-item-actions">
         <button v-if="!editMode" class="pe-btn" :disabled="busyId !== ''" @click="emit('insert', preset)">插入</button>
         <!-- 删除要两步：库里这一份删了就没了（工作区那块不受影响） -->
         <template v-else-if="confirmRemoveId === preset.id">

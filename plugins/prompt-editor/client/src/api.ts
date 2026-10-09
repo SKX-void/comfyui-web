@@ -1,52 +1,15 @@
 /**
  * 插件的接口层：前缀只有一个常量（宿主统一给插件加 `/api/p/<id>`），后端就在本插件的 server.js。
  *
- * 地基（前缀 + 取 JSON）在 `api-core.ts`，区块库那一摊在 `api-block.ts` —— 两个都从这里转出去，
- * 所以调用方照旧 `from './api'` 取，不用知道它们被拆过。
+ * 地基（前缀 + 取 JSON）在 `api-core.ts`，预设库在 `api-presets.ts`，区块库在 `api-block.ts` ——
+ * 都从这里转出去，所以调用方照旧 `from './api'` 取，不用知道它们被拆过。
  */
 import type { BlockMeta, Doc, Item } from './model';
 import { request } from './api-core';
 
+export * from './api-presets';
 export * from './api-block';
 export { API_BASE, request } from './api-core';
-
-export interface PresetSummary {
-  id: string;
-  name: string;
-  updatedAt: number;
-  blockCount: number;
-  itemCount: number;
-}
-
-export interface Preset extends PresetSummary {
-  doc: Doc;
-}
-
-export async function listPresets(): Promise<PresetSummary[]> {
-  return (await request<{ presets: PresetSummary[] }>('/presets')).presets;
-}
-
-export async function getPreset(id: string): Promise<Preset> {
-  return (await request<{ preset: Preset }>(`/presets/${encodeURIComponent(id)}`)).preset;
-}
-
-export async function createPreset(name: string, doc: Doc): Promise<Preset> {
-  return (await request<{ preset: Preset }>('/presets', {
-    method: 'POST',
-    body: JSON.stringify({ name, doc }),
-  })).preset;
-}
-
-export async function updatePreset(id: string, patch: { name?: string; doc?: Doc }): Promise<Preset> {
-  return (await request<{ preset: Preset }>(`/presets/${encodeURIComponent(id)}`, {
-    method: 'PUT',
-    body: JSON.stringify(patch),
-  })).preset;
-}
-
-export async function deletePreset(id: string): Promise<void> {
-  await request<{ ok: boolean }>(`/presets/${encodeURIComponent(id)}`, { method: 'DELETE' });
-}
 
 export async function fetchDraft(): Promise<Doc | null> {
   return (await request<{ doc: Doc | null }>('/draft')).doc;
