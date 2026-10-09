@@ -1,0 +1,173 @@
+/* 区块库左栏的样式：从 SFC 里挪出来的 —— 单个源文件 300 行是硬线，模板与逻辑优先。 */
+.pe-catnav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding-right: 10px;
+  border-right: 1px solid var(--line, #2e333d);
+}
+
+.pe-catnav-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted, #9aa3b2);
+}
+
+.pe-catnav-new {
+  margin-left: auto;
+  padding: 0 6px;
+  border: none;
+  background: none;
+  color: var(--muted, #9aa3b2);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pe-catnav-new:hover:not(:disabled) {
+  color: var(--accent, #6ea8fe);
+}
+
+.pe-catnav-new:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pe-catnav-manage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  background: var(--panel-2, #22262e);
+}
+
+.pe-catnav-warn {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted, #9aa3b2);
+}
+
+.pe-catnav-warn strong {
+  color: var(--fg, #e6e8ec);
+}
+
+.pe-catnav-input {
+  min-width: 0;
+}
+
+.pe-catnav-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.pe-catnav-btns .pe-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.pe-catnav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.pe-catnav-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pe-catnav-row:hover {
+  background: var(--panel-2, #22262e);
+}
+
+.pe-catnav-row.on {
+  border-color: var(--line, #2e333d);
+  background: var(--panel-2, #22262e);
+}
+
+.pe-catnav-row.draggable {
+  cursor: grab;
+}
+
+.pe-catnav-row.dragging {
+  opacity: 0.5;
+}
+
+.pe-catnav-row.over-before {
+  box-shadow: inset 0 2px 0 0 var(--accent, #6ea8fe);
+}
+
+.pe-catnav-row.over-after {
+  box-shadow: inset 0 -2px 0 0 var(--accent, #6ea8fe);
+}
+
+.pe-catnav-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pe-catnav-count {
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+}
+
+/* 管理入口只在摸到这一行时才出现：左栏平时只是筛选器 */
+.pe-catnav-ops {
+  display: none;
+  gap: 2px;
+}
+
+.pe-catnav-row:hover .pe-catnav-ops {
+  display: flex;
+}
+
+.pe-catnav-op {
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--muted, #9aa3b2);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pe-catnav-op:hover:not(:disabled) {
+  color: var(--accent, #6ea8fe);
+}
+
+.pe-catnav-empty {
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+  list-style: none;
+}
+
+/* 列表里有行正被拖着的时候，左栏这几行是落点：虚线框先提示"能放这儿"，
+   鼠标底下的那一行再用强调色 —— 让人一眼看出这一下会归到谁 */
+.pe-catnav-row[data-drop='ok'] {
+  border-style: dashed;
+}
+
+.pe-catnav-row.pe-catnav-drop {
+  border-color: var(--accent, #6ea8fe);
+  background: var(--panel-2, #22262e);
+  color: var(--accent, #6ea8fe);
+}

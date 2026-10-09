@@ -1331,13 +1331,16 @@ console.log('区块库：预设单块的存储与路由');
       return this;
     },
   });
-  server.registerBlockPresetRoutes({
+  // 区块块与分类共用一个 space（同一份 block-presets.json），只是各注册自己那张路由表
+  const helpers = {
     routes: { get: record('GET'), post: record('POST'), put: record('PUT'), delete: record('DELETE') },
     space: { packageName: 'x', root: spaceDir, resolve: (f: string) => path.join(spaceDir, f) },
     badRequest: (r: { code: (n: number) => { send: (b: unknown) => unknown } }, message: string) =>
       r.code(400).send({ error: { code: 'BAD_REQUEST', message } }),
     log: () => {},
-  } as unknown as Parameters<typeof server.registerBlockPresetRoutes>[0]);
+  };
+  server.registerBlockPresetRoutes(helpers as unknown as Parameters<typeof server.registerBlockPresetRoutes>[0]);
+  server.registerBlockCategoryRoutes(helpers as unknown as Parameters<typeof server.registerBlockCategoryRoutes>[0]);
 
   // 有的 handler 直接 `return {...}`（GET），有的 `reply.code().send()`（POST/PUT）—— 两种都要收
   const call = async (key: string, request: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
@@ -1345,8 +1348,12 @@ console.log('区块库：预设单块的存储与路由');
     const returned = await handlers[key]?.({ params: {}, body: null, ...request }, r);
     return { ...r, body: r.body ?? returned ?? null } as unknown as Record<string, unknown>;
   };
-  const stored = (): { presets: { name: string; items: string[] }[] } =>
-    JSON.parse(fs.readFileSync(path.join(spaceDir, 'block-presets.json'), 'utf8')) as { presets: { name: string; items: string[] }[] };
+  const stored = (): {
+    version?: number;
+    categories: { id: string; name: string; sort: number }[];
+    presets: { id: string; name: string; items: string[]; categoryId?: string }[];
+  } =>
+    JSON.parse(fs.readFileSync(path.join(spaceDir, 'block-presets.json'), 'utf8')) as never;
 
   const created = await call('POST /block-presets', {
     body: { name: '场景块', title: '场景', color: '#4ac38a', mode: 'text', items: ['a sentence.', '  ', 'another one.'] },
@@ -1399,6 +1406,122 @@ console.log('区块库：预设单块的存储与路由');
   );
   const survived = await call('GET /block-presets');
   check('盘上坏行跳过、好行照用（手改坏文件不该让整个库打不开）', ((survived.body as { presets?: unknown[] }).presets ?? []).length === 1);
+
+  // ── 分类：独立 id 寻址、允许重名（跟词库那套"按名字寻址"的不是一回事）──────────
+  const presetId = 'p-1';
+  fs.writeFileSync(
+    path.join(spaceDir, 'block-presets.json'),
+    JSON.stringify({ version: 1, presets: [{ id: presetId, name: '场景块', items: ['a'], mode: 'tag' }] }),
+  );
+  const cats = async (): Promise<{ categories: { id: string; name: string; count: number }[]; uncategorized: number }> =>
+    (await call('GET /block-categories')).body as never;
+  const sortOf = (id: string): number => stored().categories.find((one) => one.id === id)?.sort ?? -1;
+
+  const freshCats = await cats();
+  check('v1 老文件读得进：没有分类，那唯一一块算"未分类"', freshCats.categories.length === 0 && freshCats.uncategorized === 1, JSON.stringify(freshCats));
+  check('老块没有 categoryId，摘要里补成空串（面板据此显示未分类）', ((await call('GET /block-presets')).body as { presets?: { categoryId?: string }[] }).presets?.[0]?.categoryId === '');
+
+  const catNew = await call('POST /block-categories', { body: { name: ' 人物 ' } });
+  const catId = ((catNew.body as { category?: { id?: string; name?: string } }).category ?? {}).id ?? '';
+  check(
+    '新建分类：201 + 名字 trim 过 + 独立 id',
+    catNew.status === 201 && (catNew.body as { category?: { name?: string } }).category?.name === '人物' && catId !== '',
+    JSON.stringify(catNew.body),
+  );
+  check('新建分类一个块都不动，落盘升到 v2 且带 categories 段', stored().presets.length === 1 && stored().version === 2, JSON.stringify({ version: stored().version, categories: stored().categories.length }));
+  check('分类名空：400', (await call('POST /block-categories', { body: { name: '   ' } })).status === 400);
+  check('分类请求体不是对象：400', (await call('POST /block-categories', { body: 'nope' })).status === 400);
+
+  check(
+    '归到不存在的分类：当成未分类（分类刚被删，也不该让"存一块"失败）',
+    ((await call('PUT /block-presets/:id', { params: { id: presetId }, body: { categoryId: 'nope' } })).body as { preset?: { categoryId?: string } })
+      .preset?.categoryId === '',
+  );
+  const assigned = await call('PUT /block-presets/:id', { params: { id: presetId }, body: { categoryId: catId } });
+  check(
+    '归类：categoryId 变了（名字 / 条目一条没动）',
+    (assigned.body as { preset?: { categoryId?: string; name?: string; items?: string[] } }).preset?.categoryId === catId &&
+      stored().presets[0]?.categoryId === catId &&
+      stored().presets[0]?.items.length === 1,
+    JSON.stringify((assigned.body as { preset?: unknown }).preset),
+  );
+  const counted = await cats();
+  check('左栏计数是现算的：人物 1 / 未分类 0', counted.categories[0]?.count === 1 && counted.uncategorized === 0, JSON.stringify(counted));
+
+  const catTwoId = ((await call('POST /block-categories', { body: { name: '光照' } })).body as { category?: { id?: string } }).category?.id ?? '';
+  const ordered = await call('PUT /block-categories/order', { body: { ids: [catTwoId, catId] } });
+  check(
+    '拖完发整列新顺序：回的左栏就是新顺序',
+    ((ordered.body as { categories?: { id: string }[] }).categories ?? []).map((one) => one.id).join('|') === `${catTwoId}|${catId}`,
+    JSON.stringify((ordered.body as { categories?: unknown }).categories),
+  );
+  check(
+    '顺序落到盘上（sort 递增，重新读一遍还是这个顺序）',
+    (await cats()).categories.map((one) => one.id).join('|') === `${catTwoId}|${catId}` && sortOf(catTwoId) < sortOf(catId),
+    `${sortOf(catTwoId)} vs ${sortOf(catId)}`,
+  );
+  check('ids 不是数组：400', (await call('PUT /block-categories/order', { body: { ids: 'nope' } })).status === 400);
+
+  // 列表拖排序：`presets` 本身就是有序数组，所以重排 = 换排列（不额外存序号 —— 序号是给
+  // "分类"那种要被别处排序引用的东西用的）
+  const secondId = ((await call('POST /block-presets', { body: { name: '第二块', items: ['b'] } })).body as { preset?: { id?: string } }).preset?.id ?? '';
+  check('新建的块排在最后', stored().presets.map((one) => one.id).join('|') === `${presetId}|${secondId}`, stored().presets.map((one) => one.id).join('|'));
+  const presetsOrdered = await call('PUT /block-presets/order', { body: { ids: [secondId, presetId] } });
+  check(
+    '拖完发整列新顺序：回的列表就是新顺序，并且落了盘',
+    ((presetsOrdered.body as { presets?: { id: string }[] }).presets ?? []).map((one) => one.id).join('|') === `${secondId}|${presetId}` &&
+      stored().presets.map((one) => one.id).join('|') === `${secondId}|${presetId}`,
+    JSON.stringify((presetsOrdered.body as { presets?: unknown }).presets),
+  );
+  check(
+    'ids 里没提到的垫在后面（不丢条目）',
+    ((await call('PUT /block-presets/order', { body: { ids: [secondId] } })).body as { presets?: { id: string }[] }).presets?.map((one) => one.id).join('|') === `${secondId}|${presetId}`,
+    stored().presets.map((one) => one.id).join('|'),
+  );
+  check(
+    'order 不会被当成 id（命中的是排序路由，不是 PUT /:id）',
+    (await call('PUT /block-presets/order', { body: { ids: [presetId, secondId] } })).status === 200 && stored().presets[0]?.id === presetId,
+    stored().presets.map((one) => one.id).join('|'),
+  );
+  check('ids 不是数组：400', (await call('PUT /block-presets/order', { body: { ids: 'nope' } })).status === 400);
+  check('ids 里有非字符串：400', (await call('PUT /block-presets/order', { body: { ids: [1] } })).status === 400);
+  check('ids 是空数组：400', (await call('PUT /block-presets/order', { body: { ids: [] } })).status === 400);
+  check('ids 里全是不认识的 id：200（没有可排的就什么都不动）', (await call('PUT /block-presets/order', { body: { ids: ['nope'] } })).status === 200);
+  // 顺序验完把第二块删掉：后面"删分类不删块"那些用例按一块算
+  await call('DELETE /block-presets/:id', { params: { id: secondId } });
+
+  check(
+    '改分类名：按 id 改，跟另一个分类重名也照改（不合并、不报错）',
+    ((await call('PUT /block-categories', { body: { id: catTwoId, name: '人物' } })).body as { category?: { name?: string } }).category?.name === '人物' &&
+      (await cats()).categories.filter((one) => one.name === '人物').length === 2,
+    JSON.stringify((await cats()).categories),
+  );
+  check('分类改空名：400', (await call('PUT /block-categories', { body: { id: catId, name: ' ' } })).status === 400);
+  check('分类缺 id：400', (await call('PUT /block-categories', { body: { name: 'x' } })).status === 400);
+  check('改不存在的分类：404', (await call('PUT /block-categories', { body: { id: 'nope', name: 'x' } })).status === 404);
+
+  const catDeleted = await call('DELETE /block-categories', { body: { id: catId } });
+  check(
+    '删分类：removed=true，并报出影响了几块（面板先摆范围再确认）',
+    (catDeleted.body as { removed?: boolean; cleared?: number }).removed === true && (catDeleted.body as { cleared?: number }).cleared === 1,
+    JSON.stringify(catDeleted.body),
+  );
+  check('删分类一条块都不删，只是回到未分类', stored().presets.length === 1 && stored().presets[0]?.categoryId === '' && (await cats()).uncategorized === 1);
+  check('删不存在的分类：removed=false（不炸）', ((await call('DELETE /block-categories', { body: { id: 'nope' } })).body as { removed?: boolean }).removed === false);
+
+  fs.writeFileSync(
+    path.join(spaceDir, 'block-presets.json'),
+    JSON.stringify({
+      version: 2,
+      categories: Array.from({ length: server.LIMITS.blockCategories }, (_v, i) => ({ id: `c${i}`, name: `c${i}`, sort: (i + 1) * 10 })),
+      presets: [],
+    }),
+  );
+  check(
+    '分类到达上限后再建：400 且不动盘上那份',
+    (await call('POST /block-categories', { body: { name: '多出来的' } })).status === 400 && stored().categories.length === server.LIMITS.blockCategories,
+  );
+
   fs.rmSync(spaceDir, { recursive: true, force: true });
 }
 

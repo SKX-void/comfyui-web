@@ -113,9 +113,27 @@ let fakeBlockPresets: {
   title: string;
   color: string;
   mode: string;
+  categoryId: string;
   items: string[];
 }[] = [];
 let fakeBlockSeq = 0;
+/** 列表里的摘要形状：跟 `blockstore.ts` 的 `summarize` 对齐（列表只给摘要 + 前 3 条预览） */
+function blockSummary(one: (typeof fakeBlockPresets)[number]): Record<string, unknown> {
+  return {
+    id: one.id,
+    name: one.name,
+    updatedAt: one.updatedAt,
+    title: one.title,
+    color: one.color,
+    mode: one.mode,
+    categoryId: one.categoryId,
+    itemCount: one.items.length,
+    preview: one.items.slice(0, 3),
+  };
+}
+/** 区块库的分类：真库里是 `block-presets.json` 的 categories 段（独立 id、允许重名） */
+let fakeBlockCats: { id: string; name: string }[] = [];
+let fakeBlockCatSeq = 0;
 /** 分类实体（含**还没有词用的空分类**）：真库里是 categories 表 */
 let fakeCategories: string[] = [];
 /** 分类的手动顺序（空 = 还没拖过）。真库里是 `categories.sort`，这里只要顺序对得上就够 */
@@ -374,18 +392,68 @@ Object.defineProperty(globalThis, 'fetch', {
     }
     // 区块库：列表只给摘要（面板要的预览在 preview 里），按 id 取整条
     if (method === 'GET' && path.endsWith('/block-presets')) {
+      return reply({ presets: fakeBlockPresets.map(blockSummary) });
+    }
+    if (method === 'PUT' && path.endsWith('/block-presets/order')) {
+      const ids = (body?.ids as string[]) ?? [];
+      // 没提到的垫到最后：与真服务端一样（`presets` 本来就是有序数组，重排 = 换排列）
+      const rank = (id: string): number => {
+        const at = ids.indexOf(id);
+        return at < 0 ? ids.length + 1 : at;
+      };
+      fakeBlockPresets = [...fakeBlockPresets].sort((a, b) => rank(a.id) - rank(b.id));
+      return reply({ presets: fakeBlockPresets.map(blockSummary) });
+    }
+    // 区块库的分类（跟词库分类不是一个东西：那边按名字寻址，这边独立 id、允许重名）
+    if (method === 'GET' && path.endsWith('/block-categories')) {
       return reply({
-        presets: fakeBlockPresets.map((one) => ({
+        categories: fakeBlockCats.map((one) => ({
           id: one.id,
           name: one.name,
-          updatedAt: one.updatedAt,
-          title: one.title,
-          color: one.color,
-          mode: one.mode,
-          itemCount: one.items.length,
-          preview: one.items.slice(0, 3),
+          count: fakeBlockPresets.filter((preset) => preset.categoryId === one.id).length,
+        })),
+        uncategorized: fakeBlockPresets.filter((preset) => preset.categoryId === '').length,
+      });
+    }
+    if (method === 'POST' && path.endsWith('/block-categories')) {
+      fakeBlockCatSeq += 1;
+      const created = { id: `bc${fakeBlockCatSeq}`, name: String(body?.name ?? '') };
+      fakeBlockCats.push(created);
+      return reply({ category: created });
+    }
+    if (method === 'PUT' && path.endsWith('/block-categories/order')) {
+      const ids = (body?.ids as string[]) ?? [];
+      // 没提到的垫到最后：与真服务端一样，顺序以请求为准
+      const rank = (id: string): number => {
+        const at = ids.indexOf(id);
+        return at < 0 ? ids.length + 1 : at;
+      };
+      fakeBlockCats = [...fakeBlockCats].sort((a, b) => rank(a.id) - rank(b.id));
+      return reply({
+        categories: fakeBlockCats.map((one) => ({
+          id: one.id,
+          name: one.name,
+          count: fakeBlockPresets.filter((preset) => preset.categoryId === one.id).length,
         })),
       });
+    }
+    if (method === 'PUT' && path.endsWith('/block-categories')) {
+      const hit = fakeBlockCats.find((one) => one.id === String(body?.id ?? ''));
+      if (hit === undefined) return fail('没有这个分类');
+      hit.name = String(body?.name ?? hit.name);
+      return reply({ category: hit });
+    }
+    if (method === 'DELETE' && path.endsWith('/block-categories')) {
+      const id = String(body?.id ?? '');
+      const before = fakeBlockCats.length;
+      fakeBlockCats = fakeBlockCats.filter((one) => one.id !== id);
+      let cleared = 0;
+      for (const preset of fakeBlockPresets) {
+        if (preset.categoryId !== id) continue;
+        preset.categoryId = '';
+        cleared += 1;
+      }
+      return reply({ removed: fakeBlockCats.length !== before, cleared });
     }
     if (method === 'GET' && path.includes('/block-presets/')) {
       const id = path.slice(path.lastIndexOf('/') + 1);
@@ -401,6 +469,7 @@ Object.defineProperty(globalThis, 'fetch', {
         title: String(body?.title ?? ''),
         color: String(body?.color ?? '#6ea8fe'),
         mode: String(body?.mode ?? 'tag'),
+        categoryId: String(body?.categoryId ?? ''),
         items: (body?.items as string[]) ?? [],
       };
       fakeBlockPresets.push(created);
@@ -411,6 +480,7 @@ Object.defineProperty(globalThis, 'fetch', {
       const hit = fakeBlockPresets.find((one) => one.id === id);
       if (hit === undefined) return fail('没有这个预设区块');
       hit.name = String(body?.name ?? hit.name);
+      if (body?.categoryId !== undefined) hit.categoryId = String(body.categoryId);
       return reply({ preset: hit });
     }
     if (method === 'DELETE' && path.includes('/block-presets/')) {
@@ -1895,6 +1965,21 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
   await nextTick();
   check('点「取消」把待存的块收回去', pick('.pe-blk-save') === null && pick('.pe-blk-tip') !== null);
 
+  // 叉掉面板 = 这次「存块」不作数：不然下次从「区块库…」进来还停在待存那一屏
+  headSave.click();
+  await settle();
+  check('再点「存」：名字框又出来', pick('.pe-blk-save') !== null);
+  (pick('.pe-close') as HTMLButtonElement).click();
+  await nextTick();
+  check('叉掉后面板关上了', pick('.pe-panel') === null);
+  blkLibBtn.click();
+  await settle();
+  check(
+    '叉掉后再打开区块库：是干净的面板（不是待存那一屏）',
+    pick('.pe-blk-save') === null && pick('.pe-blk-tip') !== null,
+    (pick('.pe-blk-save')?.textContent ?? pick('.pe-blk-tip')?.textContent ?? '').trim(),
+  );
+
   // 真的存一次：先把这一块临时改成 2 条 + 1 条禁用，验证"禁用的不带进库"
   headSave.click();
   await settle();
@@ -1912,15 +1997,340 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
     JSON.stringify(posted?.body),
   );
   check('条目文本跟着走（禁用的那条不带）', sameTexts((posted?.body?.items as string[]) ?? [], chipsBefore), `${JSON.stringify(posted?.body?.items)} vs ${JSON.stringify(chipsBefore)}`);
-  check('存完列表里出现了它（带风格 / 条数 / 预览）', pickAll('.pe-item-name').length === 1 && (pick('.pe-blk-preview')?.textContent ?? '').includes(chipsBefore[0] ?? ''), pick('.pe-blk-preview')?.textContent ?? '');
+  check('存完列表里出现了它（带风格 / 条数）', pickAll('.pe-item-name').length === 1 && (pick('.pe-item-meta')?.textContent ?? '').includes('条'), pick('.pe-item-meta')?.textContent ?? '');
+
+  // 条目默认收着；点一块才按 id 取整条铺出来（列表里只有摘要 + 前 3 条预览）
+  const savedItems = (posted?.body?.items as string[]) ?? [];
+  check('默认不展示条目（只有摘要和 ▸）', pick('.pe-item-tokens') === null && (pick('.pe-caret')?.textContent ?? '') === '▸', pick('.pe-caret')?.textContent ?? '（没有 ▸）');
+  check(
+    '展开开关在色点左边（跟名字同一行，不单占一行）',
+    pick('.pe-item-name .pe-caret') !== null && (pick('.pe-caret')?.nextElementSibling?.className ?? '') === 'pe-blk-color',
+    `caret 在名称行内：${pick('.pe-item-name .pe-caret') !== null}，下一个兄弟：${pick('.pe-caret')?.nextElementSibling?.className ?? '（无）'}`,
+  );
+  const markExpand = calls.length;
+  (pick('.pe-item-head') as HTMLElement).click();
+  await settle();
+  check(
+    '点开才按 id 取整条（列表里没有全部条目）',
+    calls.slice(markExpand).some((call) => call.method === 'GET' && call.url.endsWith('/block-presets/bp1')) === true,
+    JSON.stringify(calls.slice(markExpand).map((call) => `${call.method} ${call.url}`)),
+  );
+  check(
+    '展开后铺出**全部**条目（不是摘要里那 3 条）',
+    savedItems.length > 3 && sameTexts(pickAll('.pe-token').map((one) => one.textContent ?? ''), savedItems),
+    `${pickAll('.pe-token').length} 条：${pickAll('.pe-token').map((one) => one.textContent).join('|')} vs ${savedItems.length} 条`,
+  );
+  check('▾ 跟着翻过来（还标了能收起）', (pick('.pe-caret')?.textContent ?? '') === '▾' && (pick('.pe-item-head')?.getAttribute('title') ?? '').includes('收起') === true);
+  const markCollapse = calls.length;
+  (pick('.pe-item-head') as HTMLElement).click();
+  await settle();
+  check('再点收起：条目收掉，也不再发请求', pick('.pe-item-tokens') === null && calls.slice(markCollapse).length === 0, `${calls.length - markCollapse} 个请求`);
   check('提示说清了存了什么', (pick('.pe-hint')?.textContent ?? '').includes('已存进区块库：「我的质量块」') === true, pick('.pe-hint')?.textContent ?? '');
   check('存完名字框收起来（一次存一块）', pick('.pe-blk-save') === null);
 
-  // 插入：新增一块、追加到最后
+  // ── 浏览 / 编辑模式：管理入口只在编辑模式出现（跟词库面板同一套）──────────────
+  const win = window as unknown as Record<string, unknown>;
+  const realPrompt = win.prompt;
+  const realConfirm = win.confirm;
+  const catRows = (): HTMLElement[] => pickAll('.pe-catnav-row') as HTMLElement[];
+  const catRowOf = (label: string): HTMLElement | undefined =>
+    catRows().find((row) => (row.textContent ?? '').includes(label));
+  const catLabels = (): string =>
+    catRows()
+      .map((row) => (row.querySelector('.pe-catnav-name')?.textContent ?? '').trim())
+      .join('|');
+  const modeBtn = (): HTMLButtonElement => pick('.pe-blk-mode') as HTMLButtonElement;
+  // 编辑模式一开，行上的按钮集合就变了（浏览：插入；编辑：改名 / 删除），所以按文字找
+  const itemBtn = (label: string): HTMLButtonElement => {
+    const hit = pickAll('.pe-item-actions .pe-btn').find((one) => (one.textContent ?? '').trim() === label);
+    if (hit === undefined) throw new Error(`行上没有「${label}」按钮`);
+    return hit as HTMLButtonElement;
+  };
+  const catBtn = (row: HTMLElement, label: string): HTMLButtonElement => {
+    const hit = [...row.querySelectorAll('.pe-catnav-op')].find((one) => (one.textContent ?? '').trim() === label);
+    if (hit === undefined) throw new Error(`这一行没有「${label}」`);
+    return hit as HTMLButtonElement;
+  };
+  const manageBtn = (label: string): HTMLButtonElement => {
+    const hit = pickAll('.pe-catnav-btns .pe-btn').find((one) => (one.textContent ?? '').trim() === label);
+    if (hit === undefined) throw new Error(`管理区没有「${label}」按钮`);
+    return hit as HTMLButtonElement;
+  };
+
+  check('左栏钉着「全部」和「未分类」两行', catLabels() === '全部|未分类', catLabels());
+  check('默认选中「全部」（进面板是来找块的，不是只看没归类的）', (pick('.pe-catnav-row.on')?.textContent ?? '').includes('全部') === true);
+  check('「未分类」的计数是现算的（刚存的那块还没归类）', (catRows()[1]?.textContent ?? '').includes('1') === true, catRows()[1]?.textContent ?? '');
+  (catRows()[1] as HTMLElement).click();
+  await nextTick();
+  check('点「未分类」只列没归类的块', pickAll('.pe-item').length === 1);
+  (catRows()[0] as HTMLElement).click();
+  await nextTick();
+
+  // 浏览模式（默认）：只插不改
+  check('默认是浏览模式', modeBtn().textContent?.includes('编辑模式：关') === true, modeBtn().textContent ?? '');
+  check('浏览模式：行上只有「插入」', pickAll('.pe-item-actions .pe-btn').length === 1 && itemBtn('插入') !== null);
+  check('浏览模式：行是只读的（不给拖）', pick('.pe-item')?.getAttribute('draggable') === 'false', String(pick('.pe-item')?.getAttribute('draggable')));
+  check('浏览模式：左栏没有 ＋、也没有「改 / 删」', pick('.pe-catnav-new') === null && pickAll('.pe-catnav-op').length === 0);
+  const markBrowse = calls.length;
+  (catRows()[1] as HTMLElement).click();
+  await settle();
+  check('浏览模式点分类只是筛选，不发写请求', calls.slice(markBrowse).every((call) => call.method === 'GET') === true, JSON.stringify(calls.slice(markBrowse).map((call) => `${call.method} ${call.url}`)));
+  (catRows()[0] as HTMLElement).click();
+  await nextTick();
+
+  modeBtn().click();
+  await nextTick();
+  check('切到编辑模式：左栏出现 ＋', modeBtn().textContent?.includes('编辑模式：开') === true && pick('.pe-catnav-new') !== null);
+  check(
+    '编辑模式：行上变成 改名 / 删除（「插入」收起来），并且能拖了',
+    pickAll('.pe-item-actions .pe-btn').length === 2 && itemBtn('改名') !== null && pick('.pe-item')?.getAttribute('draggable') === 'true',
+    String(pick('.pe-item')?.getAttribute('draggable')),
+  );
+
+  // 新建分类：左栏 ＋ → 就地输入 → 新建（不用 window.prompt）
+  const markCatNew = calls.length;
+  (pick('.pe-catnav-new') as HTMLButtonElement).click();
+  await nextTick();
+  const catInput = pick('.pe-catnav-input') as HTMLInputElement;
+  check('点 ＋ 就地出现输入框，并**真的抢到焦点**', document.activeElement === catInput, String(document.activeElement?.className ?? document.activeElement?.tagName));
+  check('名字还空着时「新建」是禁用的', manageBtn('新建').disabled === true);
+  await type(catInput, ' 人物 ');
+  manageBtn('新建').click();
+  await settle();
+  check(
+    '新建分类：POST /block-categories，名字 trim 过',
+    calls.slice(markCatNew).some((call) => call.method === 'POST' && call.url.endsWith('/block-categories') && call.body?.name === '人物') === true,
+    JSON.stringify(calls.slice(markCatNew).map((call) => `${call.method} ${call.url}`)),
+  );
+  check('新分类挂在「未分类」后面，管理区收起来了', catLabels() === '全部|未分类|人物' && pick('.pe-catnav-manage') === null, catLabels());
+
+  // 归类：把行拖到左栏的分类上（不再有下拉）
+  check('编辑模式里也没有归类下拉了（改拖拽）', pick('.pe-item-actions .pe-select') === null);
+  const markMove = calls.length;
+  dispatch(pick('.pe-item') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  await nextTick();
+  check(
+    '拖着行的时候分类树整棵变成落点（「未分类」也在，「全部」不在）',
+    pickAll('.pe-catnav-row[data-drop="ok"]').length === 2,
+    String(pickAll('.pe-catnav-row[data-drop="ok"]').length),
+  );
+  const personRow = catRowOf('人物') as Element;
+  dispatch(personRow, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  await nextTick();
+  check('悬停的那一行亮成落点', (pick('.pe-catnav-drop')?.textContent ?? '').includes('人物') === true, pick('.pe-catnav-drop')?.textContent ?? '');
+  dispatch(personRow, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  await settle();
+  const movedCall = calls.slice(markMove).find((call) => call.method === 'PUT' && call.url.endsWith('/block-presets/bp1'));
+  check('拖到分类上 = 归类（PUT 只带 categoryId）', JSON.stringify(movedCall?.body) === JSON.stringify({ categoryId: 'bc1' }), JSON.stringify(movedCall?.body ?? null));
+  check(
+    '归完类计数跟着走（人物 1 / 未分类 0）',
+    (catRows()[2]?.textContent ?? '').includes('1') === true && (catRows()[1]?.textContent ?? '').includes('0') === true,
+    `${catRows()[2]?.textContent} ${catRows()[1]?.textContent}`,
+  );
+  check(
+    '行上出现分类小标签，落点收起来了',
+    (pick('.pe-item-cat')?.textContent ?? '') === '人物' && pick('.pe-catnav-drop') === null,
+    pick('.pe-item-cat')?.textContent ?? '',
+  );
+
+  // 拖回「未分类」= 摘掉归类（摘掉再归回去：后面的筛选用例还要它挂在「人物」上）
+  const markClear = calls.length;
+  dispatch(pick('.pe-item') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  await nextTick();
+  const noneRow = catRows()[1] as Element;
+  dispatch(noneRow, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  dispatch(noneRow, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  await settle();
+  const cleared = calls.slice(markClear).find((call) => call.method === 'PUT' && call.url.endsWith('/block-presets/bp1'));
+  check('拖到「未分类」= 摘掉归类（categoryId 空串）', JSON.stringify(cleared?.body) === JSON.stringify({ categoryId: '' }), JSON.stringify(cleared?.body ?? null));
+  check('小标签跟着变回「未分类」', (pick('.pe-item-cat')?.textContent ?? '') === '未分类', pick('.pe-item-cat')?.textContent ?? '');
+
+  dispatch(pick('.pe-item') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  await nextTick();
+  dispatch(catRowOf('人物') as Element, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  dispatch(catRowOf('人物') as Element, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  await settle();
+  check(
+    '归回「人物」：计数回到 人物 1 / 未分类 0',
+    (catRows()[2]?.textContent ?? '').includes('1') === true && (catRows()[1]?.textContent ?? '').includes('0') === true,
+    `${catRows()[2]?.textContent} ${catRows()[1]?.textContent}`,
+  );
+
+  // 按分类筛
+  (catRows()[2] as HTMLElement).click();
+  await nextTick();
+  check('选中分类：只列归到它的块', pickAll('.pe-item').length === 1 && (pick('.pe-item-name')?.textContent ?? '').includes('我的质量块') === true);
+  (catRows()[1] as HTMLElement).click();
+  await nextTick();
+  check(
+    '选中「未分类」：刚归类的那块不在了（空文案要说清是这个分类空）',
+    pickAll('.pe-item').length === 0 && (pick('.pe-empty')?.textContent ?? '').includes('这个分类里还没有区块') === true,
+    pick('.pe-empty')?.textContent ?? '',
+  );
+  (catRows()[0] as HTMLElement).click();
+  await nextTick();
+  check('选中「全部」：又都回来了', pickAll('.pe-item').length === 1);
+
+  // 再建一个分类，用来验拖拽排序
+  (pick('.pe-catnav-new') as HTMLButtonElement).click();
+  await nextTick();
+  await type(pick('.pe-catnav-input') as HTMLInputElement, '光照');
+  manageBtn('新建').click();
+  await settle();
+  check('两个分类都在左栏', catLabels() === '全部|未分类|人物|光照', catLabels());
+
+  // 拖拽排序：happy-dom 拿不到布局，dragover 一律按"插到这一行前面"算
+  const markOrder = calls.length;
+  dispatch(catRowOf('光照') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  dispatch(catRowOf('人物') as Element, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  dispatch(catRowOf('人物') as Element, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  await settle();
+  const orderCall = calls.slice(markOrder).find((call) => call.method === 'PUT' && call.url.endsWith('/block-categories/order'));
+  check('拖分类发一次 PUT /block-categories/order，带的是整列新顺序（按 id，不按名字）', JSON.stringify(orderCall?.body) === JSON.stringify({ ids: ['bc2', 'bc1'] }), JSON.stringify(orderCall?.body ?? null));
+  check('分类顺序真的变了', catLabels() === '全部|未分类|光照|人物', catLabels());
+
+  const markStill = calls.length;
+  dispatch(catRowOf('光照') as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  dispatch(catRowOf('光照') as Element, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  dispatch(catRowOf('光照') as Element, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  await settle();
+  check('拖回原位不发请求（不然每点一下都写一遍）', calls.slice(markStill).every((call) => !call.url.endsWith('/block-categories/order')) === true, JSON.stringify(calls.slice(markStill).map((call) => call.url)));
+
+  // 改名：左栏「改」→ 就地输入 → 改名
+  const markCatRename = calls.length;
+  catBtn(catRowOf('光照') as HTMLElement, '改').click();
+  await nextTick();
+  const renameInput = pick('.pe-catnav-input') as HTMLInputElement;
+  check('点「改」后输入框里是现在的名字（并抢到焦点）', renameInput.value === '光照' && document.activeElement === renameInput, renameInput.value);
+  await type(renameInput, '改过的分类');
+  manageBtn('改名').click();
+  await settle();
+  const catRenamed = calls.slice(markCatRename).find((call) => call.method === 'PUT' && call.url.endsWith('/block-categories'));
+  check('改分类名：PUT 带 id + 新名字（按 id 走，所以跟别的分类重名也行）', JSON.stringify(catRenamed?.body) === JSON.stringify({ id: 'bc2', name: '改过的分类' }), JSON.stringify(catRenamed?.body ?? null));
+  check('左栏跟着变', catLabels() === '全部|未分类|改过的分类|人物', catLabels());
+
+  // 删分类：先摆影响范围再确认；块回到未分类，块一条不删
+  const markCatDel = calls.length;
+  catBtn(catRowOf('人物') as HTMLElement, '删').click();
+  await nextTick();
+  check('删分类前说清影响几块（块本身一条不删）', (pick('.pe-catnav-warn')?.textContent ?? '').includes('1 块会变成未分类') === true, pick('.pe-catnav-warn')?.textContent ?? '');
+  check('确认前一个写请求都不发', calls.slice(markCatDel).every((call) => call.method === 'GET') === true, JSON.stringify(calls.slice(markCatDel).map((call) => `${call.method} ${call.url}`)));
+  manageBtn('确认删除').click();
+  await settle();
+  const catDeleted = calls.slice(markCatDel).find((call) => call.method === 'DELETE' && call.url.endsWith('/block-categories'));
+  check('删分类：DELETE 带的是分类 id', JSON.stringify(catDeleted?.body) === JSON.stringify({ id: 'bc1' }), JSON.stringify(catDeleted?.body ?? null));
+  check(
+    '删完分类没了、块回到未分类（块数不变）',
+    catLabels() === '全部|未分类|改过的分类' && pickAll('.pe-item').length === 1 && (catRows()[1]?.textContent ?? '').includes('1') === true,
+    `${catLabels()} / ${pickAll('.pe-item').length}`,
+  );
+
+  // 库内排序：拖行到行上（只有「全部」视图给排）。先再存一块 —— 一行看不出排序
+  (blockOf(1).querySelector('.pe-block-save') as HTMLButtonElement).click();
+  await settle();
+  await type(pick('.pe-blk-save .pe-input') as HTMLInputElement, '第二条');
+  (pickAll('.pe-blk-save .pe-btn')[0] as HTMLButtonElement).click();
+  await settle();
+  check(
+    '库里现在两块，新的排在后面',
+    pickAll('.pe-item').length === 2 && (pickAll('.pe-item-title')[1]?.textContent ?? '') === '第二条',
+    pickAll('.pe-item-title').map((one) => one.textContent).join('|'),
+  );
+
+  const markSort = calls.length;
+  dispatch(pickAll('.pe-item')[1] as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  await nextTick();
+  dispatch(pickAll('.pe-item')[0] as Element, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  await nextTick();
+  check('拖到另一行上：出现插入位置的横线', pick('.pe-item-over-before') !== null, String(pickAll('.pe-item-over-before').length));
+  dispatch(pickAll('.pe-item')[0] as Element, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  await settle();
+  const sortCall = calls.slice(markSort).find((call) => call.method === 'PUT' && call.url.endsWith('/block-presets/order'));
+  check('排序：PUT /block-presets/order 带整列新顺序（按 id）', JSON.stringify(sortCall?.body) === JSON.stringify({ ids: ['bp2', 'bp1'] }), JSON.stringify(sortCall?.body ?? null));
+  check(
+    '列表顺序真的换了',
+    (pickAll('.pe-item-title')[0]?.textContent ?? '') === '第二条',
+    pickAll('.pe-item-title').map((one) => one.textContent).join('|'),
+  );
+
+  // 拖了一下又放回原处：位置没变就不写盘
+  const markSortStill = calls.length;
+  dispatch(pickAll('.pe-item')[0] as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  await nextTick();
+  dispatch(pickAll('.pe-item')[0] as Element, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  dispatch(pickAll('.pe-item')[0] as Element, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  await settle();
+  check('拖回原位不发请求', calls.slice(markSortStill).every((call) => !call.url.endsWith('/block-presets/order')) === true, JSON.stringify(calls.slice(markSortStill).map((call) => call.url)));
+
+  // 筛过的视图不给排：新顺序是相对子集说的，落盘必然错位
+  // （分类用例把「人物」删了，所以挑「未分类」—— 这会儿两块都在里面）
+  (catRows()[1] as HTMLElement).click();
+  await nextTick();
+  check('未分类视图里两块都在（这样拖才有意义）', pickAll('.pe-item').length === 2, String(pickAll('.pe-item').length));
+  const markFiltered = calls.length;
+  dispatch(pickAll('.pe-item')[0] as Element, new window.DragEvent('dragstart', { bubbles: true }));
+  await nextTick();
+  dispatch(pickAll('.pe-item')[0] as Element, new window.DragEvent('dragover', { bubbles: true, cancelable: true }));
+  dispatch(pickAll('.pe-item')[0] as Element, new window.DragEvent('drop', { bubbles: true, cancelable: true }));
+  dispatch(pickAll('.pe-item')[0] as Element, new window.DragEvent('dragend', { bubbles: true }));
+  await settle();
+  check('筛过分类的视图里不给拖排序（不发 /order）', calls.slice(markFiltered).every((call) => !call.url.endsWith('/block-presets/order')) === true, JSON.stringify(calls.slice(markFiltered).map((call) => call.url)));
+  (catRows()[0] as HTMLElement).click();
+  await nextTick();
+
+  // 第二块只是为排序造的：删掉，后面的改名 / 删除用例还是只针对第一块（按 id 断言）
+  // 删除要两步（行上先点「删除」，再点「确认删除」）：没有浏览器弹窗
+  itemBtn('删除').click();
+  await nextTick();
+  itemBtn('确认删除').click();
+  await settle();
+  check(
+    '第二块删掉，列表恢复成一块',
+    pickAll('.pe-item').length === 1 && (pickAll('.pe-item-title')[0]?.textContent ?? '') !== '第二条',
+    pickAll('.pe-item-title').map((one) => one.textContent).join('|'),
+  );
+
+  // 存块归到哪：跟着左栏选中的分类走（那一行不再有下拉 —— 块还没进列表，没地方拖）
+  (catRows()[2] as HTMLElement).click();
+  await nextTick();
+  (blockOf(1).querySelector('.pe-block-save') as HTMLButtonElement).click();
+  await settle();
+  check(
+    '存块那一行说清会存到哪一堆（跟着左栏走）',
+    (pick('.pe-blk-target')?.textContent ?? '').includes('改过的分类') === true,
+    pick('.pe-blk-target')?.textContent ?? '',
+  );
+  check('那一行没有下拉了', pick('.pe-blk-save .pe-select') === null);
+  const markSaveCat = calls.length;
+  await type(pick('.pe-blk-save .pe-input') as HTMLInputElement, '归过去的块');
+  (pickAll('.pe-blk-save .pe-btn')[0] as HTMLButtonElement).click();
+  await settle();
+  const savedInto = calls.slice(markSaveCat).find((call) => call.method === 'POST' && call.url.endsWith('/block-presets'));
+  check('存的请求就带着这个分类', savedInto?.body?.categoryId === 'bc2', JSON.stringify(savedInto?.body ?? null));
+  check('存完就在这个分类里（左栏正筛着它）', pickAll('.pe-item').length === 1 && (pick('.pe-item-cat')?.textContent ?? '') === '改过的分类', pick('.pe-item-cat')?.textContent ?? '');
+  itemBtn('删除').click();
+  await nextTick();
+  itemBtn('确认删除').click();
+  await settle();
+  (catRows()[0] as HTMLElement).click();
+  await nextTick();
+
+  // 切回浏览模式：管理入口和归类下拉一起收掉
+  modeBtn().click();
+  await nextTick();
+  check(
+    '退出编辑模式：＋ 收起来、行又不能拖了、只剩「插入」',
+    pick('.pe-catnav-new') === null && pick('.pe-item')?.getAttribute('draggable') === 'false' && pickAll('.pe-item-actions .pe-btn').length === 1,
+  );
+
+  win.prompt = realPrompt;
+  win.confirm = realConfirm;
+
+  // 插入：新增一块、追加到最后（浏览模式的唯一动作）
   const blocksBefore = pickAll('.pe-block').length;
   const batchesBeforeBlock = translateBatches.length;
   const markInsert = calls.length;
-  (pick('.pe-item-actions .pe-btn') as HTMLButtonElement).click();
+  itemBtn('插入').click();
   await settle();
   check('插入前先按 id 取整条（列表里只有摘要）', calls.slice(markInsert).some((call) => call.method === 'GET' && call.url.endsWith('/block-presets/bp1')) === true, JSON.stringify(calls.slice(markInsert).map((call) => call.url)));
   check('插入 = 新增一块、追加到最后（已有区块一个不动）', pickAll('.pe-block').length === blocksBefore + 1 && blockOf(blocksBefore) !== null);
@@ -1944,28 +2354,52 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
   );
   check('翻完译文落到格子里', cellText(blocksBefore, 0) !== '' && cellText(blocksBefore, 0) !== '译文', cellText(blocksBefore, 0));
 
-  // 改名 / 删除：跟预设库同一套（window.prompt / window.confirm）
-  const win = window as unknown as Record<string, unknown>;
-  const realPrompt = win.prompt;
-  const realConfirm = win.confirm;
-  win.prompt = () => '改过的名字';
-  win.confirm = () => true;
+  // 改名 / 删除：就地编辑（跟词库一致，没有 window.prompt / window.confirm），只在编辑模式里出现
+  modeBtn().click();
+  await nextTick();
+  check('再进编辑模式：行上是改名 / 删除', modeBtn().textContent?.includes('编辑模式：开') === true && itemBtn('改名') !== null);
   const markRename = calls.length;
-  (pickAll('.pe-item-actions .pe-btn')[1] as HTMLButtonElement).click();
+  itemBtn('改名').click();
+  await nextTick();
+  const rowRenameInput = pick('.pe-item-rename') as HTMLInputElement | null;
+  check('改名是就地的：行上出现输入框，带着原名', rowRenameInput !== null && rowRenameInput.value === '我的质量块', rowRenameInput?.value ?? '（没有输入框）');
+  check('改名框自己抢焦点（不抢的话敲键盘没反应）', document.activeElement === rowRenameInput, String(document.activeElement?.className ?? document.activeElement?.tagName));
+  await type(rowRenameInput as HTMLInputElement, '改过的名字');
+  itemBtn('改名').click();
   await settle();
   const renamed = calls.slice(markRename).find((call) => call.method === 'PUT' && call.url.includes('/block-presets/'));
   check('改名：PUT 只带名字', renamed?.body?.name === '改过的名字' && Object.keys(renamed?.body ?? {}).length === 1, JSON.stringify(renamed?.body));
   check('改名后列表里就是新名字', (pick('.pe-item-name')?.textContent ?? '').includes('改过的名字') === true, pick('.pe-item-name')?.textContent ?? '');
+  check('提交后输入框收起来了', pick('.pe-item-rename') === null);
 
-  // 改名点取消（prompt 返回 null）：一个请求都不发
-  win.prompt = () => null;
+  // 改名点取消：输入框收掉，一个请求都不发
   const markNoop = calls.length;
-  (pickAll('.pe-item-actions .pe-btn')[1] as HTMLButtonElement).click();
+  itemBtn('改名').click();
+  await nextTick();
+  itemBtn('取消').click();
   await settle();
-  check('改名点取消（prompt 给 null）：不发请求', calls.slice(markNoop).length === 0, String(calls.length - markNoop));
+  check('改名点取消：不发请求、名字不动', calls.slice(markNoop).length === 0 && (pick('.pe-item-name')?.textContent ?? '').includes('改过的名字') === true, `${calls.length - markNoop} 个请求`);
 
+  // 名字没改就直接点「改名」：不发请求（不然白写一次盘）
+  const markSame = calls.length;
+  itemBtn('改名').click();
+  await nextTick();
+  itemBtn('改名').click();
+  await settle();
+  check('名字没变时不发请求', calls.slice(markSame).length === 0, String(calls.length - markSame));
+
+  // 删除：先「删除」再「确认删除」（两步，没有浏览器弹窗）
+  itemBtn('删除').click();
+  await nextTick();
   const markDel = calls.length;
-  (pickAll('.pe-item-actions .pe-btn')[2] as HTMLButtonElement).click();
+  check('点「删除」只是摆出确认，还没删', itemBtn('确认删除') !== null && calls.slice(markDel).length === 0);
+  itemBtn('取消').click();
+  await nextTick();
+  const rowBtnLabels = (): string[] => pickAll('.pe-item-actions .pe-btn').map((one) => (one.textContent ?? '').trim());
+  check('删确认能取消：按钮退回「改名 / 删除」', rowBtnLabels().join('|') === '改名|删除', rowBtnLabels().join('|'));
+  itemBtn('删除').click();
+  await nextTick();
+  itemBtn('确认删除').click();
   await settle();
   check(
     '删除：DELETE 打的是这一条的 id',
