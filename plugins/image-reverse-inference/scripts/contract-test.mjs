@@ -94,7 +94,8 @@ check('可见文案进了产物（开始反推）', js.includes('开始反推'))
 check('样式进了 client.css（.iri-textarea）', css.includes('.iri-textarea'));
 check('样式没把主题色写死（用了 var(--panel)）', css.includes('var(--panel'));
 check('两个阈值是滑动条（range + .iri-range）', js.includes('"range"') && css.includes('.iri-range'));
-check('点反推会把参数写回默认（文案进了产物）', js.includes('参数已存为默认') && js.includes('/params'));
+// 参数只在本次请求里生效：点反推不该偷偷写盘（挂载时读到的快照会让它看起来"没生效"）
+check('产物里没有参数写盘那条路', !js.includes('/params') && !js.includes('saveParams'));
 
 section('② tab 清单');
 const manifest = JSON.parse(readFileSync(path.join(tabDir, 'package.json'), 'utf8'));
@@ -168,7 +169,7 @@ try {
   applyError = err instanceof Error ? err.message : String(err);
 }
 check('apply() 没抛（工作流里 LoadImage + WD14Tagger 都找到了）', applyError === '', applyError);
-check('六个路由都注册了', routes.length === 6, routes.join(' | '));
+check('五个路由都注册了', routes.length === 5, routes.join(' | '));
 check('收尾函数注册了（D20 契约）', cleanups.length === 1);
 
 const reply = () => {
@@ -203,28 +204,19 @@ await handlers.get('PUT /settings')({ body: { values: { model: 'wd-vit-tagger-v3
 const written = JSON.parse(readFileSync(path.join(spaceRoot, 'settings.json'), 'utf8'));
 check('PUT /settings 只落认识的键（model 与杂物都不收）', Object.keys(written).length === 0, JSON.stringify(written));
 
-// 「这次用的参数」写回默认值：必须是**并**，不是整体替换 —— 地址不能被反推洗掉
-const paramsRes = reply();
-const paramsBody = await handlers.get('PUT /params')(
-  { body: { params: { threshold: 0.55, characterThreshold: 0.85, model: 'wd-vit-tagger-v3', 杂物: 1 } } },
-  paramsRes,
-);
-const merged = JSON.parse(readFileSync(path.join(spaceRoot, 'settings.json'), 'utf8'));
-check('PUT /params 并进了阈值', merged.threshold === 0.55 && merged.characterThreshold === 0.85, JSON.stringify(merged));
-check('PUT /params 不碰 comfyuiBaseUrl', !('comfyuiBaseUrl' in merged), JSON.stringify(merged));
-check('PUT /params 不收杂物与 model', !('杂物' in merged) && !('model' in merged), JSON.stringify(merged));
-check('PUT /params 不需要重挂（本次请求的参数是前端送的）', paramsBody?.reloadRequired === false, String(paramsBody?.reloadRequired));
-
+// 设置面板存完要让宿主重挂才生效（D20）：路由自己声明 reloadRequired
 const keepRes = reply();
-await handlers.get('PUT /settings')({ body: { values: { comfyuiBaseUrl: 'http://1.2.3.4:8188', threshold: 0.2 } } }, keepRes);
-await handlers.get('PUT /params')({ body: { params: { threshold: 0.15 } } }, reply());
+const keepBody = await handlers.get('PUT /settings')(
+  { body: { values: { comfyuiBaseUrl: 'http://1.2.3.4:8188', threshold: 0.2 } } },
+  keepRes,
+);
 const kept = JSON.parse(readFileSync(path.join(spaceRoot, 'settings.json'), 'utf8'));
-check('写回参数不会丢掉已存的地址', kept.comfyuiBaseUrl === 'http://1.2.3.4:8188', JSON.stringify(kept));
-check('写回参数只覆盖提到的键', kept.threshold === 0.15 && !('model' in kept), JSON.stringify(kept));
+check('PUT /settings 落盘并要重挂', kept.comfyuiBaseUrl === 'http://1.2.3.4:8188' && keepBody?.reloadRequired === true, JSON.stringify(keepBody));
+check('落盘的就是收敛前的原值（收敛发生在读取时）', kept.threshold === 0.2, JSON.stringify(kept));
 
-const badParams = reply();
-await handlers.get('PUT /params')({ body: { params: 'nope' } }, badParams);
-check('PUT /params 形状不对 → 400', badParams.status === 400, String(badParams.status));
+const badSettings = reply();
+await handlers.get('PUT /settings')({ body: { values: 'nope' } }, badSettings);
+check('PUT /settings 形状不对 → 400', badSettings.status === 400, String(badSettings.status));
 
 section('④ /infer 的入参闸门（不碰网络）');
 const badRes = reply();

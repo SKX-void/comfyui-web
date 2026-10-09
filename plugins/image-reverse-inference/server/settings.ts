@@ -24,20 +24,8 @@ const SETTING_KEYS: readonly string[] = [
 ];
 
 /**
- * 「这次用的参数」能写回的那几个键 —— 刻意**不含**：
- *   - `comfyuiBaseUrl`：它是部署事实（地址），不是每次反推都要跟着变的参数；
- *   - `model`：模型固定在工作流里（见 `WorkflowBindings.taggerModel`），不是设置。
- * 老版本落过 `model` 的设置文件不用手动清：这里读改写时被白名单过滤掉，下次写盘就没了。
+ * 没配过时的内置默认值（与 package.json 的 plugin.settings 对齐）
  */
-const PARAM_KEYS: readonly string[] = [
-  'threshold',
-  'characterThreshold',
-  'replaceUnderscore',
-  'trailingComma',
-  'excludeTags',
-];
-
-/** 没配过时的内置默认值（与 package.json 的 plugin.settings 对齐） */
 export const DEFAULTS: SettingsValues = {
   comfyuiBaseUrl: 'http://localhost:8188',
   threshold: 0.35,
@@ -74,27 +62,6 @@ export function writeStoredSettings(space: PluginSpace, values: unknown): string
   const file = space.resolve(SETTINGS_FILE_NAME);
   fs.writeFileSync(file, `${JSON.stringify(clean, null, 2)}\n`, 'utf8');
   return file;
-}
-
-/** 只留参数键（丢掉 `comfyuiBaseUrl` 与杂物） */
-export function pickParams(incoming: unknown): Record<string, unknown> {
-  const source =
-    incoming !== null && typeof incoming === 'object' ? (incoming as Record<string, unknown>) : {};
-  const clean: Record<string, unknown> = {};
-  for (const key of PARAM_KEYS) {
-    if (source[key] !== undefined) clean[key] = source[key];
-  }
-  return clean;
-}
-
-/**
- * 把「这次用的参数」**并进**设置文件。
- *
- * 与 `writeStoredSettings` 的区别是读改写、不是整体替换：没提到的键（典型是
- * `comfyuiBaseUrl`）原样留着 —— 反推一次不该把地址洗掉。
- */
-export function mergeStoredSettings(space: PluginSpace, incoming: unknown): string {
-  return writeStoredSettings(space, { ...readStoredSettings(space).values, ...pickParams(incoming) });
 }
 
 /**
@@ -166,6 +133,5 @@ export function resolveSettings(
     values,
     stored,
     write: (incoming: unknown) => writeStoredSettings(space, incoming),
-    merge: (incoming: unknown) => mergeStoredSettings(space, incoming),
   };
 }

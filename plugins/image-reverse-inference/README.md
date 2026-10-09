@@ -27,8 +27,7 @@
 | 方法 | 路径 | 作用 |
 |---|---|---|
 | GET | `/api/p/image-reverse-inference/settings` | 盘上的原始值 + 本次装载的生效值 + 文件路径 |
-| PUT | `/api/p/image-reverse-inference/settings` | 写设置（`{ values: {...} }`，只收认识的键；整体替换） |
-| PUT | `/api/p/image-reverse-inference/params` | 「这次用的参数」并进默认值（`{ params: {...} }`，只并参数键、不碰地址，**不用重挂**） |
+| PUT | `/api/p/image-reverse-inference/settings` | 写设置（`{ values: {...} }`，只收认识的键；整体替换，要重挂才生效） |
 | GET | `/api/p/image-reverse-inference/model` | 工作流指定的模型 + 本机装没装（插件**不提供**选模型） |
 | GET | `/api/p/image-reverse-inference/status` | ComfyUI 连没连上（`/system_stats`） |
 | POST | `/api/p/image-reverse-inference/infer` | `{ dataUrl, filename, params }` → `{ tags, promptId, elapsedMs, uploaded }` |
@@ -56,13 +55,13 @@
 `comfyuiBaseUrl` 没配过时读宿主 `data/host.json` 的 `globals.comfyuiBaseUrl` 当只读默认值
 （D19：宿主不会把统一地址写进插件）。
 
-两条写盘路径，别混：
+**只有一条写盘路径**：设置面板「保存并重挂」→ `PUT /settings`（整体替换）→
+`POST /api/tabs/<id>/reload`。保存只是落盘，值要**重挂后**才进 `ComfyClient`（D20）。
 
-- **设置面板**「保存并重挂」→ `PUT /settings`（整体替换）→ `POST /api/tabs/<id>/reload`：
-  保存只是落盘，值要**重挂后**才进 `ComfyClient`（D20）。
-- **主页面参数行**（两个阈值滑动条 / 两个开关 / 排除标签）在点「开始反推」时
-  `PUT /params` 写回默认值 —— 读改写、只并这几个键（`comfyuiBaseUrl` 与 `model` 都不在此列），
-  **不需要重挂**：这次反推的参数本来就是前端显式送过去的，落盘只为下次打开时是同样的值。
+主页面参数行（两个阈值滑动条 / 两个开关 / 排除标签）**不落盘**：它只是这一次反推的入参，
+随请求送给后端。想改默认值就在设置面板里改 —— 曾经试过"点反推时把参数写回设置文件"，
+写是写进去了，但 `GET /settings` 给的是**挂载时读的快照**，不重挂就看不到，
+用户视角就是"没生效"，所以去掉了。
 
 ## 开发
 
@@ -74,8 +73,8 @@ pnpm --filter @comfyui-web/image-reverse-inference test:contract
 ```
 
 契约测试（`scripts/contract-test.mjs`）在没有浏览器的情况下走一遍：前端产物能不能被外壳加载、
-清单字段、后端 `apply()` 能不能解析 `workflow.json`、`/settings`、`/params`（并写不丢地址）
-与 `/infer` 的入参闸门。
+清单字段、后端 `apply()` 能不能解析 `workflow.json`、`/settings`（白名单与重挂标记）、
+`/model` 的形状与 `/infer` 的入参闸门。
 **它挡不住真出图那一跳** —— 上传 → `/prompt` → `/history` 要对着真 ComfyUI 跑：
 
 ```bash

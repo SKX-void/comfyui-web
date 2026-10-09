@@ -75,17 +75,6 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ values }),
     }),
-  /**
-   * 把「这次用的参数」写回默认设置（点「开始反推」时顺手调）。
-   *
-   * 与 `saveSettings` 的区别：服务端只**并**这几个参数键，不动 `comfyuiBaseUrl`；
-   * 也**不需要重挂** —— 本次反推的参数本来就是显式送过去的，落盘只为下次打开。
-   */
-  saveParams: (params: TaggerParams) =>
-    request<{ values: Record<string, unknown>; file: string; reloadRequired: boolean }>('/params', {
-      method: 'PUT',
-      body: JSON.stringify({ params }),
-    }),
   model: () => request<ModelResponse>('/model'),
   status: () => request<StatusResponse>('/status'),
   infer: (body: { dataUrl: string; filename: string; params: TaggerParams }) =>
