@@ -11,7 +11,7 @@
 import { onMounted, ref } from 'vue';
 
 import BlockCard from './components/BlockCard.vue';
-import BlockLibraryPanel, { type PendingBlock } from './components/BlockLibraryPanel.vue';
+import BlockLibraryPanel from './components/BlockLibraryPanel.vue';
 import CrossCallPanel from './components/CrossCallPanel.vue';
 import OutputPane from './components/OutputPane.vue';
 import PresetPanel from './components/PresetPanel.vue';
@@ -22,6 +22,7 @@ import { canDropItem, moveItem, type Block, type Doc, type ItemRef } from './mod
 import { useNotice } from './composables/useNotice';
 import { useTranslate } from './composables/useTranslate';
 import { useWorkspace } from './composables/useWorkspace';
+import type { PendingBlock } from './composables/useBlockLibrary';
 
 const { notice, flash } = useNotice();
 const {
@@ -64,6 +65,18 @@ const libOpen = ref(false);
 const blockLibOpen = ref(false);
 /** 从区块表头「存」送过来的那一块快照：区块库面板据此弹出"起个名字" */
 const blockPending = ref<PendingBlock | null>(null);
+
+/**
+ * 关掉区块库面板 = 这次"存块"**不作数**。
+ *
+ * 只把 `blockLibOpen` 置 false 的话，`blockPending` 会留着 —— 下次从「区块库…」进来
+ * 又弹回待存那一屏（已经叉掉的那块阴魂不散）。
+ */
+function closeBlockLibrary(): void {
+  blockLibOpen.value = false;
+  blockPending.value = null;
+}
+
 const dragBlock = ref<number | null>(null);
 const overBlock = ref<number | null>(null);
 /**
@@ -263,7 +276,7 @@ onMounted(async () => {
     <BlockLibraryPanel
       :open="blockLibOpen"
       :pending="blockPending"
-      @close="blockLibOpen = false"
+      @close="closeBlockLibrary"
       @cancel-pending="blockPending = null"
       @insert="insertPresetBlock"
     />

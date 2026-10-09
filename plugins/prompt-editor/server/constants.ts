@@ -28,6 +28,8 @@ export const LIMITS = {
   presets: 300,
   /** 区块库条数（跟预设同一个量级：都是"人手工攒的"，不是导入的） */
   blockPresets: 300,
+  /** 区块库的分类总数（分类是手工一个个建的，几十个够用）；名字长度复用下面的 category */
+  blockCategories: 32,
   name: 120,
   blocks: 200,
   items: 5000,

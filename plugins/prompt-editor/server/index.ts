@@ -26,6 +26,17 @@ export { PROVIDERS } from './providers.js';
 export { sanitizeSettings, sanitizeUsage } from './settings.js';
 export { escapeLike, machineCategory, mergeTag, sanitizeTags, tagSearchBlob } from './tags.js';
 export { BUNDLED_CSV, looksLikeLfsPointer, parseTagCsv } from './tagcsv.js';
-export { registerBlockPresetRoutes, sanitizeBlockPreset, summarize } from './routes-block-presets.js';
+export { registerBlockCategoryRoutes } from './routes-block-categories.js';
+export { registerBlockPresetRoutes } from './routes-block-presets.js';
+export {
+  categorySummaries,
+  loadBlockLibrary,
+  reorderCategories,
+  sanitizeBlockCategory,
+  sanitizeBlockPreset,
+  saveBlockLibrary,
+  summarize,
+  uncategorizedCount,
+} from './blockstore.js';
 export { openTagDb } from './tagdb.js';
 export { translateTexts } from './translate.js';

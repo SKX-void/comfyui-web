@@ -1,5 +1,5 @@
 /**
- * 区块库（**预设单块**）的路由与存储：`/block-presets`。
+ * 区块库（**预设单块**）的路由：`/block-presets`。
  *
  * 跟 `presets.json`（整份文档）不是一回事：这里是"一块内容"的库 —— 写提示词时看到某一块好用，
  * 存下来，下次插到别的工作区里。存的东西 = 区块的**属性 + 条目文本**：
@@ -7,140 +7,116 @@
  * - **不存译文**：译文对应的是当时的词库状态，插进来时按现在的词库重新查才对（存旧的 = 悄悄给错答案）。
  * - **不存条目 id**：插入时新生成（id 只需要在本机文档内唯一，跨文档复用没有意义）。
  *
+ * 落盘的形状与读写都在 `blockstore.ts`（分类路由在 `routes-block-categories.ts`），
+ * 这里只管"这一块"的增删改查。
+ *
+ * 分类（`categoryId`）是**库这一侧**的属性：插进工作区时不带走 —— 所以区块表头送来的快照里
+ * 没有它，归类只能在面板里发生（存的时候选一个，或者事后把行拖到左栏的分类上）。顺序同理，
+ * 只属于这份库（`PUT /order`）。
+ *
  * 上限与字段长度都走 `LIMITS`：自用工具也要防"一个坏请求 / 手改坏的文件"把 UI 撑爆。
  */
 import { randomUUID } from 'node:crypto';
 
-import { BLOCK_PRESETS_FILE, DEFAULT_COLOR, LIMITS, isMode, type Mode } from './constants.js';
-import { text } from './doc.js';
+import { BLOCK_PRESETS_FILE, LIMITS } from './constants.js';
+import {
+  knownCategoryId,
+  loadBlockLibrary,
+  reorderBlockPresets,
+  sanitizeBlockPreset,
+  saveBlockLibrary,
+  summarize,
+  type BlockPreset,
+} from './blockstore.js';
 import type { RouteHelpers } from './routes-translate.js';
-import { readJson, writeJson } from './store.js';
 import type { RouteReply } from './types.js';
 import { asRecord } from './util.js';
-
-export interface BlockPreset {
-  id: string;
-  name: string;
-  updatedAt: number;
-  /** 区块属性：标题 / 颜色 / 风格，插进来长得跟存的时候一样 */
-  title: string;
-  color: string;
-  mode: Mode;
-  /** 条目**文本**（顺序即插入顺序），译文与 id 都不存 */
-  items: string[];
-}
-
-/** 列表只给摘要：条目可能几百条，面板只需要"这是哪一块、大概什么内容" */
-export interface BlockPresetSummary {
-  id: string;
-  name: string;
-  updatedAt: number;
-  title: string;
-  color: string;
-  mode: Mode;
-  itemCount: number;
-  /** 前几条文本，够认出是哪一块 */
-  preview: string[];
-}
-
-const PREVIEW = 3;
-
-export function summarize(preset: BlockPreset): BlockPresetSummary {
-  return {
-    id: preset.id,
-    name: preset.name,
-    updatedAt: preset.updatedAt,
-    title: preset.title,
-    color: preset.color,
-    mode: preset.mode,
-    itemCount: preset.items.length,
-    preview: preset.items.slice(0, PREVIEW),
-  };
-}
-
-function sanitizeItems(input: unknown): string[] {
-  const list = Array.isArray(input) ? input.slice(0, LIMITS.items) : [];
-  return list
-    .map((item) => text(item, LIMITS.itemText).trim())
-    .filter((item) => item !== '')
-    .slice(0, LIMITS.items);
-}
-
-/** 盘上的数据 / 请求体 → 合法的预设块；形状不对返回 null（调用方给 400 或跳过） */
-export function sanitizeBlockPreset(input: unknown): BlockPreset | null {
-  const raw = asRecord(input);
-  if (raw === null) return null;
-  // 名字要 trim：只敲了空格的名字 = 没名字（不然库里会出现一行点不中的空行）
-  const name = text(raw.name, LIMITS.name).trim();
-  if (name === '') return null;
-  const id = typeof raw.id === 'string' && raw.id !== '' ? raw.id.slice(0, 64) : randomUUID();
-  return {
-    id,
-    name,
-    updatedAt: typeof raw.updatedAt === 'number' && Number.isFinite(raw.updatedAt) ? raw.updatedAt : Date.now(),
-    title: text(raw.title, LIMITS.title),
-    color: text(raw.color, LIMITS.color) || DEFAULT_COLOR,
-    // 风格认不出来就当 tag：跟 `sanitizeBlockMeta` 同一个兜底
-    mode: isMode(raw.mode) ? raw.mode : 'tag',
-    items: sanitizeItems(raw.items),
-  };
-}
 
 export function registerBlockPresetRoutes({ routes, space, badRequest, log }: RouteHelpers): void {
   const file = space.resolve(BLOCK_PRESETS_FILE);
 
-  const load = (): BlockPreset[] => {
-    const raw = asRecord(readJson(file, null));
-    const list = raw !== null && Array.isArray(raw.presets) ? raw.presets : [];
-    return list.map(sanitizeBlockPreset).filter((preset) => preset !== null);
-  };
-  const save = (list: BlockPreset[]): void => writeJson(file, { version: 1, presets: list });
-
   const notFound = (reply: RouteReply): unknown =>
     reply.code(404).send({ error: { code: 'NOT_FOUND', message: '没有这个预设区块' } });
 
-  routes.get('/block-presets', async () => ({ presets: load().map(summarize) }));
+  routes.get('/block-presets', async () => {
+    const library = loadBlockLibrary(file);
+    return { presets: library.presets.map(summarize) };
+  });
 
   routes.get('/block-presets/:id', async (request, reply) => {
-    const preset = load().find((one) => one.id === request.params.id) ?? null;
+    const preset = loadBlockLibrary(file).presets.find((one) => one.id === request.params.id) ?? null;
     return preset === null ? notFound(reply) : { preset };
   });
 
   routes.post('/block-presets', async (request, reply) => {
     const body = asRecord(request.body);
     if (body === null) return badRequest(reply, '请求体必须是 { name, title, color, mode, items }');
-    const list = load();
-    if (list.length >= LIMITS.blockPresets) {
+    const library = loadBlockLibrary(file);
+    if (library.presets.length >= LIMITS.blockPresets) {
       return badRequest(reply, `区块库已达上限 ${LIMITS.blockPresets} 条，先删掉一些再存`);
     }
     const preset = sanitizeBlockPreset({ ...body, id: randomUUID(), updatedAt: Date.now() });
     if (preset === null) return badRequest(reply, 'name 不能为空');
-    list.push(preset);
-    save(list);
-    log(`新增预设区块「${preset.name}」（${preset.items.length} 条，共 ${list.length} 条）`);
+    // 分类认不出就当未分类：面板只会送已存在的 id，送来的认不出通常是分类刚被另一个页面删了，
+    // 存一块不该因为分类没了而失败
+    preset.categoryId = knownCategoryId(library, preset.categoryId);
+    library.presets.push(preset);
+    saveBlockLibrary(file, library);
+    log(`新增预设区块「${preset.name}」（${preset.items.length} 条，共 ${library.presets.length} 条）`);
     return reply.code(201).send({ preset });
   });
 
-  /** 改名（内容不在这里改：想改内容就重新存一块 —— 覆盖保存会让"库里那份到底是什么"变得含糊） */
+  /**
+   * 列表拖完的新顺序。整列重排（`ids` = 全量，见 `reorderBlockPresets`），回新列表。
+   *
+   * 注册在 `/:id` **之前**：`order` 是个合法 id 的样子，靠注册顺序兜底（不指望路由器
+   * 会优先匹配静态段）。
+   */
+  routes.put('/block-presets/order', async (request, reply) => {
+    const ids = asRecord(request.body)?.ids;
+    if (!Array.isArray(ids) || ids.length === 0) return badRequest(reply, '请求体必须是 { ids: [...] }（列表的新顺序）');
+    if (ids.length > LIMITS.blockPresets) return badRequest(reply, `一次最多排 ${LIMITS.blockPresets} 条`);
+    const clean = ids.filter((one): one is string => typeof one === 'string' && one.trim() !== '');
+    if (clean.length !== ids.length) return badRequest(reply, 'ids 里只能是非空字符串');
+    const library = loadBlockLibrary(file);
+    reorderBlockPresets(library, clean);
+    saveBlockLibrary(file, library);
+    return { presets: library.presets.map(summarize) };
+  });
+
+  /**
+   * 改名 / 改归类。**条目内容不在这里改**（想改内容就重新存一块 —— 覆盖保存会让"库里那份到底是什么"
+   * 变得含糊）；分类是库这一侧的属性，所以它跟名字一样允许事后改。
+   */
   routes.put('/block-presets/:id', async (request, reply) => {
     const body = asRecord(request.body);
-    if (body === null) return badRequest(reply, '请求体必须是 { name }');
-    const list = load();
-    const index = list.findIndex((one) => one.id === request.params.id);
-    const current = list[index];
+    if (body === null) return badRequest(reply, '请求体必须是 { name?, categoryId? }');
+    const library = loadBlockLibrary(file);
+    const index = library.presets.findIndex((one) => one.id === request.params.id);
+    const current = library.presets[index];
     if (current === undefined) return notFound(reply);
-    const name = text(body.name, LIMITS.name).trim();
-    if (name === '') return badRequest(reply, 'name 不能为空');
-    const next: BlockPreset = { ...current, name, updatedAt: Date.now() };
-    list[index] = next;
-    save(list);
+
+    const next: BlockPreset = { ...current };
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || body.name.trim() === '') return badRequest(reply, 'name 不能为空');
+      next.name = body.name.slice(0, LIMITS.name).trim();
+    }
+    // `categoryId: ''` 是"移到未分类"的**正常**请求，所以这里判的是 `!== undefined` 而不是真值
+    if (body.categoryId !== undefined) {
+      const wanted = typeof body.categoryId === 'string' ? body.categoryId.slice(0, 64) : '';
+      next.categoryId = knownCategoryId(library, wanted);
+    }
+    next.updatedAt = Date.now();
+    library.presets[index] = next;
+    saveBlockLibrary(file, library);
     return { preset: next };
   });
 
   routes.delete('/block-presets/:id', async (request) => {
-    const list = load();
-    const next = list.filter((one) => one.id !== request.params.id);
-    if (next.length !== list.length) save(next);
-    return { removed: next.length !== list.length };
+    const library = loadBlockLibrary(file);
+    const remaining = library.presets.filter((one) => one.id !== request.params.id);
+    const removed = remaining.length !== library.presets.length;
+    if (removed) saveBlockLibrary(file, { categories: library.categories, presets: remaining });
+    return { removed };
   });
 }
