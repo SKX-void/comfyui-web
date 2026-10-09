@@ -33,11 +33,15 @@ const emit = defineEmits<{
   (e: 'drag-over'): void;
   (e: 'drop'): void;
   (e: 'drag-end'): void;
+  /** 触屏换位：区块自己（+1/-1），拖拽在触摸屏上不触发 */
+  (e: 'move', delta: number): void;
   /** 条目拖拽四件事：起手 / 悬停到第几条 / 落在第几条 / 收手（索引由这一层提供，落点判断在父级） */
   (e: 'item-drag-start', index: number): void;
   (e: 'item-drag-over', index: number): void;
   (e: 'item-drop', index: number): void;
   (e: 'item-drag-end'): void;
+  /** 触屏换位：第 index 条在块内 +1/-1 */
+  (e: 'item-move', index: number, delta: number): void;
   /** 翻这一条（用户点了「译」） */
   (e: 'translate', index: number): void;
   /** 翻这一整块 */
@@ -226,6 +230,7 @@ function removeItem(index: number): void {
       @drag-over="emit('drag-over')"
       @drop="emit('drop')"
       @drag-end="emit('drag-end')"
+      @move="emit('move', $event)"
       @translate-block="emit('translate-block')"
       @save-to-library="emit('save-to-library')"
       @toggle-palette="paletteOpen = !paletteOpen"
@@ -281,6 +286,7 @@ function removeItem(index: number): void {
         @dragover.prevent="onItemDragOver($event, index)"
         @drop="onItemDrop($event, index)"
         @dragend="emit('item-drag-end')"
+        @move="(delta: number) => emit('item-move', index, delta)"
       />
       <input
         ref="addInput"
@@ -295,102 +301,4 @@ function removeItem(index: number): void {
   </section>
 </template>
 
-<style scoped>
-.pe-block {
-  border: 1px solid var(--line, #2e333d);
-  border-radius: 8px;
-  background: var(--panel, #1b1e24);
-  overflow: hidden;
-}
-
-.pe-block-over {
-  outline: 2px solid var(--accent, #6ea8fe);
-  outline-offset: -2px;
-}
-
-.pe-palette {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line, #2e333d);
-}
-
-.pe-swatch {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  cursor: pointer;
-  padding: 0;
-}
-
-.pe-swatch-input {
-  flex: 1 1 150px;
-  min-width: 120px;
-  border: 1px dashed var(--line, #2e333d);
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 11px;
-  padding: 2px 6px;
-  outline: none;
-}
-
-.pe-swatch-input:focus {
-  border-color: var(--accent, #6ea8fe);
-}
-
-.pe-block-body {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 10px;
-  min-height: 46px;
-}
-
-/**
- * 自然语言：工作区里也**每句一行**，和输出区一致（tag 块照旧横着排成 tag 流）。
- * 这里只改排版，不动数据 —— 一条一句仍然是各自独立的条目。
- */
-.pe-block-body-text {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-/* 竖排时 flex-basis 会变成"高度"，所以输入框在自然语言块里要单独收一下 */
-.pe-block-body-text .pe-add {
-  flex: 0 0 auto;
-  width: 100%;
-}
-
-.pe-add {
-  flex: 1 1 180px;
-  min-width: 140px;
-  border: 1px dashed var(--line, #2e333d);
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  padding: 4px 8px;
-  outline: none;
-}
-
-.pe-add:focus {
-  border-color: var(--accent, #6ea8fe);
-}
-
-.pe-chip-over {
-  outline: 1px dashed var(--accent, #6ea8fe);
-  outline-offset: 2px;
-}
-
-/* 悬停在块体空白上 = 落点是末尾；类型不同的块不会亮（父级的 dropOk 就是这道闸） */
-.pe-block-body-drop {
-  outline: 1px dashed var(--accent, #6ea8fe);
-  outline-offset: -3px;
-}
-</style>
+<style scoped src="./block-card.css"></style>

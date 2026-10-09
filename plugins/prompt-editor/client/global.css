@@ -35,3 +35,26 @@
   min-width: 0;
   max-width: 100%;
 }
+
+/**
+ * 手机（≤720px）：内边距收窄，底部给固定操作条让位。
+ *
+ * 排版与控件的分工见各组件：`max-width: 720px` 管哪里放得下什么，`hover: none` 管没有悬停就没有的按钮。
+ */
+@media (max-width: 720px) {
+  .cw-prompt-editor {
+    /* 底部固定操作条（EditorChrome 的 .pe-bottombar）压在内容上，这里把它的高度垫出来 */
+    padding: 12px 10px calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /*
+   * iOS 聚焦 font-size < 16px 的输入框时会把整页放大 —— 这个页面全是输入框，那是灾难。
+   * 选择器要压过各组件 scoped 的 `.pe-chip-input[data-v-x]`（0,2,0），否则那份 `font: inherit`
+   * （14px）会把它盖回去。
+   */
+  .cw-prompt-editor .pe-app input,
+  .cw-prompt-editor .pe-app textarea,
+  .cw-prompt-editor .pe-app select {
+    font-size: 16px;
+  }
+}

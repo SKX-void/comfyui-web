@@ -21,6 +21,8 @@ const emit = defineEmits<{
   (e: 'commit-translation'): void;
   /** 点「机」标记：把机器翻的这条存进词库 */
   (e: 'promote'): void;
+  /** 触屏换位：这一条在块内 +1/-1（拖拽在触摸屏上不触发） */
+  (e: 'move', delta: number): void;
 }>();
 
 const editing = ref(false);
@@ -83,6 +85,22 @@ function toggle(): void {
         @blur="commit"
       />
       <span v-else class="pe-chip-text">{{ item.text }}</span>
+
+      <!--
+        触屏（hover: none）：双击禁用、拖动排序在这里都不成立，所以换成明摆着的按钮。
+        宽屏上藏起来 —— 那儿双击和拖拽更顺手，多一排按钮只是噪音。
+      -->
+      <span class="pe-chip-tools">
+        <button
+          class="pe-chip-tool"
+          :title="item.enabled ? '禁用这一条（不进输出）' : '启用这一条'"
+          @click.stop="toggle"
+        >
+          {{ item.enabled ? '禁' : '启' }}
+        </button>
+        <button class="pe-chip-tool" title="上移" @click.stop="emit('move', -1)">↑</button>
+        <button class="pe-chip-tool" title="下移" @click.stop="emit('move', 1)">↓</button>
+      </span>
 
       <button class="pe-chip-btn pe-chip-btn-del" title="删除" @click.stop="emit('remove')">×</button>
     </span>
@@ -171,5 +189,47 @@ function toggle(): void {
 
 .pe-chip-btn-del:hover {
   color: var(--danger, #ff7b72);
+}
+
+/* 触屏专属的那一排（禁用 / 上移 / 下移）：默认不显示，见下面的 hover: none */
+.pe-chip-tools {
+  display: none;
+  flex: none;
+  gap: 2px;
+}
+
+.pe-chip-tool {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 4px;
+  background: var(--panel, #1b1e24);
+  color: var(--muted, #9aa3b2);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 6px;
+  cursor: pointer;
+}
+
+@media (hover: none) {
+  .pe-chip-tools {
+    display: inline-flex;
+  }
+
+  /* 「×」原来是悬停才出现的（opacity: 0）—— 触摸屏上永远不会悬停，等于没有删除入口。
+     顺手把这一排和「×」撑到指头点得准：它们原来只有 19×21 */
+  .pe-chip-btn,
+  .pe-chip-tool {
+    opacity: 1;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 5px 6px;
+  }
+}
+
+@media (max-width: 720px) {
+  .pe-chip {
+    min-height: 30px;
+    padding: 4px 4px 4px 8px;
+  }
 }
 </style>

@@ -111,4 +111,25 @@ async function copy(): Promise<void> {
   font-size: 11px;
   color: var(--muted, #9aa3b2);
 }
+
+@media (max-width: 720px) {
+  /* 手机上输出区是独立一屏（见 App.vue 的视图切换），不再是右边的一条窄栏 */
+  .pe-output-head {
+    flex-wrap: wrap;
+  }
+
+  /* 那句解释挪到第二行：挤在一行里会把「复制」推出屏幕 */
+  .pe-output-mode {
+    order: 3;
+    flex: 1 1 100%;
+  }
+
+  .pe-copy {
+    padding: 8px 14px;
+  }
+
+  .pe-output-text {
+    min-height: 55vh;
+  }
+}
 </style>

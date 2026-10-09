@@ -133,3 +133,41 @@
   color: var(--muted, #9aa3b2);
   opacity: 0.85;
 }
+
+@media (max-width: 720px) {
+  /* 手机：面板吃掉整屏（居中的 94vw × 86vh 在手机上只剩一条缝） */
+  .pe-overlay {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .pe-panel {
+    width: 100%;
+    /* 两行 height：不认 dvh 的浏览器退回 vh */
+    height: 100vh;
+    height: 100dvh;
+    border: none;
+    border-radius: 0;
+  }
+
+  .pe-close {
+    font-size: 24px;
+    padding: 4px 10px;
+  }
+
+  .pe-blk-bar,
+  .pe-blk-save {
+    flex-wrap: wrap;
+  }
+
+  /* 左栏 200px 的竖栏 + 列表在手机上互相挤：分类横过来（见 block-category-nav.css） */
+  .pe-blk-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .pe-btn {
+    padding: 8px 12px;
+  }
+}

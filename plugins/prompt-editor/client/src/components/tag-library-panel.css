@@ -1,0 +1,253 @@
+.pe-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 40;
+}
+
+.pe-panel {
+  width: min(880px, 94vw);
+  height: min(620px, 86vh);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 10px;
+  background: var(--panel, #1b1e24);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+
+.pe-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line, #2e333d);
+}
+
+.pe-panel-head strong {
+  flex: 1;
+}
+
+.pe-close {
+  border: none;
+  background: transparent;
+  color: var(--muted, #9aa3b2);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pe-lib-stat {
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+}
+
+/* 常驻占位：文字一直在，只切 visibility —— 宽度天然留出来，出现/消失都不挤旁边的计数 */
+.pe-lib-loading {
+  font-size: 11px;
+  color: var(--accent, #6ea8fe);
+  white-space: nowrap;
+  visibility: hidden;
+}
+
+.pe-lib-loading.on {
+  visibility: visible;
+}
+
+.pe-lib-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line, #2e333d);
+}
+
+.pe-lib-bar .pe-input {
+  flex: 1;
+}
+
+.pe-lib-target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+  white-space: nowrap;
+}
+
+.pe-lib-target .pe-input {
+  flex: 0 0 auto;
+  max-width: 200px;
+}
+
+.pe-lib-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.pe-lib-list {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 加载更多：列表底部一条，别做成大按钮抢注意力 */
+/* 打开时明显变样：这个模式下面「删」就在「插入」旁边 */
+.pe-lib-mode {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pe-lib-mode.on {
+  border-color: var(--accent, #6ea8fe);
+  color: var(--accent, #6ea8fe);
+}
+
+.pe-lib-more {
+  align-self: center;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.pe-lib-tip {
+  margin: 0;
+  padding: 4px 2px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted, #9aa3b2);
+  opacity: 0.85;
+}
+
+/* 空库那张卡：左边对齐的一竖排（说明 + 按钮） */
+.pe-lib-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 4px;
+}
+
+.pe-btn {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  background: var(--panel-2, #22262e);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.pe-btn:hover:not(:disabled) {
+  border-color: var(--accent, #6ea8fe);
+}
+
+.pe-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pe-btn-quiet {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+}
+
+.pe-lib-foot .pe-lib-tip {
+  flex: 1;
+}
+
+.pe-lib-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line, #2e333d);
+}
+
+.pe-hint {
+  flex: 1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ok, #4ac38a);
+}
+
+.pe-error {
+  margin: 0;
+  padding: 4px 2px;
+  font-size: 12px;
+  color: var(--danger, #ff7b72);
+}
+
+.pe-input {
+  min-width: 0;
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  background: var(--panel-2, #22262e);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+}
+
+.pe-input:focus {
+  border-color: var(--accent, #6ea8fe);
+}
+
+/* 手机：面板吃掉整屏 —— 居中的 94vw × 86vh 在手机上只剩一条缝，左栏和列表全挤在一起 */
+@media (max-width: 720px) {
+  .pe-overlay {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .pe-panel {
+    width: 100%;
+    /* 两行 height：不认 dvh 的浏览器退回 vh（地址栏收起/展开时 vh 不变，底部会被切掉） */
+    height: 100vh;
+    height: 100dvh;
+    border: none;
+    border-radius: 0;
+  }
+
+  .pe-close {
+    font-size: 24px;
+    padding: 4px 10px;
+  }
+
+  /* 搜索 / 插入目标 / 编辑模式一条放不下：允许换行，搜索框独占一行 */
+  .pe-lib-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pe-lib-bar .pe-input {
+    flex: 1 1 100%;
+  }
+
+  .pe-lib-target {
+    flex: 1 1 auto;
+  }
+
+  .pe-lib-target .pe-input {
+    flex: 1;
+    max-width: none;
+  }
+
+  /* 分类栏横过来当筛选条（见 TagCategoryNav），列表吃掉剩下的高度 */
+  .pe-lib-main {
+    flex-direction: column;
+  }
+
+  .pe-btn {
+    padding: 8px 12px;
+  }
+}

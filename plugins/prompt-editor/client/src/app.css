@@ -1,0 +1,62 @@
+.pe-add-block {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  background: var(--panel-2, #22262e);
+  color: inherit;
+  font: inherit;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.pe-add-block:hover {
+  border-color: var(--accent, #6ea8fe);
+}
+
+.pe-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 12px;
+  margin-top: 12px;
+  align-items: start;
+}
+
+.pe-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pe-add-block {
+  border-style: dashed;
+  color: var(--muted, #9aa3b2);
+  padding: 8px;
+}
+
+.pe-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 12px;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .pe-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pe-side {
+    position: static;
+  }
+}
+
+/* 手机：工作区 / 输出 一次只显示一屏（切换条在 EditorChrome 里，这里只认它给的那个 class）。
+   上面 900px 那条只管"两栏叠起来"，叠起来之后输出区照样在几十张卡片底下 */
+@media (max-width: 720px) {
+  .pe-view-workspace .pe-side,
+  .pe-view-output .pe-workspace {
+    display: none;
+  }
+}

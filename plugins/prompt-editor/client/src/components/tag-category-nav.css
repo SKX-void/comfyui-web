@@ -1,0 +1,216 @@
+.pe-lib-cats {
+  /* 150 放不下"分类名 + 计数 + 改名/删除"：名字会被挤成两行，整行高 44（原来 26）。
+     右边列表宽得多，从它那里挪 40px 过来最划算 */
+  flex: 0 0 190px;
+  overflow: auto;
+  padding: 8px;
+  border-right: 1px solid var(--line, #2e333d);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pe-lib-cats button {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pe-lib-cats button:hover {
+  background: var(--panel-2, #22262e);
+}
+
+.pe-lib-cats button.on {
+  background: var(--panel-2, #22262e);
+  color: var(--accent, #6ea8fe);
+}
+
+/**
+ * 拖拽时整列点亮：一拿起手柄，左边所有能放的地方都显出来（"这里可以放"），
+ * 悬停到的那个再加强（`.pe-lib-drop-on`）—— 光高亮悬停的那个不够，人得先知道有哪几个地方能放。
+ */
+.pe-lib-cats-dragging button[data-drop='ok'] {
+  background: var(--panel-2, #22262e);
+  outline: 1px dashed var(--accent, #6ea8fe);
+  outline-offset: -1px;
+}
+
+.pe-lib-cats button.pe-lib-drop-on {
+  background: var(--accent, #6ea8fe);
+  color: var(--panel, #171a20);
+  outline-style: solid;
+}
+
+/* 分类级管理区：新建 / 改名 / 删除确认，一次只显示一件事 */
+.pe-lib-cat-manage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 2px 6px;
+  border-bottom: 1px solid var(--line, #2c313a);
+  margin-bottom: 6px;
+}
+
+.pe-lib-cat-warn {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted, #9aa3b2);
+}
+
+.pe-lib-cat-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.pe-lib-cat-new,
+.pe-lib-cat-input {
+  width: 100%;
+  font-size: 12px;
+}
+
+/* 一行 = 可点的分类 + 挂在旁边的改名/删除（button 里不能再套 button，所以是兄弟节点） */
+.pe-lib-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 正在改名的那一行：管理区在上面，这里得看得出改的是哪一个 */
+.pe-lib-cat-row-editing .pe-lib-cat-pick {
+  outline: 1px dashed var(--accent, #6ea8fe);
+  outline-offset: -1px;
+}
+
+.pe-lib-cat-row .pe-lib-cat-pick {
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+/* 名字太长时自己省略，别把这一行撑成两行（`em` 不参与收缩，计数永远看得见） */
+.pe-lib-cat-row .pe-lib-cat-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pe-lib-cat-row .pe-lib-cat-pick > em {
+  flex: none;
+}
+
+/* 常显（淡）而不是 hover 才出：这俩按钮就是"分类管理在哪"的答案，藏起来等于没有。
+   用「改 / 删」而不是 ✎/× —— 缺字时 ✎ 会变成豆腐块（本机实测），汉字一定有 */
+.pe-lib-cat-tools {
+  display: flex;
+  gap: 2px;
+  opacity: 0.4;
+}
+
+.pe-lib-cat-row:hover .pe-lib-cat-tools {
+  opacity: 1;
+}
+
+/* 六点手柄：跟 tag 行一个样式（平时淡、悬停明显） */
+.pe-lib-cat-row .pe-lib-grip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--muted, #9aa3b2);
+  opacity: 0.35;
+  cursor: grab;
+}
+
+.pe-lib-cat-row:hover .pe-lib-grip {
+  opacity: 0.9;
+}
+
+.pe-lib-cat-row:active .pe-lib-grip {
+  cursor: grabbing;
+}
+
+.pe-lib-cat-row-dragging {
+  opacity: 0.5;
+}
+
+/* 插入位置：上下两条内嵌的线（跟 tag 行同一套视觉） */
+.pe-lib-cat-row-over-before {
+  box-shadow: inset 0 2px 0 0 var(--accent, #6ea8fe);
+}
+
+.pe-lib-cat-row-over-after {
+  box-shadow: inset 0 -2px 0 0 var(--accent, #6ea8fe);
+}
+
+/* 选择器要压过上面那条 `.pe-lib-cats button`（它的 display/padding 会把这俩小按钮撑歪） */
+.pe-lib-cats .pe-lib-cat-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted, #9aa3b2);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pe-lib-cats .pe-lib-cat-tool:hover {
+  background: var(--panel-2, #22262e);
+  color: var(--accent, #6ea8fe);
+}
+
+.pe-lib-cats em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+}
+
+/* 面板本体也有一份：分类树是独立组件，scoped 样式作用不到对方的节点 */
+.pe-lib-tip {
+  margin: 0;
+  padding: 4px 2px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted, #9aa3b2);
+  opacity: 0.85;
+}
+
+@media (max-width: 720px) {
+  /* 190px 的竖栏在手机上吃掉一半屏：横过来当筛选条（列表那边同步改成 column，见 TagLibraryPanel） */
+  .pe-lib-cats {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--line, #2e333d);
+  }
+
+  .pe-lib-cats button,
+  .pe-lib-cat-row {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  /* 新增/重命名分类那一小块：横排里给它一个不会缩成一团的宽度 */
+  .pe-lib-cat-manage {
+    min-width: 220px;
+  }
+}

@@ -171,3 +171,40 @@
   background: var(--panel-2, #22262e);
   color: var(--accent, #6ea8fe);
 }
+
+@media (max-width: 720px) {
+  /* 竖排分类在手机上吃掉大半屏：横过来当筛选条，列表才有地方站 */
+  .pe-catnav {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 0 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--line, #2e333d);
+  }
+
+  .pe-catnav-head,
+  .pe-catnav-manage {
+    flex: none;
+  }
+
+  .pe-catnav-manage {
+    min-width: 220px;
+  }
+
+  .pe-catnav-list {
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .pe-catnav-row {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  /* 改名/删除原来只在 :hover 时现身 —— 触屏上等于没有这两个入口 */
+  .pe-catnav-ops {
+    display: flex;
+  }
+}
