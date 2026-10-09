@@ -80,6 +80,19 @@ const {
   onDropOnCategory,
   onRowDragOver,
   onRowDrop,
+  transfer: {
+    on: picking,
+    picked: pickedIds,
+    busy: transferBusy,
+    count: pickedCount,
+    allPicked,
+    start: startPick,
+    stop: stopPick,
+    toggle: togglePick,
+    toggleAll: toggleAllPick,
+    exportPicked,
+    onFilePicked,
+  },
 } = useBlockLibrary({
   insert: (preset) => emit('insert', preset),
   consumePending: () => emit('cancel-pending'),
@@ -87,6 +100,12 @@ const {
 
 /** 存块时那个名字框：打开面板（或又送来一块）要**自己抢焦点** */
 const nameBox = ref<HTMLInputElement | null>(null);
+
+/** 原生 `<input type=file>` 藏起来，由「导入…」按钮去点它 */
+const fileBox = ref<HTMLInputElement | null>(null);
+
+/** 全选的对象：当前列表（左栏筛着某个分类时，就是这一堆） */
+const visibleIds = computed(() => visible.value.map((one) => one.id));
 
 /** 存块那一行显示"会存到哪一堆"：左栏选中的分类名（「全部 / 未分类」= 未分类） */
 const saveCatLabel = computed(
@@ -128,6 +147,17 @@ watch(
       <header class="pe-panel-head">
         <strong>区块库</strong>
         <span class="pe-blk-stat">{{ presets.length }} 块 · {{ categories.length }} 个分类</span>
+        <!-- 导入是**写**动作：跟改名 / 删除一样只在编辑模式露出来 -->
+        <button v-if="editMode" class="pe-btn" :disabled="transferBusy" @click="fileBox?.click()">导入…</button>
+        <button
+          class="pe-btn"
+          :class="{ on: picking }"
+          :disabled="transferBusy"
+          title="多选：挑几块一起导出（导出是只读的，浏览模式也能用）"
+          @click="picking ? stopPick() : startPick()"
+        >
+          {{ picking ? '退出多选' : '多选' }}
+        </button>
         <button
           class="pe-btn pe-blk-mode"
           :class="{ on: editMode }"
@@ -139,8 +169,20 @@ watch(
         <button class="pe-close" title="关闭" @click="emit('close')">×</button>
       </header>
 
+      <input ref="fileBox" class="pe-file" type="file" accept=".json,application/json" @change="onFilePicked" />
+
       <div class="pe-blk-bar">
-        <div v-if="pending !== null" class="pe-blk-save">
+        <!-- 多选时这一栏换成选择条：这会儿不是在存块，是在挑要导出的块 -->
+        <div v-if="picking" class="pe-selbar">
+          <label class="pe-pick-all">
+            <input type="checkbox" class="pe-pick" :checked="allPicked(visibleIds)" @change="toggleAllPick(visibleIds)" />
+            <span>全选</span>
+          </label>
+          <span class="pe-sel-count">已选 {{ pickedCount }} / {{ visible.length }}</span>
+          <button class="pe-btn" :disabled="pickedCount === 0 || transferBusy" @click="exportPicked">导出选中</button>
+          <button class="pe-btn" :disabled="transferBusy" @click="stopPick">取消</button>
+        </div>
+        <div v-else-if="pending !== null" class="pe-blk-save">
           <input
             ref="nameBox"
             v-model="name"
@@ -195,6 +237,8 @@ watch(
           :busy-id="busyId"
           :filtered="activeCat !== null"
           :edit-mode="editMode"
+          :picking="picking"
+          :picked-ids="pickedIds"
           :dragging-key="dragKey"
           :drop-index="dropIndex"
           :sortable="sortable"
@@ -205,6 +249,7 @@ watch(
           :expanded-items="expandedItems"
           :expand-busy="expandBusy"
           @insert="insert"
+          @toggle-pick="togglePick"
           @toggle-expand="toggleExpand"
           @start-rename="startRename"
           @cancel-rename="cancelRename"

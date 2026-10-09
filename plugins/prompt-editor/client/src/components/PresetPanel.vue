@@ -6,16 +6,19 @@
  * 与 WeiLin 的区别：**预设保存的是整份结构**（区块标题/颜色/条目/禁用态），
  * 因为"结构只属于工作区"这条设计里，结构就是工作区的全部内容。
  */
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import {
   createPreset,
   deletePreset,
+  exportPresets,
   getPreset,
+  importPresets,
   listPresets,
   updatePreset,
   type PresetSummary,
 } from '../api';
+import { useImportExport } from '../composables/useImportExport';
 import type { Doc } from '../model';
 
 const props = defineProps<{ open: boolean; doc: Doc }>();
@@ -26,6 +29,36 @@ const name = ref('');
 const busy = ref(false);
 const error = ref('');
 const hint = ref('');
+
+/** 原生 `<input type=file>` 藏起来，由「导入…」按钮去点它（它长得跟面板不是一套） */
+const fileBox = ref<HTMLInputElement | null>(null);
+
+const {
+  on: picking,
+  busy: transferBusy,
+  count: pickedCount,
+  isPicked,
+  allPicked,
+  start: startPick,
+  stop: stopPick,
+  toggle: togglePick,
+  toggleAll: toggleAllPick,
+  exportPicked,
+  onFilePicked,
+} = useImportExport({
+  error,
+  hint,
+  label: '预设库',
+  exportFile: exportPresets,
+  importFile: async (data) => {
+    const done = await importPresets(data);
+    await refresh();
+    return `已导入 ${done.imported} 份预设${done.skipped > 0 ? `，跳过 ${done.skipped} 条认不出的` : ''}`;
+  },
+});
+
+/** 全选的对象：当前列表（这里没有筛选，就是全部） */
+const presetIds = computed(() => presets.value.map((one) => one.id));
 
 function formatTime(ms: number): string {
   return new Date(ms).toLocaleString();
@@ -61,6 +94,8 @@ watch(
     error.value = '';
     hint.value = '';
     name.value = '';
+    // 每次打开都退回普通模式：多选是"我现在要挑几条"，不该跟着面板一起记住
+    stopPick();
     void refresh();
   },
 );
@@ -115,10 +150,33 @@ async function load(preset: PresetSummary): Promise<void> {
     <div class="pe-panel">
       <header class="pe-panel-head">
         <strong>预设库</strong>
+        <span class="pe-stat">{{ presets.length }} 份</span>
+        <button class="pe-btn" :disabled="busy || transferBusy" @click="fileBox?.click()">导入…</button>
+        <button
+          class="pe-btn"
+          :class="{ on: picking }"
+          :disabled="transferBusy"
+          title="多选：挑几份一起导出"
+          @click="picking ? stopPick() : startPick()"
+        >
+          {{ picking ? '退出多选' : '多选' }}
+        </button>
         <button class="pe-close" title="关闭" @click="emit('close')">×</button>
       </header>
 
-      <div class="pe-save-row">
+      <input ref="fileBox" class="pe-file" type="file" accept=".json,application/json" @change="onFilePicked" />
+
+      <!-- 多选时把「另存为」收起来：这会儿是在挑要导出的几份，不是要存新的 -->
+      <div v-if="picking" class="pe-selbar">
+        <label class="pe-pick-all">
+          <input type="checkbox" class="pe-pick" :checked="allPicked(presetIds)" @change="toggleAllPick(presetIds)" />
+          <span>全选</span>
+        </label>
+        <span class="pe-sel-count">已选 {{ pickedCount }} / {{ presets.length }}</span>
+        <button class="pe-btn" :disabled="pickedCount === 0 || transferBusy" @click="exportPicked">导出选中</button>
+        <button class="pe-btn" :disabled="transferBusy" @click="stopPick">取消</button>
+      </div>
+      <div v-else class="pe-save-row">
         <input v-model="name" class="pe-input" placeholder="预设名（另存为新预设）" @keydown.enter="saveAs" />
         <button class="pe-btn" :disabled="busy" @click="saveAs">另存为</button>
       </div>
@@ -127,12 +185,29 @@ async function load(preset: PresetSummary): Promise<void> {
       <p v-else-if="hint !== ''" class="pe-hint">{{ hint }}</p>
 
       <ul class="pe-list">
-        <li v-for="preset in presets" :key="preset.id" class="pe-item">
+        <li
+          v-for="preset in presets"
+          :key="preset.id"
+          class="pe-item"
+          :class="{ 'pe-item-picking': picking }"
+          @click="picking && togglePick(preset.id)"
+        >
+          <!-- 多选：勾在行首，点行上哪儿都算（手机上 18px 的方框点不准） -->
+          <input
+            v-if="picking"
+            class="pe-pick"
+            type="checkbox"
+            :checked="isPicked(preset.id)"
+            :aria-label="`选择「${preset.name}」`"
+            @click.stop
+            @change="togglePick(preset.id)"
+          />
           <div class="pe-item-main">
             <span class="pe-item-name">{{ preset.name }}</span>
             <span class="pe-item-meta">{{ preset.blockCount }} 区块 · {{ preset.itemCount }} 条目 · {{ formatTime(preset.updatedAt) }}</span>
           </div>
-          <div class="pe-item-actions">
+          <!-- 多选时行上只留勾：这会儿点「删除」是手滑，不是意图 -->
+          <div v-if="!picking" class="pe-item-actions">
             <button class="pe-btn" :disabled="busy" @click="load(preset)">载入</button>
             <button class="pe-btn" :disabled="busy" @click="overwrite(preset)">覆盖</button>
             <button class="pe-btn" :disabled="busy" @click="rename(preset)">改名</button>

@@ -131,9 +131,46 @@ function blockSummary(one: (typeof fakeBlockPresets)[number]): Record<string, un
     preview: one.items.slice(0, 3),
   };
 }
-/** 区块库的分类：真库里是 `block-presets.json` 的 categories 段（独立 id、允许重名） */
+/** 假区块库的分类：真库里是 `block-presets.json` 的 categories 段（独立 id、允许重名） */
 let fakeBlockCats: { id: string; name: string }[] = [];
 let fakeBlockCatSeq = 0;
+
+/**
+ * 假预设库：真库是 `presets.json`（整份文档）。`doc` 只关心形状 —— 导出测试要的是
+ * "整份文档有没有原样带上"，条目内容本身在这儿不重要。
+ */
+let fakePresets: { id: string; name: string; updatedAt: number; doc: Record<string, unknown> }[] = [
+  {
+    id: 'ps1',
+    name: '人物起手',
+    updatedAt: 1,
+    doc: {
+      version: 1,
+      blocks: [
+        {
+          id: 'pb1',
+          title: '质量',
+          color: '#6ea8fe',
+          mode: 'tag',
+          items: [{ id: 'pi1', text: '1girl', enabled: true, translation: '', source: '' }],
+        },
+      ],
+    },
+  },
+  { id: 'ps2', name: '夜景', updatedAt: 2, doc: { version: 1, blocks: [] } },
+];
+
+/** 摘要形状与 `routes.ts` 的 `summary` 对齐（列表只给计数，不带整份文档） */
+function presetSummary(one: (typeof fakePresets)[number]): Record<string, unknown> {
+  const blocks = Array.isArray(one.doc.blocks) ? (one.doc.blocks as { items?: unknown[] }[]) : [];
+  return {
+    id: one.id,
+    name: one.name,
+    updatedAt: one.updatedAt,
+    blockCount: blocks.length,
+    itemCount: blocks.reduce((n, block) => n + (Array.isArray(block.items) ? block.items.length : 0), 0),
+  };
+}
 /** 分类实体（含**还没有词用的空分类**）：真库里是 categories 表 */
 let fakeCategories: string[] = [];
 /** 分类的手动顺序（空 = 还没拖过）。真库里是 `categories.sort`，这里只要顺序对得上就够 */
@@ -390,6 +427,37 @@ Object.defineProperty(globalThis, 'fetch', {
       delete fakeTags[en];
       return reply({ ok: true, deleted: had });
     }
+    // 预设库（整份文档）：列表给摘要，按 id 取整条；导出 / 导入与真服务端同一套文件形状
+    if (method === 'GET' && path.endsWith('/presets')) {
+      return reply({ presets: fakePresets.map(presetSummary) });
+    }
+    if (method === 'POST' && path.endsWith('/presets/export')) {
+      const ids = (body?.ids as string[]) ?? [];
+      const picked = ids.length === 0 ? fakePresets : fakePresets.filter((one) => ids.includes(one.id));
+      return reply({
+        kind: 'prompt-editor/presets',
+        version: 1,
+        exportedAt: 0,
+        presets: picked.map((one) => ({ name: one.name, doc: one.doc })),
+      });
+    }
+    if (method === 'POST' && path.endsWith('/presets/import')) {
+      const rows = Array.isArray(body?.presets) ? (body.presets as { name?: unknown; doc?: unknown }[]) : [];
+      for (const row of rows) {
+        fakePresets.push({
+          id: `ps${fakePresets.length + 1}`,
+          name: String(row.name ?? ''),
+          updatedAt: 9,
+          doc: (row.doc ?? {}) as Record<string, unknown>,
+        });
+      }
+      return reply({ imported: rows.length, skipped: 0, total: fakePresets.length });
+    }
+    if (method === 'GET' && path.includes('/presets/')) {
+      const id = path.slice(path.lastIndexOf('/') + 1);
+      const hit = fakePresets.find((one) => one.id === id);
+      return hit === undefined ? fail('没有这个预设') : reply({ preset: hit });
+    }
     // 区块库：列表只给摘要（面板要的预览在 preview 里），按 id 取整条
     if (method === 'GET' && path.endsWith('/block-presets')) {
       return reply({ presets: fakeBlockPresets.map(blockSummary) });
@@ -488,6 +556,59 @@ Object.defineProperty(globalThis, 'fetch', {
       const before = fakeBlockPresets.length;
       fakeBlockPresets = fakeBlockPresets.filter((one) => one.id !== id);
       return reply({ removed: fakeBlockPresets.length !== before });
+    }
+    // 区块库的导出 / 导入：文件形状与 `server/exportdoc.ts` 对齐（分类只带名字）
+    if (method === 'POST' && path.endsWith('/block-presets/export')) {
+      const ids = (body?.ids as string[]) ?? [];
+      const picked = ids.length === 0 ? fakeBlockPresets : fakeBlockPresets.filter((one) => ids.includes(one.id));
+      return reply({
+        kind: 'prompt-editor/block-library',
+        version: 1,
+        exportedAt: 0,
+        categories: [],
+        presets: picked.map((one) => ({
+          name: one.name,
+          category: fakeBlockCats.find((cat) => cat.id === one.categoryId)?.name ?? '',
+          title: one.title,
+          color: one.color,
+          mode: one.mode,
+          items: one.items,
+        })),
+      });
+    }
+    if (method === 'POST' && path.endsWith('/block-presets/import')) {
+      const rows = Array.isArray(body?.presets)
+        ? (body.presets as { name?: unknown; category?: unknown; title?: unknown; color?: unknown; mode?: unknown; items?: unknown }[])
+        : [];
+      let categoriesCreated = 0;
+      for (const row of rows) {
+        // 分类按名字对齐：认不出的名字建一个（真服务端的规则，见 routes-block-presets.ts）
+        const name = String(row.category ?? '');
+        let categoryId = '';
+        if (name !== '') {
+          const known = fakeBlockCats.find((cat) => cat.name === name);
+          if (known !== undefined) {
+            categoryId = known.id;
+          } else {
+            fakeBlockCatSeq += 1;
+            categoryId = `bc${fakeBlockCatSeq}`;
+            fakeBlockCats.push({ id: categoryId, name });
+            categoriesCreated += 1;
+          }
+        }
+        fakeBlockSeq += 1;
+        fakeBlockPresets.push({
+          id: `bp${fakeBlockSeq}`,
+          name: String(row.name ?? ''),
+          updatedAt: 9,
+          title: String(row.title ?? ''),
+          color: String(row.color ?? '#6ea8fe'),
+          mode: row.mode === 'text' ? 'text' : 'tag',
+          categoryId,
+          items: Array.isArray(row.items) ? row.items.map((one) => String(one)) : [],
+        });
+      }
+      return reply({ imported: rows.length, skipped: 0, categoriesCreated, categoriesDropped: 0 });
     }
     // 宿主清单（跨域调用拿它判断下游装没装 / 启没启）
     if (method === 'GET' && path === '/api/plugins') {
@@ -616,6 +737,76 @@ async function pressEnter(input: HTMLInputElement, composing = false): Promise<v
     new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, isComposing: composing }),
   );
   await nextTick();
+}
+
+/** 顶栏那排按钮按文字找：按下标点会随顶栏改版飘（手机上那排是收起来的，DOM 里还在） */
+function topBtn(label: string): HTMLButtonElement {
+  const hit = pickAll<HTMLButtonElement>('.pe-top .pe-actions button').find((one) =>
+    (one.textContent ?? '').trim().startsWith(label),
+  );
+  if (hit === undefined) throw new Error(`顶栏没有「${label}」按钮`);
+  return hit;
+}
+
+/** 面板里的按钮按文字找：`null` = 这会儿没有（比如浏览模式下没有「导入…」） */
+function findBtn(label: string): HTMLButtonElement | null {
+  return (
+    pickAll<HTMLButtonElement>('.pe-panel .pe-btn').find((one) => (one.textContent ?? '').trim() === label) ?? null
+  );
+}
+
+function needBtn(label: string): HTMLButtonElement {
+  const hit = findBtn(label);
+  if (hit === null) throw new Error(`面板里没有「${label}」按钮`);
+  return hit;
+}
+
+/** 勾选框：照浏览器那样"改值 + 发 change"（happy-dom 的 click() 不一定带出 change） */
+async function setBox(box: HTMLInputElement, checked: boolean): Promise<void> {
+  box.checked = checked;
+  dispatch(box, new window.Event('change', { bubbles: true }));
+  await nextTick();
+}
+
+/** 把一份文件塞进 `<input type=file>` 再发 change（浏览器里就是人选了它） */
+async function pickFile(box: HTMLInputElement, file: InstanceType<typeof window.File>): Promise<void> {
+  Object.defineProperty(box, 'files', { value: [file], configurable: true });
+  dispatch(box, new window.Event('change', { bubbles: true }));
+  await settle();
+}
+
+/**
+ * 导出最后要落到"下载"上：happy-dom 不会真存文件，把这两下换成记录 ——
+ * `createObjectURL` 收下 blob（断言内容用），`<a>.click` 收下文件名（断言名字用）。
+ */
+function stubDownload(): { blobs: Blob[]; name: () => string; restore: () => void } {
+  const win = window as unknown as Record<string, unknown>;
+  const realCreate = URL.createObjectURL;
+  const realRevoke = URL.revokeObjectURL;
+  const realClick = (win.HTMLAnchorElement as typeof HTMLAnchorElement).prototype.click;
+  const blobs: Blob[] = [];
+  let savedAs = '';
+  Object.defineProperty(URL, 'createObjectURL', {
+    value: (blob: Blob) => {
+      blobs.push(blob);
+      return 'blob:test';
+    },
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(URL, 'revokeObjectURL', { value: () => {}, configurable: true, writable: true });
+  (win.HTMLAnchorElement as typeof HTMLAnchorElement).prototype.click = function (this: HTMLAnchorElement): void {
+    savedAs = this.download;
+  };
+  return {
+    blobs,
+    name: () => savedAs,
+    restore: () => {
+      Object.defineProperty(URL, 'createObjectURL', { value: realCreate, configurable: true, writable: true });
+      Object.defineProperty(URL, 'revokeObjectURL', { value: realRevoke, configurable: true, writable: true });
+      (win.HTMLAnchorElement as typeof HTMLAnchorElement).prototype.click = realClick;
+    },
+  };
 }
 
 // ── 3. 断言 ─────────────────────────────────────────────────────────────────
@@ -2413,6 +2604,211 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
   (pick('.pe-close') as HTMLButtonElement).click();
   await nextTick();
   check('面板能关掉', pick('.pe-panel') === null);
+}
+
+// ── 预设库：多选 / 全选 / 导出选中 / 导入 ────────────────────────────────────
+console.log('预设库：多选与导入导出');
+{
+  topBtn('预设库').click();
+  await settle();
+  check(
+    '预设库面板打开：列表给摘要（带区块数 / 条目数），另存为那行还在',
+    pickAll('.pe-item').length === 2 && pick('.pe-save-row') !== null && (pick('.pe-item-meta')?.textContent ?? '').includes('1 区块'),
+    pick('.pe-item-meta')?.textContent ?? '',
+  );
+
+  const download = stubDownload();
+
+  needBtn('多选').click();
+  await nextTick();
+  check(
+    '多选：每行一个勾，行上的载入 / 删除收起来（这会儿点删除是手滑）',
+    pickAll('.pe-item .pe-pick').length === 2 && pickAll('.pe-item-actions').length === 0,
+  );
+  check('多选：把「另存为」换成选择条', pick('.pe-save-row') === null && pick('.pe-selbar') !== null);
+  check('一条都没勾时「导出选中」是禁用的', needBtn('导出选中').disabled === true);
+
+  await setBox(pick('.pe-selbar .pe-pick') as HTMLInputElement, true);
+  check(
+    '全选：两行都勾上，计数跟上',
+    pickAll<HTMLInputElement>('.pe-item .pe-pick').every((one) => one.checked) &&
+      (pick('.pe-sel-count')?.textContent ?? '').includes('已选 2 / 2'),
+    pick('.pe-sel-count')?.textContent ?? '',
+  );
+  check('全选之后「导出选中」能点了', needBtn('导出选中').disabled === false);
+
+  const markExport = calls.length;
+  needBtn('导出选中').click();
+  await settle();
+  const exportCall = calls
+    .slice(markExport)
+    .find((call) => call.method === 'POST' && call.url.endsWith('/presets/export'));
+  check(
+    '导出：POST /presets/export 带的就是勾上的那几条 id',
+    JSON.stringify(exportCall?.body) === JSON.stringify({ ids: ['ps1', 'ps2'] }),
+    JSON.stringify(exportCall?.body ?? null),
+  );
+  check(
+    '导出：文件落下来了，名字是「预设库-日期-时分.json」',
+    download.blobs.length === 1 && /^预设库-\d{8}-\d{4}\.json$/.test(download.name()),
+    download.name(),
+  );
+  const saved = download.blobs[0] === undefined ? null : (JSON.parse(await download.blobs[0].text()) as { presets?: unknown[] });
+  check(
+    '导出：文件里是整份文档（不是列表里那份摘要）',
+    saved?.presets?.length === 2 && JSON.stringify(saved.presets[0]).includes('1girl'),
+    JSON.stringify(saved?.presets?.[0] ?? null).slice(0, 140),
+  );
+  check('导出完给了一句回执', (pick('.pe-hint')?.textContent ?? '').includes('已导出 2 条'), pick('.pe-hint')?.textContent ?? '');
+
+  needBtn('取消').click();
+  await nextTick();
+  check(
+    '退出多选：勾收起来、行上的按钮回来、选择条换回「另存为」',
+    pickAll('.pe-pick').length === 0 && pickAll('.pe-item-actions').length === 2 && pick('.pe-save-row') !== null,
+  );
+
+  const markImport = calls.length;
+  const box = pick('.pe-file') as HTMLInputElement;
+  await pickFile(
+    box,
+    new window.File(
+      [
+        JSON.stringify({
+          kind: 'prompt-editor/presets',
+          version: 1,
+          presets: [{ name: '导进来的一份', doc: { version: 1, blocks: [] } }],
+        }),
+      ],
+      '预设库-20250101-1200.json',
+      { type: 'application/json' },
+    ),
+  );
+  const importCall = calls
+    .slice(markImport)
+    .find((call) => call.method === 'POST' && call.url.endsWith('/presets/import'));
+  check(
+    '导入：文件解析出来原样 POST 给服务端（形状不在这边拼）',
+    (importCall?.body?.presets as unknown[] | undefined)?.length === 1 &&
+      (importCall?.body?.kind as string | undefined) === 'prompt-editor/presets',
+    JSON.stringify(importCall?.body ?? null).slice(0, 140),
+  );
+  check(
+    '导入：列表刷新出新那一份，回执说清导了几条',
+    pickAll('.pe-item-name').length === 3 && (pick('.pe-hint')?.textContent ?? '').includes('已导入 1 份预设'),
+    pick('.pe-hint')?.textContent ?? '',
+  );
+  check('导入：文件框的 value 被清掉（同一个文件还能再选一次）', box.value === '');
+
+  (pick('.pe-close') as HTMLButtonElement).click();
+  await nextTick();
+  check('预设库面板能关掉', pick('.pe-panel') === null);
+  download.restore();
+}
+
+// ── 区块库：多选导出 / 导入（导入收在编辑模式里）────────────────────────────
+console.log('区块库：多选与导入导出');
+{
+  // 上一个用例把库删空了：这里重新种两块（真库是文件，测试里就是这几个数组）
+  fakeBlockCats = [{ id: 'bc1', name: '人物' }];
+  fakeBlockCatSeq = 1;
+  fakeBlockPresets = [
+    { id: 'bp1', name: '质量块', updatedAt: 1, title: '质量', color: '#6ea8fe', mode: 'tag', categoryId: 'bc1', items: ['1girl', 'solo'] },
+    { id: 'bp2', name: '氛围块', updatedAt: 2, title: '氛围', color: '#f0f', mode: 'text', categoryId: '', items: ['night'] },
+  ];
+  fakeBlockSeq = 2;
+
+  topBtn('区块库').click();
+  await settle();
+  check('区块库面板打开（两块）', pickAll('.pe-item').length === 2, String(pickAll('.pe-item').length));
+  check(
+    '浏览模式：导出能用，导入收着（导入是**写**动作，跟改名 / 删除一样只在编辑模式出现）',
+    findBtn('多选') !== null && findBtn('导入…') === null,
+  );
+
+  const download = stubDownload();
+
+  needBtn('多选').click();
+  await nextTick();
+  check(
+    '多选：两块都出现勾，行上的按钮收起来',
+    pickAll('.pe-item .pe-pick').length === 2 && pickAll('.pe-item-actions').length === 0,
+  );
+  check('多选与编辑模式互斥：进多选就退出编辑模式', findBtn('编辑模式：开') === null);
+
+  await setBox(pick('.pe-selbar .pe-pick') as HTMLInputElement, true);
+  check(
+    '全选：两块都勾上（计数对着当前列表）',
+    pickAll<HTMLInputElement>('.pe-item .pe-pick').every((one) => one.checked) &&
+      (pick('.pe-sel-count')?.textContent ?? '').includes('已选 2 / 2'),
+    pick('.pe-sel-count')?.textContent ?? '',
+  );
+
+  const markExport = calls.length;
+  needBtn('导出选中').click();
+  await settle();
+  const exportCall = calls
+    .slice(markExport)
+    .find((call) => call.method === 'POST' && call.url.endsWith('/block-presets/export'));
+  check(
+    '导出：POST /block-presets/export 带两块 id',
+    JSON.stringify(exportCall?.body) === JSON.stringify({ ids: ['bp1', 'bp2'] }),
+    JSON.stringify(exportCall?.body ?? null),
+  );
+  const saved = download.blobs[0] === undefined ? null : (JSON.parse(await download.blobs[0].text()) as { presets?: { category?: string }[] });
+  check(
+    '导出：块带属性与条目，分类只带**名字**（id 只在本地有效）',
+    saved?.presets?.[0]?.category === '人物' && JSON.stringify(saved?.presets?.[0]).includes('1girl'),
+    JSON.stringify(saved?.presets?.[0] ?? null).slice(0, 140),
+  );
+
+  needBtn('取消').click();
+  await nextTick();
+  needBtn('编辑模式：关').click();
+  await nextTick();
+  check('编辑模式里才出现「导入…」', findBtn('导入…') !== null && findBtn('编辑模式：开') !== null);
+
+  const markImport = calls.length;
+  const box = pick('.pe-file') as HTMLInputElement;
+  await pickFile(
+    box,
+    new window.File(
+      [
+        JSON.stringify({
+          kind: 'prompt-editor/block-library',
+          version: 1,
+          categories: ['新分类'],
+          presets: [{ name: '导进来的块', category: '新分类', title: '导入', color: '#6ea8fe', mode: 'tag', items: ['hello'] }],
+        }),
+      ],
+      '区块库-20250101-1200.json',
+      { type: 'application/json' },
+    ),
+  );
+  const importCall = calls
+    .slice(markImport)
+    .find((call) => call.method === 'POST' && call.url.endsWith('/block-presets/import'));
+  check(
+    '导入：整份文件 POST 过去（分类按名字对齐由服务端做）',
+    (importCall?.body?.presets as unknown[] | undefined)?.length === 1 &&
+      (importCall?.body?.kind as string | undefined) === 'prompt-editor/block-library',
+    JSON.stringify(importCall?.body ?? null).slice(0, 140),
+  );
+  check(
+    '导入：新块进了列表，回执里报了新建的分类',
+    pickAll('.pe-item-name').length === 3 && (pick('.pe-hint')?.textContent ?? '').includes('新建 1 个分类'),
+    pick('.pe-hint')?.textContent ?? '',
+  );
+  check(
+    '导入：新分类出现在左栏',
+    pickAll('.pe-catnav-row').some((row) => (row.textContent ?? '').includes('新分类')),
+    pickAll('.pe-catnav-row').map((row) => (row.textContent ?? '').trim()).join(' | '),
+  );
+
+  (pick('.pe-close') as HTMLButtonElement).click();
+  await nextTick();
+  check('区块库面板能关掉', pick('.pe-panel') === null);
+  download.restore();
 }
 
 // ── 跨域调用：把输出填进 anima-plus 的描述提示词，并向它发起一次出图 ──────────
