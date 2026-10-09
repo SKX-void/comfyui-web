@@ -1,0 +1,41 @@
+{
+  "53": {
+    "inputs": {
+      "model": "wd-eva02-large-tagger-v3",
+      "threshold": 0.1,
+      "character_threshold": 0.1,
+      "replace_underscore": true,
+      "trailing_comma": false,
+      "exclude_tags": "",
+      "image": [
+        "58",
+        0
+      ]
+    },
+    "class_type": "WD14Tagger|pysssss",
+    "_meta": {
+      "title": "WD14 Tagger 🐍"
+    }
+  },
+  "54": {
+    "inputs": {
+      "source": [
+        "53",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "预览任意"
+    }
+  },
+  "58": {
+    "inputs": {
+      "image": "148244974_p1.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  }
+}
