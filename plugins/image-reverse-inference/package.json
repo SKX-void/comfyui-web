@@ -1,0 +1,75 @@
+{
+  "name": "@comfyui-web/image-reverse-inference",
+  "version": "0.1.0",
+  "private": true,
+  "description": "图片反推：上传图片 → WD14 Tagger 反推 tags → 输出文本",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/pack.mjs",
+    "build:server": "node scripts/build-server.mjs",
+    "dev": "node scripts/pack.mjs --watch",
+    "typecheck": "vue-tsc --noEmit",
+    "test:contract": "node scripts/contract-test.mjs"
+  },
+  "plugin": {
+    "contract": 1,
+    "title": "图片反推",
+    "order": 3,
+    "client": "client.js",
+    "settings": [
+      {
+        "key": "comfyuiBaseUrl",
+        "type": "string",
+        "label": "ComfyUI 地址",
+        "default": "http://localhost:8188",
+        "description": "插件直接向这个地址上传图片并提交 /prompt。只写 host:port 会自动补 http://。本插件是目录型 tab：这一项由插件自己持有（data/plugins/<包名>/settings.json）。"
+      },
+      {
+        "key": "threshold",
+        "type": "number",
+        "label": "一般标签阈值",
+        "default": 0.35,
+        "min": 0,
+        "max": 1,
+        "step": 0.05
+      },
+      {
+        "key": "characterThreshold",
+        "type": "number",
+        "label": "角色标签阈值",
+        "default": 0.85,
+        "min": 0,
+        "max": 1,
+        "step": 0.05
+      },
+      {
+        "key": "replaceUnderscore",
+        "type": "boolean",
+        "label": "下划线换空格",
+        "default": true
+      },
+      {
+        "key": "trailingComma",
+        "type": "boolean",
+        "label": "末尾加逗号",
+        "default": false
+      },
+      {
+        "key": "excludeTags",
+        "type": "string",
+        "label": "排除标签",
+        "default": "",
+        "description": "逗号分隔；这些标签不会出现在结果里。"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "esbuild": "0.25.12",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.9",
+    "vue": "^3.5.13",
+    "vue-tsc": "^2.2.0"
+  }
+}

@@ -1,0 +1,257 @@
+/**
+ * 插件自己的样式（vite 会把它并进 client.css，index.ts 运行期挂 <link>）。
+ *
+ * 颜色走宿主外壳的 CSS 变量（apps/web/src/styles/base.css），fallback 是为了
+ * 单独打开产物时也看得见 —— 不重复定义主题，免得宿主换肤后插件掉队。
+ */
+.cw-iri {
+  --iri-panel: var(--panel, #1b1e24);
+  --iri-panel-2: var(--panel-2, #22262e);
+  --iri-line: var(--line, #2e333d);
+  --iri-fg: var(--fg, #e6e8ec);
+  --iri-muted: var(--muted, #9aa3b2);
+  --iri-accent: var(--accent, #6ea8fe);
+  --iri-danger: var(--danger, #ff7b72);
+  --iri-ok: var(--ok, #4ac38a);
+
+  color: var(--iri-fg);
+  /* 宽度交给宿主 `.content`（/w/* 是 1400px 的 wide 容器）：插件再盖一层 max-width
+     就会变成贴左的窄条（实测 1600 视口下右侧空 480px）。 */
+}
+
+.iri-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.iri-title {
+  margin: 0;
+  font-size: 18px;
+}
+.iri-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--iri-muted);
+}
+.iri-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.iri-status {
+  font-size: 12px;
+  color: var(--iri-muted);
+}
+.iri-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--iri-muted);
+  flex: none;
+}
+.iri-dot--ok {
+  background: var(--iri-ok);
+}
+.iri-dot--bad {
+  background: var(--iri-danger);
+}
+
+.iri-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--iri-line);
+  background: var(--iri-panel-2);
+  color: var(--iri-fg);
+  font-size: 13px;
+  cursor: pointer;
+}
+.iri-btn:hover:not(:disabled) {
+  border-color: var(--iri-accent);
+}
+.iri-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.iri-btn--primary {
+  background: var(--iri-accent);
+  border-color: var(--iri-accent);
+  color: #10141b;
+  font-weight: 600;
+}
+
+.iri-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 16px;
+  border: 1px dashed var(--iri-line);
+  border-radius: 10px;
+  background: var(--iri-panel);
+  cursor: pointer;
+}
+.iri-drop:hover {
+  border-color: var(--iri-accent);
+}
+.iri-drop.is-busy {
+  opacity: 0.6;
+  cursor: progress;
+}
+.iri-file {
+  display: none;
+}
+.iri-preview {
+  max-width: 100%;
+  max-height: 360px;
+  border-radius: 6px;
+}
+.iri-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--iri-muted);
+  font-size: 13px;
+}
+.iri-hint strong {
+  color: var(--iri-fg);
+  font-size: 15px;
+}
+.iri-hint small {
+  font-size: 11px;
+}
+
+.iri-meta {
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--iri-muted);
+}
+.iri-error {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--iri-danger);
+  border-radius: 6px;
+  color: var(--iri-danger);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.iri-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 14px 0;
+}
+.iri-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--iri-muted);
+  min-width: 180px;
+}
+.iri-field--num {
+  min-width: 110px;
+  width: 110px;
+}
+.iri-field--range {
+  min-width: 220px;
+  /* 宽度铺满后别再让滑块互相拉扯：给个上限，参数行保持一行内的自然宽度 */
+  flex: 0 1 320px;
+  max-width: 320px;
+}
+.iri-field--model {
+  min-width: 260px;
+}
+.iri-model {
+  color: var(--iri-fg);
+  font-weight: 600;
+  word-break: break-all;
+}
+.iri-warn {
+  color: var(--iri-danger);
+}
+.iri-num {
+  color: var(--iri-accent);
+  font-variant-numeric: tabular-nums;
+}
+.iri-range {
+  width: 100%;
+  margin: 6px 0 0;
+  accent-color: var(--iri-accent);
+  cursor: pointer;
+}
+.iri-field--wide {
+  flex: 1 1 100%;
+}
+.iri-input {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--iri-line);
+  background: var(--iri-panel-2);
+  color: var(--iri-fg);
+  font-size: 13px;
+}
+.iri-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--iri-fg);
+  align-self: flex-end;
+  padding-bottom: 4px;
+}
+
+.iri-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0;
+}
+
+.iri-result {
+  margin-top: 8px;
+}
+.iri-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--iri-muted);
+  margin-bottom: 6px;
+}
+.iri-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--iri-line);
+  background: var(--iri-panel-2);
+  color: var(--iri-fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.iri-settings {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--iri-line);
+  border-radius: 10px;
+  background: var(--iri-panel);
+}
+.iri-settings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.iri-settings-head h2 {
+  margin: 0;
+  font-size: 14px;
+}
