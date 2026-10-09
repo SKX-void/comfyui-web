@@ -14,6 +14,8 @@ const emit = defineEmits<{
   (e: 'drag-over'): void;
   (e: 'drop'): void;
   (e: 'drag-end'): void;
+  /** 触屏换位（+1 下移 / -1 上移）：拖拽在触摸屏上不触发，这两颗是替代入口 */
+  (e: 'move', delta: number): void;
   /** 翻这一整块 */
   (e: 'translate-block'): void;
   /** 把这一块存进区块库（面板会弹出来问名字） */
@@ -49,6 +51,11 @@ function setBlockMode(mode: Mode): void {
   >
     <!-- 拖动只认这个把手：整个头部 draggable 的话，点开关/标题时手一抖就会开始拖区块 -->
     <span class="pe-block-grip" draggable="true" title="拖动排序">⠿</span>
+    <!-- 触屏：拖不动，改用两颗按钮换位（只在 hover:none 的设备上显示，见样式） -->
+    <span class="pe-block-move">
+      <button title="这一块上移" @click.stop="emit('move', -1)">↑</button>
+      <button title="这一块下移" @click.stop="emit('move', 1)">↓</button>
+    </span>
     <button
       class="pe-block-dot"
       :style="{ background: block.color }"
@@ -192,5 +199,80 @@ function setBlockMode(mode: Mode): void {
 
 .pe-block-del:hover {
   color: var(--danger, #ff7b72);
+}
+
+/* 触屏换位按钮：宽屏上藏起来（那儿用拖的），触摸设备上常显 */
+.pe-block-move {
+  display: none;
+  flex: none;
+  gap: 2px;
+}
+
+.pe-block-move button {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  background: var(--panel, #1b1e24);
+  color: var(--muted, #9aa3b2);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+
+.pe-block-move button:hover {
+  border-color: var(--accent, #6ea8fe);
+  color: var(--accent, #6ea8fe);
+}
+
+@media (hover: none) {
+  .pe-block-move {
+    display: inline-flex;
+  }
+
+  /* 触摸屏上 HTML5 拖拽根本不触发，手柄是个摆设 —— 换成上面那两颗按钮，别留着占位置 */
+  .pe-block-grip {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  /* 头部这一行在手机上放不下：允许换行，并且把每个操作都撑到指头点得准 */
+  .pe-block-head {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .pe-block-title {
+    flex: 1 1 110px;
+  }
+
+  .pe-block-dot {
+    width: 20px;
+    height: 20px;
+  }
+
+  .pe-block-modes button {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .pe-block-tr,
+  .pe-block-save {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .pe-block-del {
+    font-size: 18px;
+    padding: 4px 8px;
+  }
+
+  /* 换位与删除原来只有 25px 高：手指点不准，白占一行 */
+  .pe-block-move button,
+  .pe-block-del {
+    min-height: 30px;
+  }
 }
 </style>

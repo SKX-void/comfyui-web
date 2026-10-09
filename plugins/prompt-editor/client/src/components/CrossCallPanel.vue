@@ -161,4 +161,13 @@ watch(selectedId, refresh);
   margin-left: 6px;
   color: var(--accent, #6ea8fe);
 }
+
+@media (max-width: 720px) {
+  /* 这两个是面板上仅有的动作，手机上一律撑到指头点得准 */
+  .pe-cross-refresh,
+  .pe-cross-run {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+}
 </style>

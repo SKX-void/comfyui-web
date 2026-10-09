@@ -13,6 +13,7 @@ import { onMounted, ref } from 'vue';
 import BlockCard from './components/BlockCard.vue';
 import BlockLibraryPanel from './components/BlockLibraryPanel.vue';
 import CrossCallPanel from './components/CrossCallPanel.vue';
+import EditorChrome from './components/EditorChrome.vue';
 import OutputPane from './components/OutputPane.vue';
 import PresetPanel from './components/PresetPanel.vue';
 import TagLibraryPanel from './components/TagLibraryPanel.vue';
@@ -77,6 +78,9 @@ function closeBlockLibrary(): void {
   blockPending.value = null;
 }
 
+/** 手机：工作区 / 输出 两屏切换 —— 窄屏两栏叠起来时，输出区会被压在几十张卡片底下 */
+const view = ref<'workspace' | 'output'>('workspace');
+
 const dragBlock = ref<number | null>(null);
 const overBlock = ref<number | null>(null);
 /**
@@ -95,6 +99,35 @@ const settings = ref<TranslateSettings>({
 
 const { busyIds, failedIds, enqueueAuto, translateItem, translateBlock, promoteTranslation, onTranslationEdited } =
   useTranslate({ settings, flash, persistItems });
+
+/**
+ * 触屏上 HTML5 拖拽压根不触发（`dragstart` 只有鼠标才有），所以换位退化成 ↑↓。
+ * 按钮只在 `hover: none` 的设备上出现（见 BlockHeader / ItemChip），鼠标用户照旧拖。
+ */
+function moveBlock(index: number, delta: number): void {
+  const to = index + delta;
+  const moved = doc.blocks[index];
+  if (moved === undefined || to < 0 || to >= doc.blocks.length) return;
+  doc.blocks.splice(index, 1);
+  doc.blocks.splice(to, 0, moved);
+  persistStructure();
+}
+
+/** 条目在**本块内**换位（跨块搬家触屏上做不到：那要拖到另一张卡片上） */
+function moveItemWithin(block: Block, index: number, delta: number): void {
+  const to = index + delta;
+  const moved = block.items[index];
+  if (moved === undefined || to < 0 || to >= block.items.length) return;
+  block.items.splice(index, 1);
+  block.items.splice(to, 0, moved);
+  persistItems(block);
+}
+
+/** 底部操作条上的「新建区块」：在输出屏上点它，得先回到工作区，否则新块加在看不见的地方 */
+function addBlockFromChrome(): void {
+  view.value = 'workspace';
+  addBlock();
+}
 
 function endBlockDrag(): void {
   dragBlock.value = null;
@@ -211,21 +244,19 @@ onMounted(async () => {
 
 <template>
   <div class="pe-app">
-    <header class="pe-top">
-      <span class="pe-title">工作区</span>
-      <span class="pe-draft">{{ draftLabel }}</span>
-      <span v-if="notice !== ''" class="pe-notice">{{ notice }}</span>
-      <div class="pe-actions">
-        <button @click="addBlock">新建区块</button>
-        <button @click="presetOpen = true">预设库…</button>
-        <button @click="libOpen = true">词库…</button>
-        <button @click="blockLibOpen = true">区块库…</button>
-        <button @click="translateOpen = true">翻译…</button>
-        <button @click="clearAll">清空</button>
-      </div>
-    </header>
+    <EditorChrome
+      v-model:view="view"
+      :draft-label="draftLabel"
+      :notice="notice"
+      @add-block="addBlockFromChrome"
+      @open-preset="presetOpen = true"
+      @open-lib="libOpen = true"
+      @open-block-library="blockLibOpen = true"
+      @open-translate="translateOpen = true"
+      @clear="clearAll"
+    />
 
-    <div class="pe-body">
+    <div class="pe-body" :class="view === 'output' ? 'pe-view-output' : 'pe-view-workspace'">
       <section class="pe-workspace">
         <BlockCard
           v-for="(block, index) in doc.blocks"
@@ -245,10 +276,12 @@ onMounted(async () => {
           @drag-over="overBlockAt(index)"
           @drop="dropBlock(index)"
           @drag-end="endBlockDrag()"
+          @move="(delta: number) => moveBlock(index, delta)"
           @item-drag-start="(itemIndex: number) => startItemDrag(block.id, itemIndex)"
           @item-drag-over="(itemIndex: number) => overItemAt(block.id, itemIndex)"
           @item-drop="(itemIndex: number) => dropItemAt(block.id, itemIndex)"
           @item-drag-end="endItemDrag()"
+          @item-move="(itemIndex: number, delta: number) => moveItemWithin(block, itemIndex, delta)"
           @structure-changed="persistStructure()"
           @items-committed="onItemsCommitted(block)"
           @translate="(itemIndex: number) => translateItem(block, itemIndex)"
@@ -284,95 +317,4 @@ onMounted(async () => {
   </div>
 </template>
 
-<style scoped>
-.pe-top {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  border: 1px solid var(--line, #2e333d);
-  border-radius: 8px;
-  background: var(--panel, #1b1e24);
-}
-
-.pe-title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--muted, #9aa3b2);
-}
-
-.pe-draft {
-  font-size: 11px;
-  color: var(--muted, #9aa3b2);
-}
-
-.pe-notice {
-  flex: 1;
-  font-size: 12px;
-  color: var(--accent, #6ea8fe);
-}
-
-.pe-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 6px;
-}
-
-.pe-actions button,
-.pe-add-block {
-  border: 1px solid var(--line, #2e333d);
-  border-radius: 6px;
-  background: var(--panel-2, #22262e);
-  color: inherit;
-  font: inherit;
-  padding: 4px 10px;
-  cursor: pointer;
-}
-
-.pe-actions button:hover,
-.pe-add-block:hover {
-  border-color: var(--accent, #6ea8fe);
-}
-
-.pe-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
-  gap: 12px;
-  margin-top: 12px;
-  align-items: start;
-}
-
-.pe-workspace {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-.pe-add-block {
-  border-style: dashed;
-  color: var(--muted, #9aa3b2);
-  padding: 8px;
-}
-
-.pe-side {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  position: sticky;
-  top: 12px;
-  min-width: 0;
-}
-
-@media (max-width: 900px) {
-  .pe-body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pe-side {
-    position: static;
-  }
-}
-</style>
+<style scoped src="./app.css"></style>

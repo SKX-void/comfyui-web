@@ -194,3 +194,30 @@
   color: var(--muted, #9aa3b2);
   list-style: none;
 }
+
+@media (max-width: 720px) {
+  /* 手柄 + 名字 + 分类 + 四个按钮挤一行必然溢出：按钮换到第二行，行高也放开 */
+  .pe-item {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 6px;
+  }
+
+  .pe-item-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    white-space: normal;
+  }
+
+  .pe-item-actions .pe-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* 展开/收起那块 18×18 在触屏上点不准 */
+  .pe-caret {
+    width: 26px;
+    height: 26px;
+  }
+}

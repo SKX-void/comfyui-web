@@ -1,0 +1,246 @@
+.pe-lib-row {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.pe-lib-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.pe-lib-en {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.pe-lib-zh {
+  color: var(--fg, #e6e8ec);
+}
+
+.pe-lib-src {
+  border: 1px solid #6ea8fe;
+  border-radius: 3px;
+  color: #6ea8fe;
+  padding: 0 3px;
+  font-size: 9px;
+  line-height: 13px;
+  opacity: 0.85;
+}
+
+.pe-lib-hot {
+  color: var(--muted, #9aa3b2);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.pe-lib-cat {
+  border-radius: 3px;
+  background: var(--panel-2, #22262e);
+  color: var(--muted, #9aa3b2);
+  padding: 0 5px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* 行上分类标签里的「×」：小到不抢视线，但点得着 */
+.pe-lib-cat-x {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0 1px;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.pe-lib-cat-x:hover:not(:disabled) {
+  color: var(--danger, #ff7b72);
+  opacity: 1;
+}
+
+.pe-lib-cat-x:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* 编辑态里可点的那批分类：选中态用强调色，一眼看出"这条现在属于谁" */
+.pe-lib-cat-pick {
+  border: 1px solid var(--line, #2e333d);
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+
+.pe-lib-cat-pick:hover {
+  border-color: var(--accent, #6ea8fe);
+}
+
+.pe-lib-cat-pick.on {
+  border-color: var(--accent, #6ea8fe);
+  color: var(--accent, #6ea8fe);
+  background: transparent;
+}
+
+.pe-lib-edit-cats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+}
+
+.pe-lib-edit-label {
+  flex: 0 0 auto;
+}
+
+.pe-lib-edit-cats .pe-input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+/* 正被拖着的那一行：给个"拿起来了"的样子 */
+.pe-lib-row-dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+/* 六点手柄：平时淡淡的，悬停才明显（不然 300 行都是点点点） */
+.pe-lib-grip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--muted, #9aa3b2);
+  opacity: 0.35;
+  cursor: grab;
+}
+
+.pe-lib-line:hover .pe-lib-grip {
+  opacity: 0.9;
+}
+
+.pe-lib-line:active .pe-lib-grip {
+  cursor: grabbing;
+}
+
+/* 插入位置：在行上/下画一条线，说明"松手会插到这里" */
+.pe-lib-row-over-before {
+  box-shadow: inset 0 2px 0 0 var(--accent, #6ea8fe);
+}
+
+.pe-lib-row-over-after {
+  box-shadow: inset 0 -2px 0 0 var(--accent, #6ea8fe);
+}
+
+.pe-lib-alias {
+  color: var(--muted, #9aa3b2);
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.pe-lib-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.pe-lib-edit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px dashed var(--line, #2e333d);
+  font-size: 12px;
+}
+
+.pe-lib-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pe-lib-edit label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+}
+
+.pe-lib-edit .pe-input {
+  flex: 1;
+}
+
+/* 下面三条面板本体也有一份：行是独立组件，scoped 样式作用不到对方的节点 */
+.pe-input {
+  min-width: 0;
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  background: var(--panel-2, #22262e);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+}
+
+.pe-input:focus {
+  border-color: var(--accent, #6ea8fe);
+}
+
+.pe-btn {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  background: var(--panel-2, #22262e);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pe-btn:hover:not(:disabled) {
+  border-color: var(--accent, #6ea8fe);
+}
+
+.pe-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pe-btn-danger:hover:not(:disabled) {
+  border-color: var(--danger, #ff7b72);
+  color: var(--danger, #ff7b72);
+}
+
+@media (max-width: 720px) {
+  /* 手柄 + 正名 + 热度 + 译文 + 分类 + 别名 + 按钮，一行放不下：
+     本来就 wrap，这里把按钮单独推到第二行，免得它们把中间那些字段挤成一条缝 */
+  .pe-lib-line {
+    gap: 6px;
+  }
+
+  .pe-lib-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+
+  .pe-lib-actions .pe-btn {
+    padding: 8px 14px;
+  }
+
+  .pe-lib-cat-pick {
+    padding: 6px 10px;
+  }
+}

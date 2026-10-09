@@ -214,4 +214,29 @@ function cancel(): void {
   background: var(--line, #2e333d);
   color: var(--fg, #e6e8ec);
 }
+
+@media (hover: none) {
+  /* 「译」原来也是悬停才出现的（opacity: 0）—— 触摸屏上不悬停，等于没法手动翻一条 */
+  .pe-chip-btn {
+    opacity: 1;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 5px 6px;
+  }
+
+  /* 来源标记同时是"把机器译存进词库"的入口，9px 的角标点不中 */
+  .pe-chip-src {
+    padding: 0 5px;
+    font-size: 10px;
+    line-height: 16px;
+  }
+}
+
+@media (max-width: 720px) {
+  .pe-chip-translation {
+    min-height: 30px;
+    padding: 4px 4px 4px 8px;
+    font-size: 12px;
+  }
+}
 </style>

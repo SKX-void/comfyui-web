@@ -243,4 +243,39 @@ async function save(): Promise<void> {
   opacity: 0.5;
   cursor: default;
 }
+
+@media (max-width: 720px) {
+  .pe-overlay {
+    align-items: stretch;
+  }
+
+  .pe-panel {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pe-close {
+    font-size: 24px;
+    padding: 4px 10px;
+  }
+
+  /* 标签 + 数字框原来横着排：窄屏上会换行错位，一个字段一行才对得上 */
+  .pe-field-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pe-input-num {
+    width: 100%;
+  }
+
+  .pe-actions .pe-btn {
+    padding: 10px 16px;
+  }
+}
 </style>

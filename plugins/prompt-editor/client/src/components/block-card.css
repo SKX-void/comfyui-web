@@ -1,0 +1,116 @@
+.pe-block {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 8px;
+  background: var(--panel, #1b1e24);
+  overflow: hidden;
+}
+
+.pe-block-over {
+  outline: 2px solid var(--accent, #6ea8fe);
+  outline-offset: -2px;
+}
+
+.pe-palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line, #2e333d);
+}
+
+.pe-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  padding: 0;
+}
+
+.pe-swatch-input {
+  flex: 1 1 150px;
+  min-width: 120px;
+  border: 1px dashed var(--line, #2e333d);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 6px;
+  outline: none;
+}
+
+.pe-swatch-input:focus {
+  border-color: var(--accent, #6ea8fe);
+}
+
+.pe-block-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px;
+  min-height: 46px;
+}
+
+/**
+ * 自然语言：工作区里也**每句一行**，和输出区一致（tag 块照旧横着排成 tag 流）。
+ * 这里只改排版，不动数据 —— 一条一句仍然是各自独立的条目。
+ */
+.pe-block-body-text {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* 竖排时 flex-basis 会变成"高度"，所以输入框在自然语言块里要单独收一下 */
+.pe-block-body-text .pe-add {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.pe-add {
+  flex: 1 1 180px;
+  min-width: 140px;
+  border: 1px dashed var(--line, #2e333d);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 4px 8px;
+  outline: none;
+}
+
+.pe-add:focus {
+  border-color: var(--accent, #6ea8fe);
+}
+
+.pe-chip-over {
+  outline: 1px dashed var(--accent, #6ea8fe);
+  outline-offset: 2px;
+}
+
+/* 悬停在块体空白上 = 落点是末尾；类型不同的块不会亮（父级的 dropOk 就是这道闸） */
+.pe-block-body-drop {
+  outline: 1px dashed var(--accent, #6ea8fe);
+  outline-offset: -3px;
+}
+
+@media (max-width: 720px) {
+  .pe-block-body {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  /* 添加框独占一行：和条目挤在一起时它会被压成一条缝，而这是手机上最常用的入口 */
+  .pe-add {
+    flex: 1 1 100%;
+    padding: 8px 10px;
+  }
+
+  /* 色板：手指点不中 18px 的小方块 */
+  .pe-swatch {
+    width: 28px;
+    height: 28px;
+  }
+}
