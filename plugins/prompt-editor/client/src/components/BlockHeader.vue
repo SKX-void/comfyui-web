@@ -225,7 +225,7 @@ function setBlockMode(mode: Mode): void {
   color: var(--accent, #6ea8fe);
 }
 
-@media (hover: none) {
+@media (hover: none), (pointer: coarse) {
   .pe-block-move {
     display: inline-flex;
   }

@@ -42,6 +42,27 @@
   min-width: 0;
 }
 
+/* 触屏拖拽的幽灵：position fixed 跟手指走，pointer-events 必须关掉 ——
+   不然 elementFromPoint 会命中幽灵自己，落点永远是"没有" */
+.pe-touch-ghost {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  transform: translate(-50%, -130%);
+  max-width: 60vw;
+  overflow: hidden;
+  padding: 6px 10px;
+  border: 1px solid var(--accent, #6ea8fe);
+  border-radius: 8px;
+  background: var(--panel-2, #22262e);
+  color: var(--fg, #e6e8ec);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
 @media (max-width: 900px) {
   .pe-body {
     grid-template-columns: minmax(0, 1fr);

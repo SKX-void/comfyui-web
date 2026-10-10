@@ -79,9 +79,14 @@ const SCHEMA = [
   // 分类本身也是一张表：`tag_categories` 只记"谁属于谁"，光靠它就没法存在**还没有词用的空分类**
   // （新建一个立刻消失）。这张表只存名字，计数仍然从 `tag_categories` 现算 —— 两边都留一份计数
   // 就得同步，而同步一定会漂。写入时顺手注册（见 writeEntry），老库开库时把在用的名字补进来。
+  //
+  // `parent` = 两级分类（`画面全局` → `构图`）。它挂在**分类**上而不是词条上：一个词属于哪些分类
+  // 是词条的事，"小类归哪个大类"是分类自己的属性 —— 挂在词条上，同一个名字在不同词上就会打架。
+  // 只有两级（没有更深的需求），所以一个列就够，不上闭包表。
   `CREATE TABLE IF NOT EXISTS categories (
      name TEXT PRIMARY KEY,
-     sort REAL
+     sort REAL,
+     parent TEXT
    )`,
   `CREATE TABLE IF NOT EXISTS tag_aliases (
      tag_key TEXT NOT NULL,
@@ -90,6 +95,15 @@ const SCHEMA = [
      PRIMARY KEY (tag_key, alias_key)
    )`,
   'CREATE INDEX IF NOT EXISTS idx_tag_aliases_key ON tag_aliases(alias_key)',
+  // 共现邻居（词 → 常跟它一起出现的词，按共现强度排）。**只存键、不存名字**：名字和译文都在
+  // `tags` 里，查询时 INNER JOIN 取 —— 于是"邻居表先落库、词库后落库"也能对上，删词留下的死邻居
+  // 被 JOIN 自动挡掉，不必维护引用完整性。
+  `CREATE TABLE IF NOT EXISTS tag_cooccur (
+     tag_key TEXT NOT NULL,
+     neighbor_key TEXT NOT NULL,
+     rank INTEGER NOT NULL,
+     PRIMARY KEY (tag_key, neighbor_key)
+   )`,
 ];
 
 /**
@@ -167,21 +181,34 @@ export interface TagDb extends TagLookup {
   removeCategory(name: string): number;
   /** 重命名分类（两张表一起改）；`-1` = 目标名字已经存在（不合并） */
   renameCategory(from: string, to: string): number;
-  /** 批量入库（导入 / 迁移用）：一个事务写完，十几万条也就秒级；返回真正入库的条数（跳过 `user` 行） */
-  importEntries(rows: TagListEntry[]): number;
+  /**
+   * 批量入库（导入 / 迁移用）：一个事务写完，十几万条也就秒级；返回真正入库的条数（跳过 `user` 行）。
+   * `parents` 是分类的父子关系（小类 → 大类），词条上没有这个字段 —— 见 `categories.parent` 的注释。
+   */
+  importEntries(rows: TagListEntry[], parents?: Map<string, string>, guard?: ImportGuard): number;
+  /** 共现邻居整表替换（`[词键, 邻居键, 强弱序]`）：源表就是全量的一份，增量合并只会留下去掉的旧行 */
+  importCooccur(rows: [string, string, number][]): number;
+  /** 一个词的共现邻居，按共现强度排；**只回词库里真有的那些**（死邻居由 JOIN 挡掉） */
+  cooccur(text: unknown, limit?: number): TagListEntry[];
   close(): void;
 }
 
 /**
- * 写 tags 行。`guardUser` 是**导入路径**专用的：已经进过库、而且是 `user` 的行整条跳过
- * （`DO UPDATE ... WHERE`）—— 导入十几万条时，你手改过的那几条不该被同一批数据冲回去。
- * 面板自己的写入当然不带这个条件（不然就改不动了）。
+ * 导入守卫：**已经进过库的行，什么情况下才许被覆盖**。信任级别见 `tags.ts` 的 `TagSource`。
+ *
+ * - `null` = 面板自己的写入（人想改就改）
+ * - `'user'` = 人工词表的导入（`builtin` 那一层）：手改过的（`user`）不动，机翻和人工自己的旧行都能更新
+ * - `'import'` = 机翻表的导入：**只许盖机翻** —— 手改的、人工词表的一律不动
+ *
+ * 于是「重导内置机翻表」不会把人工译文冲回去，而两份表谁先导都不影响结果。
  */
-const insertTagSql = (guardUser: boolean): string => `INSERT INTO tags (key, en, zh, source, hot, updated_at, search)
+export type ImportGuard = null | 'user' | 'import';
+
+const insertTagSql = (guard: ImportGuard): string => `INSERT INTO tags (key, en, zh, source, hot, updated_at, search)
   VALUES (?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(key) DO UPDATE SET en = excluded.en, zh = excluded.zh, source = excluded.source,
     hot = excluded.hot, updated_at = excluded.updated_at, search = excluded.search${
-      guardUser ? " WHERE tags.source <> 'user'" : ''
+      guard === null ? '' : guard === 'user' ? " WHERE tags.source <> 'user'" : " WHERE tags.source = 'import'"
     }`;
 
 export function openTagDb(options: TagDbOptions): TagDb {
@@ -225,12 +252,15 @@ export function openTagDb(options: TagDbOptions): TagDb {
   }
   db.exec(RANK2_INDEX);
 
-  // `categories.sort` 也是后加的列（老库 `CREATE TABLE IF NOT EXISTS` 补不上，得自己探一下）。
-  // 分类只有几个到几十个，不做表达式索引：`ORDER BY (sort IS NULL), sort, ...` 在这么小的表上
-  // 建临时表排序的开销可以忽略（跟十几万条的 tags 不是一个量级）。
-  if (!(db.prepare('PRAGMA table_info(categories)').all() as { name: string }[]).some((one) => one.name === 'sort')) {
-    db.exec('ALTER TABLE categories ADD COLUMN sort REAL');
-  }
+  // `categories` 的 `sort` 和 `parent` 都是后加的列（老库 `CREATE TABLE IF NOT EXISTS` 补不上，
+  // 得自己探一下再 ALTER）。分类只有几个到几十个，不做表达式索引：`ORDER BY (sort IS NULL), sort, ...`
+  // 在这么小的表上建临时表排序的开销可以忽略（跟十几万条的 tags 不是一个量级）。
+  const categoryColumns = (db.prepare('PRAGMA table_info(categories)').all() as { name: string }[]).map(
+    (one) => one.name,
+  );
+  if (!categoryColumns.includes('sort')) db.exec('ALTER TABLE categories ADD COLUMN sort REAL');
+  // 老库的分类全是平级（`parent` 为空 = 顶级），不用回填
+  if (!categoryColumns.includes('parent')) db.exec('ALTER TABLE categories ADD COLUMN parent TEXT');
 
   // 老库的分类只存在于 `tag_categories` 里，`categories` 是空的 —— 把在用的名字补进去。
   // `UNION` 而不是只查 `tag_categories`：手工 SQL 造出来的孤儿名字也得认。
@@ -274,21 +304,23 @@ export function openTagDb(options: TagDbOptions): TagDb {
     // 计数现算：`idx_tag_categories_name` 让 LEFT JOIN 走索引，几个名字的规模实测 ~1ms。
     // **必须先去重再 JOIN**：`tag_categories` 里每个 (tag_key, name) 都有一行，直接拿它 JOIN
     // 就是"组内每条乘组内每条"—— 46075 条的组会算出 21 亿行，面板直接卡死（实测挂住）。
-    // 所以里层先按名字收敛成一行（`MAX(sort)`：同名两处都有时以 `categories` 那份为准），
-    // 外层再 JOIN 数个数。里层那个 GROUP BY 走 `idx_tag_categories_name`，实测 ~1ms。
+    // 所以里层先按名字收敛成一行（`MAX(sort)` / `MAX(parent)`：同名两处都有时以 `categories`
+    // 那份为准 —— `MAX` 忽略 NULL，孤儿那支的 NULL 不会把 parent 抹掉），外层再 JOIN 数个数。
+    // 里层那个 GROUP BY 走 `idx_tag_categories_name`，实测 ~1ms。
     const rows = stmt(
-      `SELECT x.name AS name, x.sort AS sort, COUNT(tc.tag_key) AS c
-         FROM (SELECT name, MAX(sort) AS sort
-                 FROM (SELECT name, sort FROM categories UNION ALL SELECT name, NULL FROM tag_categories)
+      `SELECT x.name AS name, x.sort AS sort, x.parent AS parent, COUNT(tc.tag_key) AS c
+         FROM (SELECT name, MAX(sort) AS sort, MAX(parent) AS parent
+                 FROM (SELECT name, sort, parent FROM categories
+                        UNION ALL SELECT name, NULL, NULL FROM tag_categories)
                 GROUP BY name) AS x
          LEFT JOIN tag_categories tc ON tc.name = x.name
         GROUP BY x.name
         ORDER BY (x.sort IS NULL), x.sort ASC, c DESC, x.name ASC`,
-    ).all() as unknown as { name: string; c: number }[];
+    ).all() as unknown as { name: string; c: number; parent: string | null }[];
     statsVersion = version;
     statsCache = {
       counts: { total, uncategorized: total - categorized },
-      categories: rows.map((row) => ({ name: row.name, count: Number(row.c) })),
+      categories: rows.map((row) => ({ name: row.name, count: Number(row.c), parent: row.parent ?? null })),
     };
     return statsCache;
   };
@@ -326,8 +358,9 @@ export function openTagDb(options: TagDbOptions): TagDb {
       const userDeleted = Number(
         stmt(`SELECT COUNT(*) AS c FROM tags WHERE source = 'user' AND key IN (${doomed})`).get(name)?.c ?? 0,
       );
-      // 别名 / 归属先走，最后才删名单本身（`tag_aliases` 没有指向 tags 的外键，得自己清）
+      // 别名 / 归属 / 邻居先走，最后才删名单本身（`tag_aliases` 没有指向 tags 的外键，得自己清）
       stmt(`DELETE FROM tag_aliases WHERE tag_key IN (${doomed})`).run(name);
+      stmt(`DELETE FROM tag_cooccur WHERE tag_key IN (${doomed})`).run(name);
       const deleted = Number(stmt(`DELETE FROM tags WHERE key IN (${doomed})`).run(name).changes);
       stmt('DELETE FROM tag_categories WHERE name = ?').run(name);
       return { deleted, userDeleted };
@@ -384,11 +417,15 @@ export function openTagDb(options: TagDbOptions): TagDb {
   /**
    * 删掉一个分类：**连它下面的归属一起删**（`tag_categories` 里那些行），所以是批量破坏性操作 ——
    * 面板会先把影响多少条摆给人看再确认。词条本身（`tags`）一条都不删，它们只是变回未分类。
+   *
+   * 删掉的是大类时，它的小类**升成顶级**而不是跟着消失：小类下面的词还挂在上面，把 parent 留在
+   * 一个不存在的名字上，两级树里就再也渲染不出它们了（数据还在，面板上找不到）。
    */
   const removeCategory = (name: string): number =>
     transaction(() => {
       statsCache = null;
       const members = Number(stmt('DELETE FROM tag_categories WHERE name = ?').run(name).changes);
+      stmt('UPDATE categories SET parent = NULL WHERE parent = ?').run(name);
       stmt('DELETE FROM categories WHERE name = ?').run(name);
       return members;
     });
@@ -405,6 +442,8 @@ export function openTagDb(options: TagDbOptions): TagDb {
     return transaction(() => {
       statsCache = null;
       stmt('UPDATE categories SET name = ? WHERE name = ?').run(to, from);
+      // 大类改名，挂在它下面的小类跟着改 parent（不然那批小类在两级树里就没了归属）
+      stmt('UPDATE categories SET parent = ? WHERE parent = ?').run(to, from);
       return Number(stmt('UPDATE tag_categories SET name = ? WHERE name = ?').run(to, from).changes);
     });
   };
@@ -451,10 +490,10 @@ export function openTagDb(options: TagDbOptions): TagDb {
     }));
   };
 
-  /** 返回是否真的写进去了（导入撞上 `user` 行时整条跳过） */
-  const writeEntry = (entry: TagListEntry, guardUser: boolean): boolean => {
+  /** 返回是否真的写进去了（被守卫挡下的行整条跳过） */
+  const writeEntry = (entry: TagListEntry, guard: ImportGuard, parents?: Map<string, string>): boolean => {
     statsCache = null;
-    const result = stmt(insertTagSql(guardUser)).run(
+    const result = stmt(insertTagSql(guard)).run(
       entry.key,
       entry.en,
       entry.zh,
@@ -463,16 +502,27 @@ export function openTagDb(options: TagDbOptions): TagDb {
       entry.updatedAt,
       tagSearchBlob(entry),
     );
-    // 被 `WHERE tags.source <> 'user'` 挡下的行，连分类 / 别名都不能动 ——
-    // 下面这几条 DELETE 是无条件的，不提前返回就把人家手改过的分类抹了
-    if (guardUser && Number(result.changes) === 0) return false;
+    // 被守卫挡下的行，连分类 / 别名都不能动 —— 下面这几条 DELETE 是无条件的，
+    // 不提前返回就把人家手改过（或人工词表带来）的分类抹了
+    if (guard !== null && Number(result.changes) === 0) return false;
     // 分类 / 别名整组替换：改一条时它们可能变少，增量更新要自己算差集，不如删了重写
     stmt('DELETE FROM tag_categories WHERE tag_key = ?').run(entry.key);
     for (const name of entry.categories) {
       stmt('INSERT OR IGNORE INTO tag_categories (tag_key, name) VALUES (?, ?)').run(entry.key, name);
       // 顺手把名字注册成"真分类"：不然编辑框里打出来的新名字只是 tag 上的一个字符串，
       // 左边分类树里没有它的位置（尤其它是这一条唯一的分类时）
-      stmt('INSERT OR IGNORE INTO categories (name) VALUES (?)').run(name);
+      //
+      // `WHERE excluded.parent IS NOT NULL`：导入带来的父子关系可以补进已有的分类，但**不能**
+      // 用 NULL 把已经有的 parent 抹掉 —— 面板里改一条词的分类时传的就是没有 parent 的那支。
+      //
+      // 自己当自己的父要挡住（`parent === name`）：两级树里"父就是自己"的那一支既不是顶级、
+      // 也永远展开不出来，等于整支消失（解析层已经把"小类 == 大类"折掉了，这里再兜一层 ——
+      // 别的调用方直接写库时不该能把树写坏）。
+      const parent = parents?.get(name) ?? null;
+      stmt(
+        `INSERT INTO categories (name, parent) VALUES (?, ?)
+           ON CONFLICT(name) DO UPDATE SET parent = excluded.parent WHERE excluded.parent IS NOT NULL`,
+      ).run(name, parent === name ? null : parent);
     }
     stmt('DELETE FROM tag_aliases WHERE tag_key = ?').run(entry.key);
     for (const alias of entry.aliases) {
@@ -483,15 +533,46 @@ export function openTagDb(options: TagDbOptions): TagDb {
     return true;
   };
 
-  /** 批量入库（导入用）：一个事务写完，十几万条也就秒级；返回真正入库的条数 */
-  const importEntries = (rows: TagListEntry[]): number => {
+  /**
+   * 批量入库（导入用）：一个事务写完，十几万条也就秒级；返回真正入库的条数。
+   * `parents` 只影响分类表的父子关系，词条本身不带这个字段。
+   * `guard` 决定"已入库的行许不许被盖"（默认 `'import'` = 只许盖机翻那层）。
+   */
+  const importEntries = (rows: TagListEntry[], parents?: Map<string, string>, guard: ImportGuard = 'import'): number => {
     let written = 0;
     transaction(() => {
       for (const row of rows) {
-        if (writeEntry(row, true)) written += 1;
+        if (writeEntry(row, guard, parents)) written += 1;
       }
     });
     return written;
+  };
+
+  /**
+   * 共现邻居整表替换（先清空再灌）：源表就是全量的一份，增量合并只会把源里已经去掉的旧行留下。
+   * 一张 20 万行的表一个事务写完，秒级。
+   */
+  const importCooccur = (rows: [string, string, number][]): number => {
+    const put = stmt('INSERT OR REPLACE INTO tag_cooccur (tag_key, neighbor_key, rank) VALUES (?, ?, ?)');
+    return transaction(() => {
+      stmt('DELETE FROM tag_cooccur').run();
+      for (const [tag, neighbor, rank] of rows) put.run(tag, neighbor, rank);
+      return rows.length;
+    });
+  };
+
+  /**
+   * 一个词的共现邻居。INNER JOIN `tags` 是**故意的**：邻居表里可能有词库里没有的键（删词留下的），
+   * 这里顺手当过滤器用 —— 面板要的是"能点进去看译文"的邻居，不是一个查不到的字符串。
+   */
+  const cooccur = (text: unknown, limit = 20): TagListEntry[] => {
+    const key = tagKey(text);
+    if (key === '') return [];
+    const rows = stmt(
+      `SELECT ${ROW_COLUMNS} FROM tag_cooccur n JOIN tags t ON t.key = n.neighbor_key
+        WHERE n.tag_key = ? ORDER BY n.rank LIMIT ?`,
+    ).all(key, clampInt(limit, 1, 100, 20)) as unknown as TagRow[];
+    return rows.map(toEntry);
   };
 
   const count = (): number => one('SELECT COUNT(*) AS c FROM tags');
@@ -538,7 +619,7 @@ export function openTagDb(options: TagDbOptions): TagDb {
       const current = key === '' ? null : readByKey(key);
       const next = mergeTag(current, patch, now);
       if (next === null) return null;
-      transaction(() => writeEntry(next, false));
+      transaction(() => writeEntry(next, null));
       return next;
     },
 
@@ -549,6 +630,8 @@ export function openTagDb(options: TagDbOptions): TagDb {
         const result = stmt('DELETE FROM tags WHERE key = ?').run(key);
         stmt('DELETE FROM tag_categories WHERE tag_key = ?').run(key);
         stmt('DELETE FROM tag_aliases WHERE tag_key = ?').run(key);
+        // 邻居里指向它的那些行留着也没关系（查询是 INNER JOIN），但它自己那一行是纯死数据
+        stmt('DELETE FROM tag_cooccur WHERE tag_key = ?').run(key);
         statsCache = null;
         return Number(result.changes) > 0;
       });
@@ -595,6 +678,8 @@ export function openTagDb(options: TagDbOptions): TagDb {
     removeCategory,
     renameCategory,
     importEntries,
+    importCooccur,
+    cooccur,
 
     close: (): void => {
       cache.clear();

@@ -27,6 +27,7 @@ import { PRESETS_KIND, presetExportDoc, readExportIds, readPresetImport } from '
 import { registerBlockCategoryRoutes } from './routes-block-categories.js';
 import { registerBlockPresetRoutes } from './routes-block-presets.js';
 import { registerTranslateRoutes } from './routes-translate.js';
+import { registerTagRoutes } from './routes-tags.js';
 import { readJson, writeJson } from './store.js';
 import type { PluginContext, RouteReply } from './types.js';
 import { asRecord, isRecord } from './util.js';
@@ -210,14 +211,15 @@ export function registerRoutes(ctx: PluginContext): void {
     return { ok: true };
   });
 
-  // 翻译 / 词库 / 设置那三组（顺序同原来：接在草稿之后）。路由表**传下去**而不是让那边再领一次：
-  // 宿主每次 `ctx.routes.for()` 都换一张新表，领两次会把这里的预设 / 草稿路由整张覆盖掉。
-  // 区块库没有长持句柄（就是一份 JSON），直接注册。分类那组是同一份文件的两个视图
+  // 翻译 / 设置那两组（顺序同原来：接在草稿之后），以及借它那条连接用的词库路由。路由表**传下去**
+  // 而不是让那边再领一次：宿主每次 `ctx.routes.for()` 都换一张新表，领两次会把这里的预设 / 草稿路由
+  // 整张覆盖掉。区块库没有长持句柄（就是一份 JSON），直接注册。分类那组是同一份文件的两个视图
   // （`blockstore.ts` 单点读写），装配顺序无所谓
   registerBlockPresetRoutes({ routes, space, badRequest, log });
   registerBlockCategoryRoutes({ routes, space, badRequest, log });
 
   const translateRoutes = registerTranslateRoutes({ routes, space, badRequest, log });
+  registerTagRoutes({ routes, space, badRequest, log, tags: translateRoutes.tags });
 
   ctx.effect(() => () => {
     // 词库是长持的 SQLite 连接：重挂 = 新闭包，不关就是句柄 + WAL 文件泄漏

@@ -1,0 +1,4 @@
+./danbooru-zh.csv filter=lfs diff=lfs merge=lfs -text
+./cooccur.tsv filter=lfs diff=lfs merge=lfs -text
+./block-library.json filter=lfs diff=lfs merge=lfs -text
+./weilin-zh.csv filter=lfs diff=lfs merge=lfs -text

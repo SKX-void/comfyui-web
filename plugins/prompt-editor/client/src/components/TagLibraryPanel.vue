@@ -98,10 +98,16 @@ watch(
   },
 );
 
-/** 内置表的体积：按钮上要写清楚"这一下要写进去多少" */
-const bundledLabel = computed(() =>
-  bundled.value === null || !bundled.value.available ? '' : `${(bundled.value.bytes / 1024 / 1024).toFixed(1)}MB`,
-);
+/** 内置表的体积：按钮上要写清楚"这一下要写进去多少"（两层加起来，人工那层几百 KB 也要算） */
+const bundledLabel = computed(() => {
+  const one = bundled.value;
+  if (one === null || !one.available) return '';
+  const bytes = one.bytes + (one.builtin.available ? one.builtin.bytes : 0);
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+});
+
+/** 人工那层在不在（文案里"带人工分类"这句只在真有 weilin-zh.csv 时才说） */
+const hasBuiltin = computed(() => bundled.value !== null && bundled.value.builtin.available);
 
 /** 编辑态里可点的那批分类名（就是左边分类树的名字；「全部 / 未分类」两个哨兵不在里面） */
 const knownCategories = computed(() => data.value.categories.map((one) => one.name));
@@ -184,14 +190,14 @@ const knownCategories = computed(() => data.value.categories.map((one) => one.na
             <p class="pe-lib-tip">词库还是空的。手改译文、或在工作区点译文格上的「机」，都会存进这里。</p>
             <template v-if="bundled !== null && bundled.available">
               <p class="pe-lib-tip">
-                也可以先导入内置的 danbooru 机翻表（{{ bundledLabel }}，约 14 万条）—— 一次写进本机 SQLite，
-                以后翻译命中它就是零请求。要哪条不要哪条，在下面改分类 / 删掉就行。
+                也可以先导入内置词库（{{ bundledLabel }}，机翻 32 万条{{ hasBuiltin ? ' + 人工 4 千条（带两级分类，压过机翻）' : '' }}）——
+                一次写进本机 SQLite，以后翻译命中它就是零请求。要哪条不要哪条，在下面改分类 / 删掉就行。
               </p>
               <button class="pe-btn" :disabled="importing" @click="importBundled">
-                {{ importing ? '导入中…（十几万行，几秒钟）' : '导入内置机翻表' }}
+                {{ importing ? '导入中…（三十几万行，几秒钟）' : '导入内置词库' }}
               </button>
             </template>
-            <p v-else class="pe-lib-tip">产物里没有内置机翻表（assets/danbooru-zh.csv）—— 先 pnpm build:plugins。</p>
+            <p v-else class="pe-lib-tip">产物里没有内置词库（assets/danbooru-zh.csv）—— 先 pnpm build:plugins。</p>
           </div>
 
           <p v-else-if="!loading && data.tags.length === 0" class="pe-lib-tip">
@@ -234,17 +240,17 @@ const knownCategories = computed(() => data.value.categories.map((one) => one.na
       <footer class="pe-lib-foot">
         <span v-if="hint !== ''" class="pe-hint">{{ hint }}</span>
         <span class="pe-lib-tip">
-          进库的要么是你手动存的（手改译文 / 点「机」/ 在这里改），要么是导入的机翻 —— 不要的点「删」。
+          进库的要么是你手动存的（手改译文 / 点「机」/ 在这里改），要么是导入的机翻 / 人工词表 —— 不要的点「删」。
         </span>
         <!-- 库里已经有东西时，空态那张卡就不画了；留个小口子给"换了新版 CSV 想再导一遍" -->
         <button
           v-if="data.counts.total > 0 && bundled !== null && bundled.available"
           class="pe-btn pe-btn-quiet"
           :disabled="importing"
-          :title="`把产物自带的 danbooru-zh.csv（${bundledLabel}）再导一遍：你改过的条目不会被覆盖`"
+          :title="`把产物自带的两份表（${bundledLabel}）再导一遍：手改过的不动，人工译文照样压过机翻`"
           @click="importBundled"
         >
-          {{ importing ? '导入中…' : '重导内置机翻表' }}
+          {{ importing ? '导入中…' : '重导内置词库' }}
         </button>
       </footer>
     </div>

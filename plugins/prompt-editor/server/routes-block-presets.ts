@@ -16,6 +16,7 @@
  *
  * 上限与字段长度都走 `LIMITS`：自用工具也要防"一个坏请求 / 手改坏的文件"把 UI 撑爆。
  */
+import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
 import { BLOCK_PRESETS_FILE, LIMITS } from './constants.js';
@@ -43,6 +44,39 @@ export function registerBlockPresetRoutes({ routes, space, badRequest, log }: Ro
   routes.get('/block-presets', async () => {
     const library = loadBlockLibrary(file);
     return { presets: library.presets.map(summarize) };
+  });
+
+  // 产物里那份内置区块库（WeiLin 存档预处理来的，见 scripts/build-blocks.ts）。
+  // **必须注册在 `/block-presets/:id` 之前**：宿主按注册顺序逐段匹配，`:id` 会把 `bundled` 吃掉。
+  const bundledFile = new URL('./assets/block-library.json', import.meta.url);
+
+  /** 内置区块库在不在、多大、几块 —— 空库那张卡靠它决定画不画按钮 */
+  const bundledInfo = (): { available: boolean; bytes: number; count: number } => {
+    try {
+      const stat = fs.statSync(bundledFile);
+      if (!stat.isFile()) return { available: false, bytes: 0, count: 0 };
+      const parsed = readBlockImport(JSON.parse(fs.readFileSync(bundledFile, 'utf8')));
+      return { available: true, bytes: stat.size, count: parsed?.rows.length ?? 0 };
+    } catch {
+      return { available: false, bytes: 0, count: 0 };
+    }
+  };
+
+  routes.get('/block-presets/bundled', async () => ({ bundled: bundledInfo() }));
+
+  /** 导入产物自带的那份区块库。跟导入上传的文件是同一条路（见 runImport），只是不用传文件 */
+  routes.post('/block-presets/bundled', async (request, reply) => {
+    if (!bundledInfo().available) {
+      return badRequest(reply, '产物里没有内置区块库（assets/block-library.json）—— 先 pnpm build:plugins');
+    }
+    let parsed: ReturnType<typeof readBlockImport> = null;
+    try {
+      parsed = readBlockImport(JSON.parse(fs.readFileSync(bundledFile, 'utf8')));
+    } catch (err) {
+      return badRequest(reply, `内置区块库读不了：${(err as Error).message}`);
+    }
+    if (parsed === null) return badRequest(reply, '内置区块库的格式不对（应为区块库导入文件）');
+    return runImport(parsed, reply, '导入内置区块库');
   });
 
   routes.get('/block-presets/:id', async (request, reply) => {
@@ -140,11 +174,15 @@ export function registerBlockPresetRoutes({ routes, space, badRequest, log }: Ro
     return blockExportDoc(library, picked);
   });
 
-  routes.post('/block-presets/import', async (request, reply) => {
-    const parsed = readBlockImport(request.body);
-    if (parsed === null) {
-      return badRequest(reply, `这不是区块库的导出文件（应为 { kind: "${BLOCKS_KIND}", presets: [...] }）`);
-    }
+  /**
+   * 把一份认出来的导入**追加**进库，返回回执。上传的文件与产物自带的那份走同一条路 ——
+   * 两处各写一遍，迟早会长出两种结果。
+   */
+  const runImport = (
+    parsed: NonNullable<ReturnType<typeof readBlockImport>>,
+    reply: RouteReply,
+    label: string,
+  ): unknown => {
     if (parsed.rows.length === 0) return badRequest(reply, '这份文件里没有能认出来的区块');
     const library = loadBlockLibrary(file);
     if (library.presets.length + parsed.rows.length > LIMITS.blockPresets) {
@@ -173,12 +211,20 @@ export function registerBlockPresetRoutes({ routes, space, badRequest, log }: Ro
       library.presets.push({ ...row.preset, categoryId });
     }
     saveBlockLibrary(file, library);
-    log(`导入 ${parsed.rows.length} 块（新建 ${categoriesCreated} 个分类，共 ${library.presets.length} 块）`);
+    log(`${label} ${parsed.rows.length} 块（新建 ${categoriesCreated} 个分类，共 ${library.presets.length} 块）`);
     return {
       imported: parsed.rows.length,
       skipped: parsed.skipped,
       categoriesCreated,
       categoriesDropped,
     };
+  };
+
+  routes.post('/block-presets/import', async (request, reply) => {
+    const parsed = readBlockImport(request.body);
+    if (parsed === null) {
+      return badRequest(reply, `这不是区块库的导出文件（应为 { kind: "${BLOCKS_KIND}", presets: [...] }）`);
+    }
+    return runImport(parsed, reply, '导入');
   });
 }

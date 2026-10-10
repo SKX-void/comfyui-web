@@ -122,7 +122,8 @@ export interface TagList {
   /** 命中总数，**最多报到 `limit + 1`**（面板只显示一页，精确值要全表扫） */
   total: number;
   counts: { total: number; uncategorized: number };
-  categories: { name: string; count: number }[];
+  /** 分类树（含空分类）：`parent` 非空 = 某个大类下的小类，面板按它排两级（见 TagCategoryNav） */
+  categories: { name: string; count: number; parent: string | null }[];
 }
 
 /** 面板查询：`category` 传 `__none__` = 未分类 */
@@ -224,10 +225,15 @@ export async function deleteCategoryEntries(name: string): Promise<{ deleted: nu
   });
 }
 
-/** 产物里那份内置机翻表：`available:false` = 产物里没有它（面板就不画那个按钮） */
-export interface BundledTags {
+/** 产物里的一份词库表：`available:false` = 产物里没有它（面板就不画那个按钮） */
+export interface BundledAsset {
   available: boolean;
   bytes: number;
+}
+
+/** 产物里的两份内置表：`danbooru-zh.csv`（机翻，32 万条）+ `weilin-zh.csv`（人工，4 千条带两级分类） */
+export interface BundledTags extends BundledAsset {
+  builtin: BundledAsset;
 }
 
 export async function fetchBundledTags(): Promise<BundledTags> {
@@ -235,21 +241,20 @@ export async function fetchBundledTags(): Promise<BundledTags> {
 }
 
 /**
- * 导入结果。`written` 是**真写进去的**条数，`skipped` 是你手改过、这次没动的
- * （导入不覆盖 `source:'user'` 的行 —— 见 `tagdb.ts` 的 `insertTagSql(guardUser)`）。
+ * 导入结果。`written` 是**真写进去的**条数，`skipped` 是被守卫挡下、这次没动的
+ * （机翻那层只许盖机翻、人工那层不许盖手改的 —— 见 `tagdb.ts` 的 `ImportGuard`）。
  */
 export interface TagImportResult {
-  /** 表里的数据行数 */
-  lines: number;
-  /** 解析后真正进库的候选（去掉没 tag / 没译文 / 译文同正名的行、同键去重之后） */
+  /** 两层加起来解析后的候选条数 */
   rows: number;
   written: number;
   skipped: number;
   before: number;
   after: number;
-  noZh: number;
-  placeholder: number;
-  duplicates: number;
+  /** 每一层导完的报数（面板拿它把「机翻多少 + 人工多少」说清楚） */
+  layers: { name: string; rows: number; written: number }[];
+  /** 共现邻居表：老产物里没有这份文件时 `available:false`（词库照样是导好的） */
+  cooccur: { available: boolean; kept: number; written: number };
   elapsedMs: number;
 }
 

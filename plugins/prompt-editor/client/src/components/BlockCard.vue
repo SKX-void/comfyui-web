@@ -40,8 +40,8 @@ const emit = defineEmits<{
   (e: 'item-drag-over', index: number): void;
   (e: 'item-drop', index: number): void;
   (e: 'item-drag-end'): void;
-  /** 触屏换位：第 index 条在块内 +1/-1 */
-  (e: 'item-move', index: number, delta: number): void;
+  /** 触屏拖拽起手：把手按下的 PointerEvent 原样往上抛（状态在 App 层的 useTouchItemDrag） */
+  (e: 'item-touch-drag-start', index: number, event: PointerEvent): void;
   /** 翻这一条（用户点了「译」） */
   (e: 'translate', index: number): void;
   /** 翻这一整块 */
@@ -218,6 +218,8 @@ function removeItem(index: number): void {
     class="pe-block"
     :class="{ 'pe-block-over': over }"
     :style="{ borderColor: block.color }"
+    :data-block-id="block.id"
+    :data-tail-index="block.items.length"
     @click="emit('activate')"
     @dragover.prevent
     @drop.prevent="emit('drop')"
@@ -261,6 +263,8 @@ function removeItem(index: number): void {
     <div
       class="pe-block-body"
       :class="{ 'pe-block-body-text': block.mode === 'text', 'pe-block-body-drop': overBody }"
+      :data-block-id="block.id"
+      :data-tail-index="block.items.length"
       @dragover.prevent="onBodyOver($event)"
       @drop="onItemDrop($event, block.items.length)"
     >
@@ -272,6 +276,8 @@ function removeItem(index: number): void {
         :dragging="isDragging(index)"
         :busy="busyIds.has(item.id)"
         :failed="failedIds.has(item.id)"
+        :data-block-id="block.id"
+        :data-item-index="index"
         :class="{
           'pe-chip-over':
             overItem !== null && overItem.blockId === block.id && overItem.index === index && !isDragging(index),
@@ -286,7 +292,7 @@ function removeItem(index: number): void {
         @dragover.prevent="onItemDragOver($event, index)"
         @drop="onItemDrop($event, index)"
         @dragend="emit('item-drag-end')"
-        @move="(delta: number) => emit('item-move', index, delta)"
+        @touch-drag-start="(event: PointerEvent) => emit('item-touch-drag-start', index, event)"
       />
       <input
         ref="addInput"

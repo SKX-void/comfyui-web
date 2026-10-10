@@ -70,6 +70,7 @@ pnpm build:plugins            # 插件源码（plugins/<id>/）→ tabs/<id>/
 |---|---|
 | `@comfyui-web/anima-example` | **第一个「真」插件**：自带 `workflow.json`（源自已删的 `workflow/anima.simple.json`）做成 tab「默认Anima」。插件自己提交 ComfyUI、收 WS 进度、落图、在自己的空间里建库，**不反代任何旧服务**。见 `plugins/anima-example/README.md` |
 | `@comfyui-web/anima-plus` | **v1 整体搬完了**：页面是 v1 的，后端（模板/渲染/显存护栏/任务编排/LoRA/标签/预设）也整套搬进了插件，**不再依赖 8086**。见 `plugins/anima-plus/README.md` |
+| `@comfyui-web/image-reverse-inference` | **图片反推**：拖图进 tab → 插件后端上传（浏览器直传会被 CORS 挡下）→ 跑 WD14 Tagger → 回填 tags 文本。工作流绑定靠 `class_type` 现找，不写死节点号。见 `plugins/image-reverse-inference/README.md` |
 
 ---
 
