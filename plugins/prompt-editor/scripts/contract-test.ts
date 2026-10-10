@@ -1036,7 +1036,6 @@ console.log('内置词库资产（assets/*.csv）');
     const groups = new Set(parsed.rows.map((one) => one.categories[0] ?? ''));
     // 小类：只有真细分过的行才有（小类跟大类同名的那 77 条只有大类）
     const subs = new Set(parsed.rows.map((one) => one.categories[1]).filter((one): one is string => one !== undefined && one !== ''));
-    const hot = parsed.rows.filter((one) => one.hot > 0).length;
     check(
       '人工表：每条都标 builtin（导入守卫靠它压住机翻那层）',
       parsed.rows.every((one) => one.source === 'builtin') && parsed.stats.sources.builtin === parsed.rows.length,
@@ -1059,10 +1058,16 @@ console.log('内置词库资产（assets/*.csv）');
       `${groups.size} 大类 / ${subs.size} 小类 / ${parsed.parents.size} 对父子`,
     );
     check('人工表：`未分类` 没被当成分类名（面板里那个是伪分类）', !parsed.parents.has('未分类') && !groups.has('未分类'), [...groups].join(' '));
+    // 机翻表也读一遍（12.6MB）：人工那层的热度底座是"机翻最大 + 1"，不对比就验不出这条
+    const machine = parseTagCsv(fs.readFileSync(big, 'utf8'), { keepPlaceholders: true });
+    const machineMax = machine.rows.reduce((max, one) => (one.hot > max ? one.hot : max), 0);
+    const humanMin = parsed.rows.reduce((min, one) => (one.hot < min ? one.hot : min), Number.POSITIVE_INFINITY);
+    // 借到同词热度的那些 = 高过底座（底座 = 机翻最大 + 1）的那批；其余只有底座
+    const borrowed = parsed.rows.filter((one) => one.hot > machineMax + 1).length;
     check(
-      '人工表：多数条目有热度（热度从机翻表借 —— 不然这 4 千条会沉在 32 万条最底下）',
-      hot > parsed.rows.length / 2,
-      `${hot} / ${parsed.rows.length}`,
+      '人工表：每条热度都高过机翻最大的那条（人工整体排在机翻之上，机翻表里没有的词也不沉底）',
+      machineMax > 0 && parsed.rows.every((one) => one.hot > machineMax) && borrowed > parsed.rows.length / 2,
+      `机翻最大 ${machineMax} · 人工最小 ${humanMin} · 借到同词热度 ${borrowed}/${parsed.rows.length}`,
     );
   }
 }
