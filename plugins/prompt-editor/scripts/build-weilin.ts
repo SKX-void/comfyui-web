@@ -14,8 +14,11 @@
  * 三件事在写出去之前做掉：
  * - **下划线折成空格**（`long_hair` → `long hair`）：源表是 booru 那套写法，我们库里是空格形。
  *   折了才和机翻表落在**同一个键**上（于是人工那条压过机翻那条）。颜文字里的下划线（`^_^`）保留。
- * - **热度从机翻表借**：源表没有热度列，而面板是按 `hot DESC` 排的 —— 不给热度的话这 4 千条
- *   会沉在 32 万条的最底下，等于白导。按 key 从 `assets/danbooru-zh.csv` 里取，取不到留 0。
+ * - **热度 = 机翻最大热度 + 1 + 这个词在机翻表里的热度**：源表没有热度列，而面板是按 `hot DESC`
+ *   排的。借同词的热度是为了**层内**排序真实（常用的排前面），整体加一个"机翻最大 + 1"的底座是为了
+ *   **人工那层整个排在机翻之上** —— 人工是整理过的译文，本来就该先看见；而 `1boy` / `girl` / `kawaii`
+ *   这 1,077 条在机翻表里根本没有（取不到热度），不加底座就正好沉到 32 万条最底下。
+ *   底座取"最大 + 1"而不是"最大"：跟机翻最大的那条（`1girl` 8,419,190）不并列，不然两层在榜上会交错。
  * - **`未分类` 不当分类名**：源表里没有这个值，但机翻表那侧有，规则统一放在解析层
  *   （见 `tagcsv.ts`）—— 这里只保证大类/小类原样带出来。
  *
@@ -232,25 +235,38 @@ if (fs.existsSync(args.hot)) {
     hot.set(row.key, row.hot);
   }
 }
+/**
+ * 人工那层的热度底座：机翻表里最大的那条 + 1（当前是 `1girl` 的 8,419,190）。
+ * 于是人工这 4 千条整个排在机翻 32 万条之上，层内再按借来的热度排（常用的还是前面）。
+ * 机翻表读不到（`--hot` 指错 / 文件不在）就退回 1：至少层内排序还在，不至于全 0。
+ */
+const hotBase = ((): number => {
+  // 32 万条不能 `Math.max(...values)`（展开成实参直接爆栈），走一遍循环
+  let max = 0;
+  for (const one of hot.values()) if (one > max) max = one;
+  return max + 1;
+})();
 
 const lines = ['tag,zh,group,sub,count,source'];
 const seen = new Set<string>();
-const stats = { rows: 0, groups: new Set<string>(), subs: new Map<string, string>(), folded: 0, hotMerged: 0, unresolved: 0, quoted: 0 };
+const stats = { rows: 0, groups: new Set<string>(), subs: new Map<string, string>(), folded: 0, hotMerged: 0, hotBase, unresolved: 0, quoted: 0 };
 for (const { row } of tags) {
   const raw = (row.text ?? '').trim();
   const zh = (row.desc ?? '').trim();
   if (raw === '' || zh === '') continue;
   // 下划线折成空格（颜文字里的保留）—— 折完才和机翻表同一个键
   const tag = plugin.foldUnderscore(raw);
-  if (tag !== raw) stats.folded += 1;
   const sub = (row.g_uuid ? subByUuid.get(row.g_uuid) : undefined) ?? subById.get(row.subgroup_id ?? '') ?? { name: '', group: '' };
-  if (sub.name === '') stats.unresolved += 1;
-  const count = hot.get(tag.toLowerCase()) ?? 0;
-  if (count > 0) stats.hotMerged += 1;
-  // 同一份表里同一个词写两遍（3,872 个唯一词 / 4,087 行）：留第一条，解析层也会去重
+  const borrowed = hot.get(tag.toLowerCase()) ?? 0;
+  const count = hotBase + borrowed;
+  // 同一份表里同一个词写两遍（3,872 个唯一词 / 4,087 行）：留第一条，解析层也会去重。
+  // **统计放在去重之后**：不然报出来的数比产物里的行数还大（之前 `hotMerged` 就多算了那 259 条重复）
   const dedupe = tag.toLowerCase();
   if (seen.has(dedupe)) continue;
   seen.add(dedupe);
+  if (tag !== raw) stats.folded += 1;
+  if (sub.name === '') stats.unresolved += 1;
+  if (borrowed > 0) stats.hotMerged += 1;
   if (sub.group !== '') stats.groups.add(sub.group);
   if (sub.name !== '') stats.subs.set(sub.name, sub.group);
   const cells = [tag, zh, sub.group, sub.name, String(count), 'builtin'];

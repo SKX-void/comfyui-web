@@ -480,6 +480,9 @@ tag_aliases(tag_key, alias_key, alias)
 | 机翻 | `danbooru-zh.csv`（12.6MB / 32.4 万条） | `source:'import'` | 只许盖 `import` 那层 |
 | 人工 | `weilin-zh.csv`（218KB / 3,793 条，11 大类 / 128 小类） | `source:'builtin'` | 只不许盖 `user` |
 
+人工那层的热度是**机翻最大 + 1 + 这个词在机翻表里的热度**：底座让人工整体排在机翻之上（整理过的译文先看见），
+层内仍按真实用量排；`1boy` / `girl` / `kawaii` 这类机翻表里根本没有的词，靠底座也不沉底。
+
 于是同一个词（比如 `long hair`）人工那条**压过**机翻那条，而且**重导机翻表冲不掉它** ——
 人工表那边 `keepPlaceholders: false`：那份表里"译文 == 正名"是"这词不用翻"，真写进去反而会把
 机翻的中文盖成英文，跳过才对。共现邻居（`cooccur.tsv`）跟着一起灌，读不到只记一条日志、不让整次导入失败。
@@ -648,7 +651,7 @@ node scripts/scale-bench.ts                          # 规模基准（不在 ver
 | `scripts/contract-test.ts` | 注入最小 document 桩 + SSR 真渲染产物 | 产物形状（tabs/routes/样式）、首屏结构、纯函数（切分/重切/输出/服务端收敛/草稿两段装配）、词库（命中/别名/迁移/排序/导入不覆盖手改的/两级分类的 parent 迁移与改名删除）、**词库表解析与导入**（引号里的逗号与转义引号 / 下划线归一 / 占位行与 `keepPlaceholders` / group·sub 两级 / `source` 列与两层守卫 / 同键去重 / 共现邻居 / 内置区块库路由不被 `/:id` 吃掉 / lfs 指针 + 子进程真跑一遍脚本端到端）、非安全上下文下的降级 |
 | `scripts/interaction-test.ts` | happy-dom 造 DOM，挂载产物、发真事件，**并记录发出去的请求** | 敲字/**失焦提交**、**输入法组字**、区块风格开关、单击改名、译文格编辑、双击禁用 → 输出跟着变；**两级分类树的渲染与筛选**；以及草稿的**两个写事件**（只发该发的那一段） |
 | `scripts/unpack-bmz.mjs` · `scripts/build-dict.ts` | 解开第三方词库包 → 生成机翻表 + 共现邻居（换词库时才跑） | 不进 verify：输入是 `.cache/dictpack/` 那 15MB 原始层，产物是入库的 LFS 资产 |
-| `scripts/build-weilin.ts` | 浅克隆 WeiLin 的人工词库仓（`.cache/weilin-prompt/`）→ `assets/weilin-zh.csv`（下划线折空格、热度从机翻表借、两级分类） | 不进 verify：要联网 clone；产物是入库的小文件（218KB） |
+| `scripts/build-weilin.ts` | 浅克隆 WeiLin 的人工词库仓（`.cache/weilin-prompt/`）→ `assets/weilin-zh.csv`（下划线折空格、热度 = 机翻最大 + 1 + 同词热度、两级分类） | 不进 verify：要联网 clone；产物是入库的小文件（218KB） |
 | `scripts/build-blocks.ts` | `assets/存档.json` → `assets/block-library.json`（一条 prompt 按逗号切条目、分类按 `catOrder` 排、负提示词单列一类） | 不进 verify：纯离线转换，换存档时才跑 |
 
 交互层是补上 SSR 够不到的那一半：SSR 不跑事件处理器，"敲字进不去""点开关没反应"它一个都抓不到；
