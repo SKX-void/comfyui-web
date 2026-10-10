@@ -3,7 +3,7 @@
  *
  * 常量与默认规则表在 `limits.ts`；这里只做"合并与收窄"，不扫描图。
  */
-import type { Graph, TemplateDef, TemplateInput } from '@comfyui-web/shared';
+import type { Graph, WorkflowDef, WorkflowInput } from '@comfyui-web/shared';
 
 import {
   DEFAULT_COUNT_LIMITS,
@@ -82,9 +82,9 @@ export interface EffectiveBounds {
  * 真正说了算的是安全策略；两边取交集，谁更严格听谁的。
  */
 export function effectiveBounds(
-  def: TemplateDef,
+  def: WorkflowDef,
   graph: Graph | undefined,
-  input: TemplateInput,
+  input: WorkflowInput,
   limits: readonly NumericLimit[] = DEFAULT_LIMITS,
   countLimits: readonly CountLimit[] = DEFAULT_COUNT_LIMITS,
 ): EffectiveBounds {
@@ -132,16 +132,16 @@ export function effectiveBounds(
 }
 
 /**
- * 收窄表单下发的 ui.min/max（`GET /api/template`）。
+ * 收窄表单下发的 ui.min/max（`GET /api/workflow`）。
  *
  * 好处：改安全策略只需改一处，前端滑块/数字框自动跟着变，
- * 不需要回头改 template.json 里那份可能过期的提示值。
+ * 不需要回头改 assets/form.json 里那份可能过期的提示值。
  */
-export function narrowTemplateBounds(
-  def: TemplateDef,
+export function narrowWorkflowBounds(
+  def: WorkflowDef,
   graph: Graph,
   limits: readonly NumericLimit[] = DEFAULT_LIMITS,
-): TemplateDef {
+): WorkflowDef {
   let changed = false;
   const inputs = (def.inputs ?? []).map((input) => {
     const b = effectiveBounds(def, graph, input, limits);
@@ -161,7 +161,7 @@ export function narrowTemplateBounds(
  * 且它的 `when` 条件成立（条件不成立时用的是模板原值，不能算用户的账）。
  */
 export function userSourceOf(
-  def: TemplateDef,
+  def: WorkflowDef,
   hit: { at: Position; write: Position },
   values: Record<string, unknown>,
 ): { key: string; label: string } | null {

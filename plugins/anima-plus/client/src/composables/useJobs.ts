@@ -9,11 +9,11 @@
  * 浏览器对同源 HTTP/1.1 只给 6 条连接，每个任务各开一条 EventSource 会把队列深度本身
  * 变成连接数上限，缩略图和历史刷新就都排不上了。
  *
- * 提交要用表单值和"存快照"，这两样在 `useTemplate()` 手里，所以从外面传进来（App.vue 接线）。
+ * 提交要用表单值和"存快照"，这两样在 `useWorkflow()` 手里，所以从外面传进来（App.vue 接线）。
  * 队列行的形状与"事件 → 该做什么"的翻译在 `jobs-stream.ts`（纯函数，本文件只接线 + 副作用）。
  */
 import { computed, ref, type Ref } from 'vue';
-import type { Job, TemplateDetail } from '@comfyui-web/shared';
+import type { Job, WorkflowDetail } from '@comfyui-web/shared';
 import { api, apiUrl, assetUrl, subscribeJobs, type JobStreamEvent } from '@/api';
 import { drawSeed, normalizeValues, type FieldModel } from '@/form';
 import {
@@ -27,7 +27,7 @@ import {
 
 export function useJobs(
   pushLog: (line: string) => void,
-  template: Ref<TemplateDetail | null>,
+  workflow: Ref<WorkflowDetail | null>,
   values: Ref<FieldModel>,
   saveLastState: (payload: Record<string, unknown>) => Promise<void>,
 ) {
@@ -142,7 +142,7 @@ export function useJobs(
   // ---- 提交 / 取消 / 复用 -------------------------------------------------
 
   async function submit(): Promise<void> {
-    if (!template.value) return;
+    if (!workflow.value) return;
     submitting.value = true;
     errorMessage.value = null;
 
@@ -153,7 +153,7 @@ export function useJobs(
         values.value = { ...values.value, seed: drawn };
         pushLog(`随机种子: ${drawn}`);
       }
-      const payload = normalizeValues(template.value.inputs, values.value);
+      const payload = normalizeValues(workflow.value.inputs, values.value);
       // 快照就是这次提交出去的那一份（含刚抽定的种子）：刷新页面回填的必须是"跑过的参数"
       void saveLastState(payload);
       const res = await api.createJob({ values: payload });

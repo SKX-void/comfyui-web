@@ -1,7 +1,7 @@
 import type { LoraRef, ResolvedTriggerWord } from '@comfyui-web/shared';
 import type { WeilinClient } from '../weilin/client.js';
 import type { TriggerStore } from './store.js';
-import { normalizeLora } from '../templates/transforms.js';
+import { normalizeLora } from '../workflow/transforms.js';
 
 /** 默认词（WeiLin 标签库）的进程内缓存：一条 71KB，提交时不该每次都拉 */
 const DEFAULT_TTL_MS = 5 * 60_000;

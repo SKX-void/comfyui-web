@@ -20,12 +20,12 @@ import { crc32, deflateSync } from 'node:zlib';
 
 import { createImageLibrary } from 'purejsimage';
 import { jpegCodec } from 'purejsimage/codecs/jpeg';
-import type { Job, JobProgress, TemplateInput } from '@comfyui-web/shared';
+import type { Job, JobProgress, WorkflowInput } from '@comfyui-web/shared';
 
-import { WorkflowDefinition } from '../server/templates/loader.js';
+import { WorkflowDefinition } from '../server/workflow/loader.js';
 import { buildConfig, normalizeBaseUrl } from '../server/config.js';
-import { renderTemplate } from '../server/templates/render.js';
-import { applyTransform } from '../server/templates/transforms.js';
+import { renderWorkflow } from '../server/workflow/render.js';
+import { applyTransform } from '../server/workflow/transforms.js';
 import { applyComfyEvent } from '../server/jobs/comfy-events.js';
 import { JobEventBus } from '../server/jobs/event-bus.js';
 import { buildPlan, planFor } from '../server/jobs/plan.js';
@@ -42,7 +42,7 @@ import { closeDatabase, openDatabase, userVersion } from '../server/store/db.js'
 import { TriggerStore } from '../server/triggers/store.js';
 import { assertGraphSafe } from '../server/safety/describe.js';
 import { guardGraph, scanGraph } from '../server/safety/scan.js';
-import { narrowTemplateBounds } from '../server/safety/effective.js';
+import { narrowWorkflowBounds } from '../server/safety/effective.js';
 import { LastStateStore, stateFile } from '../server/state.js';
 import { TriggerResolver } from '../server/triggers/resolve.js';
 import type { WeilinClient } from '../server/weilin/client.js';
@@ -172,7 +172,7 @@ async function main(): Promise<void> {
   check('graph 里含声明要求的全部节点类', missing.length === 0, missing.join(', '));
 
   // bounds 收窄：ui.max 必须已经被显存护栏压住（前端滑块的上限就是这个）
-  const narrowed = narrowTemplateBounds(tpl.def, tpl.graph);
+  const narrowed = narrowWorkflowBounds(tpl.def, tpl.graph);
   const stepsIn = (narrowed.inputs ?? []).find((i) => i.key === 'steps');
   const widthIn = (narrowed.inputs ?? []).find((i) => i.key === 'width');
   check('steps 的 ui.max 被收窄到护栏上限', stepsIn?.ui?.max === MAX_STEPS, `max=${stepsIn?.ui?.max}`);
@@ -182,7 +182,7 @@ async function main(): Promise<void> {
   // ── 渲染 ────────────────────────────────────────────────────────────────
   section('渲染');
   const before = JSON.stringify(tpl.graph);
-  const r = renderTemplate(tpl, {});
+  const r = renderWorkflow(tpl, {});
   check('渲染不修改定义（深拷贝）', JSON.stringify(tpl.graph) === before);
   check('默认值渲染出的 graph 非空', Object.keys(r.graph).length > 5, `nodes=${Object.keys(r.graph).length}`);
   check('工作流默认值没有被夹紧', r.safety.clamped.length === 0, `clamped=${r.safety.clamped.length}`);
@@ -207,18 +207,18 @@ async function main(): Promise<void> {
   );
   check('默认种子是具体数字（随机由前端接手）', typeof tpl.def.inputs.find((i) => i.key === 'seed')?.default === 'number' && tpl.def.inputs.find((i) => i.key === 'seed')?.default !== -1);
   check('存在「随机」开关且默认开启', tpl.def.inputs.find((i) => i.key === 'randomSeed')?.type === 'switch' && tpl.def.inputs.find((i) => i.key === 'randomSeed')?.default === true);
-  const rolls = new Set(Array.from({ length: 8 }, () => findLiteral(renderTemplate(tpl, { seed: -1 }).graph, 'seed')));
+  const rolls = new Set(Array.from({ length: 8 }, () => findLiteral(renderWorkflow(tpl, { seed: -1 }).graph, 'seed')));
   check('反复提交随机种子不重复', rolls.size === 8, `distinct=${rolls.size}/8`);
-  check('固定种子原样落图', findLiteral(renderTemplate(tpl, { seed: 12345 }).graph, 'seed') === 12345);
-  check('负数种子被拒绝（-1 除外）', /不能小于 -1/.test(errMessage(() => renderTemplate(tpl, { seed: -5 })) ?? ''));
-  check('超出安全整数范围的种子被拒绝', /不能大于/.test(errMessage(() => renderTemplate(tpl, { seed: 1e20 })) ?? ''));
+  check('固定种子原样落图', findLiteral(renderWorkflow(tpl, { seed: 12345 }).graph, 'seed') === 12345);
+  check('负数种子被拒绝（-1 除外）', /不能小于 -1/.test(errMessage(() => renderWorkflow(tpl, { seed: -5 })) ?? ''));
+  check('超出安全整数范围的种子被拒绝', /不能大于/.test(errMessage(() => renderWorkflow(tpl, { seed: 1e20 })) ?? ''));
 
   // 默认不加载任何 LoRA（用户自己选），所以默认渲染出的 lora_str 必须是空数组；
   // 变换本身用**显式值**验，别依赖默认值 —— 默认值一改，靠默认值验的断言就假绿了。
   const loraStr = findInput(r.graph, 'lora_str');
   check('默认 lora_str 是空数组', loraStr === '[]', String(loraStr).slice(0, 60));
 
-  const withLora = renderTemplate(tpl, { loras: [{ name: 'demo-lora', weight: 0.9 }] }).graph;
+  const withLora = renderWorkflow(tpl, { loras: [{ name: 'demo-lora', weight: 0.9 }] }).graph;
   const explicitLoraStr = findInput(withLora, 'lora_str');
   const lorasParsed = (() => {
     try {
@@ -230,9 +230,9 @@ async function main(): Promise<void> {
   check('LoRA 被变换成 lora_str 富 JSON', Array.isArray(lorasParsed) && lorasParsed.length > 0, String(explicitLoraStr).slice(0, 60));
   check('lora_str 里带权重字段', lorasParsed?.[0] !== undefined && 'weight' in (lorasParsed[0] ?? {}));
 
-  const coerced = renderTemplate(tpl, { steps: '5' }).values;
+  const coerced = renderWorkflow(tpl, { steps: '5' }).values;
   check('字符串数值被归一化成 number', coerced.steps === 5, `steps=${JSON.stringify(coerced.steps)}`);
-  const sizeApplied = renderTemplate(tpl, { width: 768, height: 640 }).graph;
+  const sizeApplied = renderWorkflow(tpl, { width: 768, height: 640 }).graph;
   check('用户填的宽高落图', findInput(sizeApplied, 'width') === 768 && findInput(sizeApplied, 'height') === 640);
 
   // ── 触发词注入（Lora堆 不注入；词由服务端拼进 28「质量词」之前） ────────
@@ -255,10 +255,10 @@ async function main(): Promise<void> {
     (graph[id] as { inputs?: Record<string, unknown> } | undefined)?.inputs?.text;
   check(
     '触发词拼在质量词之前',
-    nodeText(renderTemplate(tpl, { qualityPos: 'q' }, { triggerPrefix: '@bantan' }).graph, '28') ===
+    nodeText(renderWorkflow(tpl, { qualityPos: 'q' }, { triggerPrefix: '@bantan' }).graph, '28') ===
       '@bantan, q',
   );
-  check('没有触发词时质量词原样', nodeText(renderTemplate(tpl, { qualityPos: 'q' }).graph, '28') === 'q');
+  check('没有触发词时质量词原样', nodeText(renderWorkflow(tpl, { qualityPos: 'q' }).graph, '28') === 'q');
   check(
     '值为空时只留触发词（不留分隔逗号）',
     applyTransform('triggerPrefix', '', { triggerPrefix: 'x' }) === 'x',
@@ -267,7 +267,7 @@ async function main(): Promise<void> {
   check(
     '质量词留空时回落到默认值，触发词仍在最前',
     String(
-      nodeText(renderTemplate(tpl, { qualityPos: '' }, { triggerPrefix: 'x' }).graph, '28'),
+      nodeText(renderWorkflow(tpl, { qualityPos: '' }, { triggerPrefix: 'x' }).graph, '28'),
     ).startsWith('x, dramatic angle'),
   );
 
@@ -527,15 +527,15 @@ async function main(): Promise<void> {
   // ── 显存护栏（最关键） ──────────────────────────────────────────────────
   section('显存护栏');
   // 上限写死在断言里就会跟着漂：直接引用 MAX_STEPS
-  check('步数越界被拒绝', new RegExp('不能大于 ' + MAX_STEPS).test(errMessage(() => renderTemplate(tpl, { steps: 999 })) ?? ''));
-  check('尺寸越界被拒绝', /不能大于 1216/.test(errMessage(() => renderTemplate(tpl, { width: 99999 })) ?? ''));
+  check('步数越界被拒绝', new RegExp('不能大于 ' + MAX_STEPS).test(errMessage(() => renderWorkflow(tpl, { steps: 999 })) ?? ''));
+  check('尺寸越界被拒绝', /不能大于 1216/.test(errMessage(() => renderWorkflow(tpl, { width: 99999 })) ?? ''));
 
   const nineLoras = Array.from({ length: MAX_LORAS + 1 }, (_, i) => ({
     name: `l${i}`,
     lora: `l${i}.safetensors`,
     weight: 1,
   }));
-  check('LoRA 超过 8 个被拒绝', /最多 8 个/.test(errMessage(() => renderTemplate(tpl, { loras: nineLoras })) ?? ''));
+  check('LoRA 超过 8 个被拒绝', /最多 8 个/.test(errMessage(() => renderWorkflow(tpl, { loras: nineLoras })) ?? ''));
 
   // 直接对 graph 用护栏：越界夹紧 + 数量超限拒绝 + 取值不明 fail closed
   const overGraph = {
@@ -556,7 +556,7 @@ async function main(): Promise<void> {
   } as unknown as Parameters<typeof scanGraph>[0];
   check('取值不明（连线指向不存在的节点）', scanGraph(unresolvedGraph).unresolved.length > 0);
   check('取值不明时 assertGraphSafe 拒绝', errMessage(() => assertGraphSafe(unresolvedGraph)) !== null);
-  check('正常 graph 能过出口断言', errMessage(() => assertGraphSafe(renderTemplate(tpl, {}).graph)) === null);
+  check('正常 graph 能过出口断言', errMessage(() => assertGraphSafe(renderWorkflow(tpl, {}).graph)) === null);
 
   // ── 配额 ────────────────────────────────────────────────────────────────
   section('配额');
@@ -733,7 +733,7 @@ async function main(): Promise<void> {
     String(broken.error),
   );
 
-  const stateInputs: TemplateInput[] = [
+  const stateInputs: WorkflowInput[] = [
     { key: 'prompt', label: '提示词', type: 'text' },
     { key: 'steps', label: '步数', type: 'number' },
     { key: 'randomSeed', label: '随机', type: 'switch' },

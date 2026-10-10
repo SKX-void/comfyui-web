@@ -1,5 +1,5 @@
 import type { JobManager } from '../../jobs/manager.js';
-import type { WorkflowDefinition } from '../../templates/loader.js';
+import type { WorkflowDefinition } from '../../workflow/loader.js';
 import type { ComfyClient } from '../../comfy/types.js';
 import type { WeilinClient } from '../../weilin/client.js';
 import type { PresetStore } from '../../store/presets.js';

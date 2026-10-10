@@ -50,7 +50,7 @@ export interface InputSource {
   options?: Array<{ label: string; value: string }>;
 }
 
-export interface TemplateInput {
+export interface WorkflowInput {
   key: string;
   label: string;
   type: InputType;
@@ -139,7 +139,7 @@ export interface PackRequirement {
   note?: string;
 }
 
-export interface TemplateRequirements {
+export interface WorkflowRequirements {
   /**
    * 工作流需要的节点类。**由 workflow.json 推导、运行期由 loader 填**，作者不要手写：
    * 手写过一次就漂了（声明列 9 种、图里实际 17 种，缺的那 8 种一路跑到 ComfyUI 才报错）。
@@ -152,19 +152,19 @@ export interface TemplateRequirements {
   weilin?: boolean;
 }
 
-export interface TemplateDef {
+export interface WorkflowDef {
   id: string;
   name: string;
   description?: string;
   version: string;
-  requirements?: TemplateRequirements;
-  inputs: TemplateInput[];
+  requirements?: WorkflowRequirements;
+  inputs: WorkflowInput[];
   bindings: Binding[];
   outputs: { nodes: string[]; type: 'image' | 'video' | 'audio' | 'file' };
 }
 
 /** 工作流详情（对外响应，含 graph 规模供调试） */
-export interface TemplateDetail extends TemplateDef {
+export interface WorkflowDetail extends WorkflowDef {
   graphNodeCount: number;
 }
 
@@ -292,8 +292,7 @@ export interface JobEvent {
 
 export type ApiErrorCode =
   | 'BAD_REQUEST'
-  | 'TEMPLATE_NOT_FOUND'
-  | 'TEMPLATE_VALIDATION_FAILED'
+  | 'WORKFLOW_VALIDATION_FAILED'
   | 'GRAPH_VALIDATION_FAILED'
   | 'JOB_NOT_FOUND'
   | 'COMFYUI_UNREACHABLE'

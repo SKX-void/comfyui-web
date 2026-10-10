@@ -25,7 +25,7 @@ import { buildConfig, type PluginSettings } from './config.js';
 import { AppError } from './errors.js';
 import { pickSettings, readSettings, seedSettings, settingsFile, writeSettings } from './settings.js';
 import { RealComfyClient } from './comfy/real.js';
-import { WorkflowDefinition } from './templates/loader.js';
+import { WorkflowDefinition } from './workflow/loader.js';
 import { JobManager } from './jobs/manager.js';
 import { WeilinClient } from './weilin/client.js';
 import { ThumbnailCache } from './weilin/thumb.js';

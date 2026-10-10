@@ -1,12 +1,12 @@
 <script setup lang="ts">
 /**
- * 单个模板字段的控件渲染。
+ * 单个工作流字段的控件渲染。
  *
- * 只负责"把某个 input 画成控件并回报新值"，不含布局（布局在 TemplateForm）。
+ * 只负责"把某个 input 画成控件并回报新值"，不含布局（布局在 WorkflowForm）。
  * `tag-selector` / `lora-select` 走带数据源的专用组件。
  */
 import { computed } from 'vue';
-import type { TemplateInput } from '@comfyui-web/shared';
+import type { WorkflowInput } from '@comfyui-web/shared';
 import { drawSeed } from '@/form';
 import TagSelector from '@/components/TagSelector.vue';
 import LoraSelector from '@/components/LoraSelector.vue';
@@ -14,7 +14,7 @@ import type { LoraValue } from '@/composables/useLoraSelection';
 import SelectMenu from '@/components/SelectMenu.vue';
 
 const props = defineProps<{
-  input: TemplateInput;
+  input: WorkflowInput;
   value: unknown;
   /** model-select 的候选项：folder -> 模型名列表 */
   models: Record<string, string[]>;
@@ -56,7 +56,7 @@ function rerollSeed(): void {
   set(drawSeed());
 }
 /** 下拉选项：model-select 取模型列表；select 取模板里声明的静态选项 */
-function optionsFor(input: TemplateInput): string[] {
+function optionsFor(input: WorkflowInput): string[] {
   if (input.type === 'model-select') {
     return props.models[input.source?.folder ?? ''] ?? [];
   }

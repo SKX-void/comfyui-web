@@ -29,8 +29,11 @@
 | `plugins/<pkg>/package.json` 的 `plugin.settings[]` | 宿主 → `GET /api/plugins` → 插件自己的设置界面 | 包 | ✅（改包） | ✅ |
 | `plugins/<pkg>/server/config.ts` | 插件自己（运行期默认值 / 范围） | 包 | ✅（改包） | ✅ |
 | `plugins/<pkg>/assets/…`（prompt-editor：`danbooru-zh.csv` = 机翻词库 32.4 万条 / 12.6MB，`cooccur.tsv` = 共现邻居 18,267 词 / 2.4MB，`weilin-zh.csv` = 人工词表 3,793 条 / 218KB（带两级分类，导入后 `source:'builtin'`，压过机翻），`block-library.json` = 内置区块库 160 块 / 12 分类 / 108KB，`存档.json` = 上面那份的原始素材） | 插件自己按 `import.meta.url` 读**产物里的副本**（`tabs/<id>/assets/`，构建时由 `scripts/pack.mjs` 的 `extras` 拷进去；`POST /api/p/prompt-editor/tags/import`、`GET /tags/neighbors`、`GET/POST /block-presets/bundled`） | 包 | ✅（改包；`danbooru-zh.csv` / `cooccur.tsv` 两个大文件走 **git-lfs**，改完 `pnpm build:plugins` 重新拷进产物）。换词库：`scripts/unpack-bmz.mjs` 解开第三方包 → `scripts/build-dict.ts` 生成机翻那两个（原始层放 `.cache/dictpack/`）；`scripts/build-weilin.ts` 从 WeiLin 的人工词库仓生成 `weilin-zh.csv`；`scripts/build-blocks.ts` 把 `存档.json` 转成 `block-library.json`。**中间层一律放 `.cache/`，不进仓** —— `assets/` 整个目录都会被打进产物 | ✅（大文件 LFS） |
+| `plugins/anima-plus/assets/form.json` + `workflow.json`（插件根；`workflow.json` = 图，`form.json` = 表单声明） | anima-plus 自己：`server/workflow/loader.ts` 启动即加载并校验（非法 → 启动失败）→ `GET /api/p/anima-plus/api/workflow` 下发、`POST /api/p/anima-plus/api/workflow/reload` 热加载 | 包（**一个插件 = 一份工作流定义**，D22） | ✅ 改完 `pnpm build:plugins` 重出产物；只改定义走 reload，不用重启宿主 | ✅ |
 | `tabs/<id>/package.json` | 宿主扫描（`apps/server/src/tabs.ts` → `scanTabs()`） | 目录 | ✅ 改完点「重新扫描插件目录」（= `POST /api/tabs/rescan`，D20） | ❌（产物） |
 | `tabs/<id>/server.js`、`client.js` | Loader 直接 `import()` 绝对路径 → 宿主 / 浏览器 | 目录 | ✅ 同上：重扫时指纹变了才**重挂**（前端再刷新浏览器） | ❌（产物） |
+
+> `form.json` 里 `inputs[].ui.min/max` 只是**给人看的提示值**（作者声明"这份工作流能跑多大"）；真正的安全上下界是部署事实，在 `plugins/anima-plus/server/safety/limits.ts`，服务端在出口用 `narrowWorkflowBounds()` 与策略取交集再下发 —— 单一真相源见 `plugins/anima-plus/docs/safety.md` §5。
 
 ---
 

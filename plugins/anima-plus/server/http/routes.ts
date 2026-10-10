@@ -8,7 +8,7 @@ import { registerPresets } from './routes/presets.js';
 import { registerState } from './routes/state.js';
 import { registerSystem } from './routes/system.js';
 import { registerTags } from './routes/tags.js';
-import { registerTemplate } from './routes/template.js';
+import { registerWorkflow } from './routes/workflow.js';
 import { registerTriggers } from './routes/triggers.js';
 import type { RouteDeps } from './routes/shared.js';
 
@@ -19,7 +19,7 @@ export type { RouteDeps } from './routes/shared.js';
  * 注册顺序与拆分前一致（各路由路径互不重叠，顺序不影响匹配）。
  */
 export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Promise<void> {
-  registerTemplate(app, deps);
+  registerWorkflow(app, deps);
   registerJobs(app, deps);
   registerPresets(app, deps);
   registerState(app, deps);
