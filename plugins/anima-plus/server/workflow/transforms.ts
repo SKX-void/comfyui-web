@@ -15,14 +15,14 @@ export interface TransformContext {
 function asNumber(v: unknown, what: string): number {
   const n = typeof v === 'string' ? Number(v) : v;
   if (typeof n !== 'number' || Number.isNaN(n)) {
-    throw AppError.templateValidation(`${what} 必须是数字，收到: ${JSON.stringify(v)}`);
+    throw AppError.workflowValidation(`${what} 必须是数字，收到: ${JSON.stringify(v)}`);
   }
   return n;
 }
 
 function asArray<T>(v: unknown, what: string): T[] {
   if (!Array.isArray(v)) {
-    throw AppError.templateValidation(`${what} 必须是数组，收到: ${JSON.stringify(v)}`);
+    throw AppError.workflowValidation(`${what} 必须是数组，收到: ${JSON.stringify(v)}`);
   }
   return v as T[];
 }
@@ -46,7 +46,7 @@ export function normalizeLora(raw: unknown): LoraRef {
   const r = raw as Partial<LoraRef>;
   const name = stripExt(String(r.name ?? r.lora ?? ''));
   if (!name) {
-    throw AppError.templateValidation('LoRA 缺少 name');
+    throw AppError.workflowValidation('LoRA 缺少 name');
   }
   return {
     name,
@@ -171,7 +171,7 @@ export function applyTransform(
 
     default: {
       const never: never = name;
-      throw AppError.templateValidation(`未知的 transform: ${String(never)}`);
+      throw AppError.workflowValidation(`未知的 transform: ${String(never)}`);
     }
   }
 }

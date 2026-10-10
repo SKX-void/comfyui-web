@@ -1,12 +1,12 @@
 # @comfyui-web/anima-plus —— 文生图工作流
 
-**前后端都在本包里**：12 个表单字段 → 模板渲染 → 显存护栏 → 提交 ComfyUI →
+**前后端都在本包里**：12 个表单字段 → 工作流渲染 → 显存护栏 → 提交 ComfyUI →
 WS 收进度 → SSE 推浏览器 → 取图。不依赖 8086，也不依赖任何外部服务。
 
 **提交即排队**：POST 一回来表单就解锁，改完参数可以接着排下一条（在途上限＝`maxQueueDepth`）。
 进度卡按队列逐条渲染，取消也逐条生效。
 
-<!-- deps:start 由 scripts/gen-deps.mjs 从 template.json 的 requirements 生成；改声明后跑 pnpm --filter @comfyui-web/anima-plus deps:sync -->
+<!-- deps:start 由 scripts/gen-deps.mjs 从 assets/form.json 的 requirements 生成；改声明后跑 pnpm --filter @comfyui-web/anima-plus deps:sync -->
 依赖 ComfyUI 上装好这些自定义节点包。**地址由模板声明手写**（不用 ComfyUI-Manager 的
 推测 —— 它会猜错，且不在 Manager 上的包查不到），机器可读清单见
 [`readme.md`](./readme.md)，两者都由 `scripts/gen-deps.mjs` 从声明生成。
@@ -32,7 +32,7 @@ ComfyUI 自带（缺了说明版本太老，装插件包解决不了）：`CLIPL
 浏览器 ── /w/anima-plus ──────────────→ 宿主外壳（tab 栏 + 本插件页面）
                  │
                  └─ /api/p/anima-plus/api/... → 本插件的路由（同进程）
-                                                  ├─ 模板渲染 + 显存护栏
+                                                  ├─ 工作流渲染 + 显存护栏
                                                   ├─ ComfyUI /prompt + /ws
                                                   └─ WeiLin /weilin/*（LoRA/标签）
 ```
@@ -40,7 +40,7 @@ ComfyUI 自带（缺了说明版本太老，装插件包解决不了）：`CLIPL
 **前端一行没改**：插件的路由挂在宿主的 `/api/p/<插件id>` 前缀下，而插件内部
 照旧注册 `/api/*`，所以完整路径与旧服务逐字一致 —— `client/src/api.ts` 的
 `API_BASE = '/api/p/anima-plus'` 保持不动就是对的。
-（**不要**把它改成空串：那样会请求 `/api/template`、打到宿主源上 404。）
+（**不要**把它改成空串：那样会请求 `/api/workflow`、打到宿主源上 404。）
 
 ## 排队与取消
 
@@ -81,7 +81,7 @@ plugins/anima-plus/
 │   ├── host.ts             # 宿主句柄的最小类型 + fastify 适配层（createRouteHost / sendError）
 │   ├── config.ts           # 本插件的配置（5 个设置项；填错回默认、越界收敛）
 │   ├── comfy/              # ComfyUI 客户端：http.ts 传输 · ws.ts 连接/重连 · real.ts 业务方法
-│   ├── templates/          # 模板加载 / 渲染 / 值变换（含 seed 随机：-1 → 具体种子）
+│   ├── workflow/          # 工作流定义加载 / 渲染 / 值变换（含 seed 随机：-1 → 具体种子）
 │   ├── safety/             # 显存护栏 + 配额（limits 规则表 · scan 扫描 · hits 命中 · describe 断言 · effective 边界）
 │   ├── jobs/               # 任务编排：manager.ts 状态机 + sweep/finalize/retention/event-bus/asset-id 等
 │   ├── weilin/             # LoRA 目录/元数据/缩略图、标签树、翻译（client 入口 + http/normalize/mock/types）

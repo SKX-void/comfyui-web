@@ -6,7 +6,7 @@
  *   2. 校验 default.tabs / default.routes 的形状（宿主就是照这个挂 tab 的）
  *   3. 校验「看得见的改动」真的进了**产物**（不是只改了源码）：
  *      LoRA 权重滑动条、历史记录去掉「模板」列、堵住固有最小宽度的 CSS 兜底
- *   4. 校验运行期资产（模板 JSON）里的字段标签
+ *   4. 校验运行期资产（assets/form.json）里的字段标签
  *
  * 挡的是「改了源码但产物没跟上 / 改回来没被发现」；拖动、SSE、出图这些交互
  * 仍然只能人眼确认。
@@ -33,7 +33,7 @@ const tabDir =
 const clientUrl = pathToFileURL(path.join(tabDir, 'client.js'));
 const js = await readFile(clientUrl, 'utf8');
 const css = await readFile(path.join(tabDir, 'client.css'), 'utf8');
-const template = JSON.parse(
+const form = JSON.parse(
   await readFile(new URL('../assets/form.json', import.meta.url), 'utf8'),
 );
 
@@ -126,11 +126,11 @@ check(
 check('.page 不再自带 padding', /\.page\[data-v-[0-9a-f]+\]\{[^}]*padding:\s*0[;}]/.test(css));
 
 section('工作流定义：字段标签');
-const byKey = new Map((template.inputs ?? []).map((i) => [i.key, i]));
+const byKey = new Map((form.inputs ?? []).map((i) => [i.key, i]));
 check('prompt 标签 = 描述提示词', byKey.get('prompt')?.label === '描述提示词', byKey.get('prompt')?.label);
 check(
   '已无「正向提示词」标签',
-  !(template.inputs ?? []).some((i) => i.label === '正向提示词'),
+  !(form.inputs ?? []).some((i) => i.label === '正向提示词'),
 );
 
 section('依赖声明：图里用到的节点类必须都有出处');
@@ -138,7 +138,7 @@ const graph = JSON.parse(
   await readFile(new URL('../workflow.json', import.meta.url), 'utf8'),
 );
 const used = [...new Set(Object.values(graph).map((n) => n.class_type))];
-const req = template.requirements ?? {};
+const req = form.requirements ?? {};
 const declared = new Set([
   ...(req.builtin ?? []),
   ...(req.packs ?? []).flatMap((p) => p.provides ?? []),

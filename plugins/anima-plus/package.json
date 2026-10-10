@@ -2,7 +2,7 @@
   "name": "@comfyui-web/anima-plus",
   "version": "0.1.0",
   "private": true,
-  "description": "Anima Plus 文生图工作流插件：前后端都在本包内（模板/渲染/显存护栏/任务编排/LoRA/标签/预设），不依赖任何外部服务",
+  "description": "Anima Plus 文生图工作流插件：前后端都在本包内（工作流定义/渲染/显存护栏/任务编排/LoRA/标签/预设），不依赖任何外部服务",
   "type": "module",
   "scripts": {
     "build": "node scripts/pack.mjs",

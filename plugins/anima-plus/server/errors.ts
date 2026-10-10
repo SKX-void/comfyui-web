@@ -18,12 +18,8 @@ export class AppError extends Error {
     return new AppError('BAD_REQUEST', message, 400, details);
   }
 
-  static templateNotFound(id: string): AppError {
-    return new AppError('TEMPLATE_NOT_FOUND', `模板不存在: ${id}`, 404);
-  }
-
-  static templateValidation(message: string, details?: unknown): AppError {
-    return new AppError('TEMPLATE_VALIDATION_FAILED', message, 422, details);
+  static workflowValidation(message: string, details?: unknown): AppError {
+    return new AppError('WORKFLOW_VALIDATION_FAILED', message, 422, details);
   }
 
   static graphValidation(message: string, details?: unknown): AppError {

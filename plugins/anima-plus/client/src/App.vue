@@ -2,12 +2,12 @@
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { HealthResponse } from '@comfyui-web/shared';
 import { api } from '@/api';
-import TemplateForm from '@/components/TemplateForm.vue';
+import WorkflowForm from '@/components/WorkflowForm.vue';
 import DependencyNotice from '@/components/DependencyNotice.vue';
 import HelpPanel from '@/components/HelpPanel.vue';
 import SettingsPanel from '@/components/SettingsPanel.vue';
 import { useDependencies } from '@/composables/useDependencies';
-import { useTemplate } from '@/composables/useTemplate';
+import { useWorkflow } from '@/composables/useWorkflow';
 import { useJobs } from '@/composables/useJobs';
 
 const health = ref<HealthResponse | null>(null);
@@ -27,8 +27,8 @@ function pushLog(line: string): void {
 // 三段状态各自成组：依赖 / 工作流与表单 / 作业与历史。同名解构 → 模板一个字都不用改。
 const { deps, depsChecking, currentDeps, depsReady, showDepsProblem, checkDeps } =
   useDependencies(pushLog);
-const { template, values, models, stateNote, fatalError, fail, loadTemplate, saveLastState } =
-  useTemplate(pushLog);
+const { workflow, values, models, stateNote, fatalError, fail, loadWorkflow, saveLastState } =
+  useWorkflow(pushLog);
 const {
   status,
   submitting,
@@ -47,10 +47,10 @@ const {
   refreshHistory,
   start,
   stop,
-} = useJobs(pushLog, template, values, saveLastState);
+} = useJobs(pushLog, workflow, values, saveLastState);
 
 // 队列在跑**不锁**表单：提交一回来就能改参数接着排下一条（这是这个插件排队能力的关键）
-const canSubmit = computed(() => !!template.value && !submitting.value && depsReady.value);
+const canSubmit = computed(() => !!workflow.value && !submitting.value && depsReady.value);
 
 async function bootstrap(): Promise<void> {
   try {
@@ -64,7 +64,7 @@ async function bootstrap(): Promise<void> {
 
   try {
     // 一个插件只有一份工作流定义，不需要先"列模板再挑一个"
-    await loadTemplate();
+    await loadWorkflow();
   } catch (err) {
     // 关键：工作流加载失败必须**可见**，否则页面会静默残缺
     // （曾经因为 structuredClone 缺失抛错，只剩描述、没有表单、无人知道为什么）
@@ -195,9 +195,9 @@ onUnmounted(() => {
           <span v-if="stateNote" class="dim small">{{ stateNote }}</span>
         </div>
 
-        <TemplateForm
-          v-if="template"
-          :inputs="template.inputs"
+        <WorkflowForm
+          v-if="workflow"
+          :inputs="workflow.inputs"
           :values="values"
           :models="models"
         />

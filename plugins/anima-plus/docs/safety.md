@@ -36,7 +36,7 @@
                           ├─ 工作流 bindings 落图 ─→ graph
 workflow.json ────────────┘                          │
                                                      ▼
-                                    ② guardGraph（renderTemplate 收口）
+                                    ② guardGraph（renderWorkflow 收口）
                                        能追溯到用户 → 抛 422
                                        只来自工作流 → 夹紧 + WARN
                                        判定不了     → 抛 422（fail closed）
@@ -53,7 +53,7 @@ workflow.json ────────────┘                          �
 ```json
 {
   "error": {
-    "code": "TEMPLATE_VALIDATION_FAILED",
+    "code": "WORKFLOW_VALIDATION_FAILED",
     "message": "表单值校验失败：步数：不能大于 32（服务端安全限制）",
     "details": [{ "path": "values.steps", "message": "步数：不能大于 32（服务端安全限制）" }]
   }
@@ -143,7 +143,7 @@ export const DEFAULT_COUNT_LIMITS: readonly CountLimit[] = [
 ];
 ```
 
-改完即生效：表单边界、渲染复检、出口断言、`GET /api/template` 的
+改完即生效：表单边界、渲染复检、出口断言、`GET /api/workflow` 的
 `ui.min/max` 全部跟着变，**不需要动任何工作流文件**。
 若要在启动期就拦住越界，表单里的 `default` 会被同一条规则校验（见 §5）。
 
@@ -177,7 +177,7 @@ ComfyUI 导出图里，`steps` 经常不是字面量，而是 `["49", 0]`（连�
 
 服务端在出口统一收窄，谁也不用手工同步：
 
-- `GET /api/template` → `narrowTemplateBounds()`
+- `GET /api/workflow` → `narrowWorkflowBounds()`
   （实测下发 `steps.max = 32`、`width.max = 1216`，前端滑块因此不会给出"填了必被拒"的区间）
 - `coerceValues` → `effectiveBounds()`（`ui.min/max` ∩ 策略，谁严格听谁的）
 
@@ -185,7 +185,7 @@ ComfyUI 导出图里，`steps` 经常不是字面量，而是 `["49", 0]`（连�
 （`26.inputs.steps ← steps`）一步命中；仍然是常量节点接线形状的图，就**顺着连线往下游追**
 （`49.inputs.value` → 下游的 `26.inputs.steps`）。`rulesOfTarget()` 做这件事（最多 3 层）。
 
-### 启动期校验（`validateTemplate`）
+### 启动期校验（`validateForm`）
 
 | 情况 | 处理 |
 |------|------|

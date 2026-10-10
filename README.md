@@ -1,7 +1,8 @@
 # comfyui-web
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[中文版](README.zh.md)
+
+English | [中文版](README.zh.md)
 
 A lightweight frontend and workflow plugin host for ComfyUI: wrap a workflow in a web form, call it through the API, and keep all business logic in plugins.
 

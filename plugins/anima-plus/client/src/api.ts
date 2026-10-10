@@ -12,7 +12,7 @@ import type {
   ResolvedTriggerWord,
   TagGroupItem,
   TagItem,
-  TemplateDetail,
+  WorkflowDetail,
   TriggerWordsResponse,
 } from '@comfyui-web/shared';
 
@@ -122,7 +122,7 @@ export const api = {
    * 本插件唯一的工作流定义（表单 + 绑定 + 图规模）。
    * 没有"列模板再挑一个"这一步：一个插件 = 一个工作流（docs/architecture.md §0 G1）。
    */
-  getTemplate: () => request<TemplateDetail>('/api/template'),
+  getWorkflow: () => request<WorkflowDetail>('/api/workflow'),
 
   listModels: (folder: string) =>
     request<{ items: string[] }>(`/api/models?folder=${encodeURIComponent(folder)}`),

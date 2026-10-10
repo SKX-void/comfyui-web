@@ -3,11 +3,11 @@ import type {
   DepsReport,
   DepsWorkflowView,
   PackRequirement,
-  TemplateRequirements,
+  WorkflowRequirements,
 } from '@comfyui-web/shared';
 
 import type { ComfyClient } from './comfy/types.js';
-import type { WorkflowDefinition } from './templates/loader.js';
+import type { WorkflowDefinition } from './workflow/loader.js';
 
 /**
  * 依赖检查：模板需要的节点类，这台 ComfyUI 到底有没有。
@@ -128,7 +128,7 @@ export class DepsService {
    * 直接用在 422 的 message 里：用户在任务失败详情里就能看到该去装什么，
    * 而不是只知道一个节点名。
    */
-  describeMissing(missing: string[], requirements?: TemplateRequirements): string {
+  describeMissing(missing: string[], requirements?: WorkflowRequirements): string {
     const packs = requirements?.packs ?? this.declared().packs;
     return missing
       .map((cls) => {

@@ -12,7 +12,7 @@ import type {
  *
  * 下面几条是与 anima-plus **逐字对齐**的复刻（不是巧合），对方改了要跟着改：
  *   - `drawSeed()` 的区间 ← anima-plus/client/src/form.ts（上界 2^53-1，与它的
- *     server/templates/transforms.ts 的 randomSeed() 同一区间）
+ *     server/workflow/transforms.ts 的 randomSeed() 同一区间）
  *   - 「randomSeed 开着就先抽定种子再提交」 ← anima-plus/client/src/composables/useJobs.ts 的 submit()
  *   - 「先写 last-state 再建作业」 ← 同上。对方那次写是 `void` 不等的；我们等它，
  *     为的是写失败时能说一句（作业已经发出去了，所以只是提醒）

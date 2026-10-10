@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { Graph, TemplateDef } from '@comfyui-web/shared';
-import type { LoadedTemplate } from './render.js';
+import type { Graph, WorkflowDef } from '@comfyui-web/shared';
+import type { LoadedWorkflow } from './render.js';
 import { KNOWN_TRANSFORMS } from './transforms.js';
 import { describeCount, describeHit } from '../safety/describe.js';
 import { scanGraph } from '../safety/scan.js';
@@ -14,7 +14,7 @@ import { effectiveBounds } from '../safety/effective.js';
  * 返回值是**告警**（不阻断启动）：目前只有"工作流自带的越界值会被护栏夹紧"这一类，
  * 交给调用方打日志，让运维在启动期就能看见。
  */
-export function validateForm(def: TemplateDef, graph: Graph, origin: string): string[] {
+export function validateForm(def: WorkflowDef, graph: Graph, origin: string): string[] {
   const problems: string[] = [];
 
   if (!def.id) problems.push('缺少 id');
@@ -99,7 +99,7 @@ export function validateForm(def: TemplateDef, graph: Graph, origin: string): st
  * 出处 = `builtin`（ComfyUI 自带）或某个包的 `provides`。两者都没有，用户拿到
  * "缺 X" 之后无从下手，所以这属于声明缺陷。
  */
-export function coverageGaps(def: TemplateDef): string[] {
+export function coverageGaps(def: WorkflowDef): string[] {
   const known = new Set(def.requirements?.builtin ?? []);
   for (const pack of def.requirements?.packs ?? []) {
     for (const cls of pack.provides ?? []) known.add(cls);
@@ -115,7 +115,7 @@ export function coverageGaps(def: TemplateDef): string[] {
  * 「模板数据」层的遗留（见 docs/architecture.md §10）。
  */
 export class WorkflowDefinition {
-  private loaded: LoadedTemplate | null = null;
+  private loaded: LoadedWorkflow | null = null;
 
   constructor(
     /** 插件包根目录（编译后就是 tab 根）：workflow.json 与 assets/ 都在这里 */
@@ -132,14 +132,14 @@ export class WorkflowDefinition {
     this.loaded = tpl;
   }
 
-  private async loadOne(): Promise<{ tpl: LoadedTemplate; warnings: string[] }> {
+  private async loadOne(): Promise<{ tpl: LoadedWorkflow; warnings: string[] }> {
     const formPath = path.join(this.pluginDir, 'assets', 'form.json');
     const raw = await fs.readFile(formPath, 'utf8').catch((err: unknown) => {
       throw new Error(`表单定义不可读: ${formPath} (${String(err)})`);
     });
-    let def: TemplateDef;
+    let def: WorkflowDef;
     try {
-      def = JSON.parse(raw) as TemplateDef;
+      def = JSON.parse(raw) as WorkflowDef;
     } catch (err) {
       throw new Error(`表单定义 ${formPath} JSON 解析失败: ${String(err)}`);
     }
@@ -175,7 +175,7 @@ export class WorkflowDefinition {
   }
 
   /** 已加载的唯一定义；load() 之前访问是编程错误 */
-  get(): LoadedTemplate {
+  get(): LoadedWorkflow {
     if (!this.loaded) throw new Error('工作流定义尚未加载（WorkflowDefinition.load() 未执行）');
     return this.loaded;
   }

@@ -4,12 +4,12 @@
  * 抽出来是因为 App.vue 是装配根：状态与流程按主题分组，根上只留接线。
  */
 import { ref } from 'vue';
-import type { TemplateDetail } from '@comfyui-web/shared';
+import type { WorkflowDetail } from '@comfyui-web/shared';
 import { api } from '@/api';
 import { defaultValues, restoreValues, type FieldModel } from '@/form';
 
-export function useTemplate(pushLog: (line: string) => void) {
-const template = ref<TemplateDetail | null>(null);
+export function useWorkflow(pushLog: (line: string) => void) {
+const workflow = ref<WorkflowDetail | null>(null);
 
 const values = ref<FieldModel>({});
 
@@ -27,10 +27,10 @@ function fail(message: string): void {
   pushLog(`✘ ${message}`);
 }
 
-async function loadTemplate(): Promise<void> {
+async function loadWorkflow(): Promise<void> {
   fatalError.value = null;
-  const tpl = await api.getTemplate();
-  template.value = tpl;
+  const tpl = await api.getWorkflow();
+  workflow.value = tpl;
   // 先算好表单值再声明成功：否则会留下"定义已设但表单为空"的半截状态
   values.value = defaultValues(tpl.inputs);
   pushLog(
@@ -68,14 +68,14 @@ function formatMoment(iso: string | null): string {
 /**
  * 回填上次提交的参数（每次点「开始生成」写一次，见 `submit()`）。
  *
- * 读不到**不是错误**：快照本来就可能还没写过（第一次用），模板默认值照用就行。
+ * 读不到**不是错误**：快照本来就可能还没写过（第一次用），工作流默认值照用就行。
  * 所以这里只记一条日志，不设 fatalError。
  */
-async function restoreLastState(tpl: TemplateDetail): Promise<void> {
+async function restoreLastState(tpl: WorkflowDetail): Promise<void> {
   try {
     const saved = await api.getLastState();
     if (saved.error !== undefined) {
-      pushLog(`参数快照读不出来，改用模板默认值: ${saved.error}`);
+      pushLog(`参数快照读不出来，改用工作流默认值: ${saved.error}`);
     }
     const filled = restoreValues(tpl.inputs, saved.values);
     const count = Object.keys(filled).length;
@@ -86,7 +86,7 @@ async function restoreLastState(tpl: TemplateDetail): Promise<void> {
     pushLog(`已回填上次提交的参数 ${count} 项${at ? `（${at}）` : ''}`);
   } catch (err) {
     // 后端不在 / 老版本没有这个端点 —— 都只影响"回填"，不影响出图
-    pushLog(`参数快照读取失败（改用模板默认值）: ${(err as Error).message}`);
+    pushLog(`参数快照读取失败（改用工作流默认值）: ${(err as Error).message}`);
   }
 }
 
@@ -106,13 +106,13 @@ async function saveLastState(payload: Record<string, unknown>): Promise<void> {
 }
 
   return {
-    template,
+    workflow,
     values,
     models,
     stateNote,
     fatalError,
     fail,
-    loadTemplate,
+    loadWorkflow,
     restoreLastState,
     saveLastState,
   };

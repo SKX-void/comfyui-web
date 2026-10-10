@@ -6,7 +6,7 @@
  * `components/TagSelector.vue` / `LoraSelector.vue` 实现（WeiLin 的提示词编辑器与 LoRA 栈，
  * 见 plugins/anima-plus/docs/weilin.md §6）。
  */
-import type { LoraRef, TemplateInput } from '@comfyui-web/shared';
+import type { LoraRef, WorkflowInput } from '@comfyui-web/shared';
 import { deepClone } from '@/clone';
 
 export interface FieldModel {
@@ -25,7 +25,7 @@ export function drawSeed(): number {
   return hi * 2 ** 32 + lo;
 }
 
-export function defaultValues(inputs: TemplateInput[] | undefined): FieldModel {
+export function defaultValues(inputs: WorkflowInput[] | undefined): FieldModel {
   const out: FieldModel = {};
   // 防御：接口异常时也不要把整页渲染搞崩
   if (!Array.isArray(inputs)) return out;
@@ -54,7 +54,7 @@ export function defaultValues(inputs: TemplateInput[] | undefined): FieldModel {
  *
  * 返回值只含"要覆盖的键"，由调用方 merge 到 `defaultValues()` 之上。
  */
-export function restoreValues(inputs: TemplateInput[] | undefined, saved: unknown): FieldModel {
+export function restoreValues(inputs: WorkflowInput[] | undefined, saved: unknown): FieldModel {
   const out: FieldModel = {};
   if (!Array.isArray(inputs) || saved === null || typeof saved !== 'object') return out;
   const source = saved as Record<string, unknown>;
@@ -67,7 +67,7 @@ export function restoreValues(inputs: TemplateInput[] | undefined, saved: unknow
 }
 
 /** 这个值配得上这个控件吗（JSON 里只有 string / number / boolean / array / object） */
-function acceptsValue(input: TemplateInput, value: unknown): boolean {
+function acceptsValue(input: WorkflowInput, value: unknown): boolean {
   if (value === null || value === undefined) return false;
   switch (input.type) {
     case 'switch':
@@ -90,7 +90,7 @@ function acceptsValue(input: TemplateInput, value: unknown): boolean {
   }
 }
 
-export function isVisible(input: TemplateInput, values: FieldModel): boolean {
+export function isVisible(input: WorkflowInput, values: FieldModel): boolean {
   const cond = input.visibleIf;
   if (!cond) return true;
   const actual = values[cond.key];
@@ -104,7 +104,7 @@ export function isVisible(input: TemplateInput, values: FieldModel): boolean {
  * lora-select 需要剔除未填名称的占位行。
  */
 export function normalizeValues(
-  inputs: TemplateInput[],
+  inputs: WorkflowInput[],
   values: FieldModel,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};

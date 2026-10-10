@@ -8,8 +8,8 @@ import { AppError } from '../errors.js';
 import type { DepsService } from '../deps.js';
 import type { TriggerResolver } from '../triggers/resolve.js';
 import type { ComfyClient, ComfyEvent } from '../comfy/types.js';
-import type { WorkflowDefinition } from '../templates/loader.js';
-import { renderTemplate } from '../templates/render.js';
+import type { WorkflowDefinition } from '../workflow/loader.js';
+import { renderWorkflow } from '../workflow/render.js';
 import { MAX_JOBS_RETAINED, MAX_QUEUE_DEPTH } from '../safety/quota.js';
 import { applyComfyEvent } from './comfy-events.js';
 import { cancelJob } from './cancel.js';
@@ -87,7 +87,7 @@ export class JobManager {
     // 触发词必须在渲染前解析：Lora堆（节点 58）不会注入，词由我们拼进 28（质量词）之前。
     // 解析失败绝不能挡住出图 —— TriggerResolver 内部已把 WeiLin 不可用降级成"没有默认词"。
     const triggerPrefix = await this.triggers.prefix((req.values ?? {}).loras);
-    const { graph, values, seeds, safety } = renderTemplate(tpl, req.values ?? {}, {
+    const { graph, values, seeds, safety } = renderWorkflow(tpl, req.values ?? {}, {
       triggerPrefix,
     });
 

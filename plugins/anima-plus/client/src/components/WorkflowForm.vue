@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 动态表单：由模板 inputs 渲染控件，并按 `ui.row` 分组布局。
+ * 动态表单：由工作流定义的 inputs 渲染控件，并按 `ui.row` 分组布局。
  *
  * - 未声明 `ui.row` 的字段独占一行
  * - `ui.row` 相同的字段排在同一行（按首次出现顺序）
@@ -13,14 +13,14 @@
  * 控件本身的渲染见 FieldControl.vue。
  */
 import { computed, reactive } from 'vue';
-import type { TemplateInput } from '@comfyui-web/shared';
+import type { WorkflowInput } from '@comfyui-web/shared';
 import { isVisible, type FieldModel } from '@/form';
 import { applyPreset } from '@/presets';
 import FieldControl from '@/components/FieldControl.vue';
 import PresetPicker from '@/components/PresetPicker.vue';
 
 const props = defineProps<{
-  inputs: TemplateInput[];
+  inputs: WorkflowInput[];
   values: FieldModel;
   models: Record<string, string[]>;
   disabled?: boolean;
@@ -28,7 +28,7 @@ const props = defineProps<{
 
 interface LayoutItem {
   kind: 'single' | 'row';
-  inputs: TemplateInput[];
+  inputs: WorkflowInput[];
   /** 所属的 `ui.row` 名；`single` 项为 undefined。种子行需要单独排版，靠它辨认 */
   row?: string;
 }
@@ -60,25 +60,25 @@ const layout = computed<LayoutItem[]>(() => {
 const allKeys = computed(() => (props.inputs ?? []).map((i) => i.key));
 
 /**
- * 折叠状态。只记"用户手动切过的"，没切过的按模板的 `ui.collapsed` 走
- * —— 不做初始化快照，因为模板随时可能换（换完新字段自然回到模板默认值）。
+ * 折叠状态。只记"用户手动切过的"，没切过的按定义里的 `ui.collapsed` 走
+ * —— 不做初始化快照，因为定义随时可能换（换完新字段自然回到模板默认值）。
  */
 const foldState = reactive<Record<string, boolean>>({});
 
-function foldable(input: TemplateInput): boolean {
+function foldable(input: WorkflowInput): boolean {
   return input.ui?.collapsible === true;
 }
 
-function isCollapsed(input: TemplateInput): boolean {
+function isCollapsed(input: WorkflowInput): boolean {
   return foldState[input.key] ?? input.ui?.collapsed === true;
 }
 
-function toggleFold(input: TemplateInput): void {
+function toggleFold(input: WorkflowInput): void {
   foldState[input.key] = !isCollapsed(input);
 }
 
 /** 收起时的值摘要：至少让人知道里面不是空的（长提示词截断） */
-function collapsedValue(input: TemplateInput): string {
+function collapsedValue(input: WorkflowInput): string {
   const v = props.values[input.key];
   const flat = (Array.isArray(v) ? v.join('、') : v === undefined || v === null ? '' : String(v))
     .replace(/\s+/g, ' ')
@@ -88,7 +88,7 @@ function collapsedValue(input: TemplateInput): string {
 }
 
 /** 归一化 ui.preset：字符串 = kind，目标为自身；对象可取显式 targets */
-function presetSpec(input: TemplateInput): { kind: string; targets: string[] } | null {
+function presetSpec(input: WorkflowInput): { kind: string; targets: string[] } | null {
   const p = input.ui?.preset;
   if (!p) return null;
   if (typeof p === 'string') return { kind: p, targets: [input.key] };
@@ -110,7 +110,7 @@ function rowPresetSpec(item: LayoutItem): { kind: string; targets: string[] } | 
  * 挂到声明它的那一格（宽）会让按钮落在宽、高中间 —— 看着像"高的东西"；
  * 而挂整行最右，就和单字段的预设一样贴右边，也和输入框不抢宽度。
  */
-function isRowPresetHost(item: LayoutItem, input: TemplateInput): boolean {
+function isRowPresetHost(item: LayoutItem, input: WorkflowInput): boolean {
   return input === item.inputs[item.inputs.length - 1] && rowPresetSpec(item) !== null;
 }
 
@@ -119,7 +119,7 @@ function onUpdate(key: string, value: unknown): void {
 }
 
 /** 一键交换两个字段的值（如宽 ⇄ 高） */
-function swap(from: TemplateInput): void {
+function swap(from: WorkflowInput): void {
   const other = from.ui?.swap;
   if (!other) return;
   const a = props.values[from.key];
@@ -127,7 +127,7 @@ function swap(from: TemplateInput): void {
   props.values[other] = a;
 }
 
-/** 套用预设：只写「对应得上模板 input」的键，保留键自动跳过 */
+/** 套用预设：只写「对应得上定义 input」的键，保留键自动跳过 */
 function onApplyPreset(values: Record<string, unknown>): void {
   applyPreset(props.values, allKeys.value, values);
 }
@@ -268,4 +268,4 @@ function onApplyPreset(values: Record<string, unknown>): void {
   </form>
 </template>
 
-<style scoped src="./TemplateForm.css"></style>
+<style scoped src="./WorkflowForm.css"></style>

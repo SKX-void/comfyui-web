@@ -1,4 +1,4 @@
-import type { Graph, TemplateDef, TemplateInput } from '@comfyui-web/shared';
+import type { Graph, WorkflowDef, WorkflowInput } from '@comfyui-web/shared';
 import { AppError } from '../errors.js';
 import { SEED_RANDOM, applyTransform } from './transforms.js';
 import { describeCount, describeHit } from '../safety/describe.js';
@@ -10,10 +10,10 @@ import {
   whenMatches,
   type EffectiveBounds,
 } from '../safety/effective.js';
-export interface LoadedTemplate {
-  def: TemplateDef;
+export interface LoadedWorkflow {
+  def: WorkflowDef;
   graph: Graph;
-  /** template.json 所在目录，用于取缩略图等 */
+  /** 插件根目录（assets/form.json 与 workflow.json 就在这里），用于取缩略图等 */
   dir: string;
 }
 
@@ -25,7 +25,7 @@ export interface LoadedTemplate {
  * 不传 graph 时退化为"只认模板自己的 ui 边界"——越界值仍会被后面的护栏挡住。
  */
 export function coerceValues(
-  def: TemplateDef,
+  def: WorkflowDef,
   values: Record<string, unknown>,
   graph?: Graph,
 ): Record<string, unknown> {
@@ -57,7 +57,7 @@ export function coerceValues(
   }
 
   if (details.length > 0) {
-    throw AppError.templateValidation(
+    throw AppError.workflowValidation(
       `表单值校验失败：${details.map((d) => d.message).join('；')}`,
       details,
     );
@@ -65,7 +65,7 @@ export function coerceValues(
   return out;
 }
 
-function coerceOne(input: TemplateInput, raw: unknown, bounds: EffectiveBounds): unknown {
+function coerceOne(input: WorkflowInput, raw: unknown, bounds: EffectiveBounds): unknown {
   switch (input.type) {
     case 'number':
     case 'slider':
@@ -107,7 +107,7 @@ function coerceOne(input: TemplateInput, raw: unknown, bounds: EffectiveBounds):
 function setPath(graph: Graph, target: string, value: unknown): void {
   const m = /^([^.]+)\.inputs\.(.+)$/.exec(target);
   if (!m) {
-    throw AppError.templateValidation(
+    throw AppError.workflowValidation(
       `binding target 格式非法（应为 "<nodeId>.inputs.<field>"）: ${target}`,
     );
   }
@@ -115,7 +115,7 @@ function setPath(graph: Graph, target: string, value: unknown): void {
   const field = m[2]!;
   const node = graph[nodeId];
   if (!node) {
-    throw AppError.templateValidation(`binding target 指向的节点不存在: ${target}`);
+    throw AppError.workflowValidation(`binding target 指向的节点不存在: ${target}`);
   }
   node.inputs[field] = value;
 }
@@ -155,8 +155,8 @@ export interface RenderContext {
  *   - 只来自模板（const/默认图） → 夹紧到安全值并记在 `safety.clamped` 里
  *   - 取值无法判定 → 抛错（fail closed，宁可拒绝也不猜）
  */
-export function renderTemplate(
-  tpl: LoadedTemplate,
+export function renderWorkflow(
+  tpl: LoadedWorkflow,
   rawValues: Record<string, unknown>,
   ctx: RenderContext = {},
 ): RenderResult {
@@ -195,7 +195,7 @@ export function renderTemplate(
   const scan = guardGraph(graph);
 
   if (scan.unresolved.length > 0) {
-    throw AppError.templateValidation(
+    throw AppError.workflowValidation(
       `安全上限无法校验，已拒绝提交（模板 ${tpl.def.id} 的 graph 需要修正）`,
       scan.unresolved.map((u) => ({
         path: `${u.at.nodeId}.inputs.${u.at.field}`,
@@ -209,7 +209,7 @@ export function renderTemplate(
     return src ? [{ hit, src }] : [];
   });
   if (fromUser.length > 0) {
-    throw AppError.templateValidation(
+    throw AppError.workflowValidation(
       `参数超出服务端安全限制：${fromUser.map(({ hit }) => describeHit(hit)).join('；')}`,
       fromUser.map(({ hit, src }) => ({
         path: `values.${src.key}`,
@@ -224,7 +224,7 @@ export function renderTemplate(
       hit,
       src: userSourceOf(tpl.def, hit, values),
     }));
-    throw AppError.templateValidation(
+    throw AppError.workflowValidation(
       `超出服务端安全限制：${items.map(({ hit }) => describeCount(hit)).join('；')}`,
       items.map(({ hit, src }) => ({
         path: src ? `values.${src.key}` : `${hit.at.nodeId}.inputs.${hit.at.field}`,
