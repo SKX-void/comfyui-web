@@ -8,13 +8,19 @@ import { LIMITS } from './constants.js';
 import { strList, tagKey } from './prompt.js';
 import { asRecord, remap } from './util.js';
 
-/** 词条来源：user = 手动入库的（手改 / 显式存过，导入不许覆盖它）· import = 导入的 · builtin = 内置的 */
-const TAG_SOURCES: ReadonlySet<string> = new Set(['user', 'import', 'builtin']);
+/**
+ * 词条来源，**也是信任级别**（导入守卫按它决定"许不许覆盖"）：
+ * - `user` = 手动入库的（手改 / 显式存过）—— 谁都不许覆盖
+ * - `builtin` = 内置的**人工**词表（如 WeiLin 那份人工译文）—— 机翻不许覆盖它
+ * - `import` = 导入的机翻表 —— 最底层，可以被上面两层覆盖
+ */
+export type TagSource = 'user' | 'import' | 'builtin';
+const TAG_SOURCES: ReadonlySet<string> = new Set<TagSource>(['user', 'import', 'builtin']);
 /** 老数据里的 `api`（机器现翻写进去的）归到 import：都不是人认可的，面板里能一键清掉 */
 const LEGACY_TAG_SOURCES: Record<string, string> = { api: 'import' };
 
 /** `TAG_SOURCES.has(x)` 的 TS 版（`Set<string>.has` 不收 `unknown`） */
-function isTagSource(value: unknown): value is string {
+export function isTagSource(value: unknown): value is TagSource {
   return typeof value === 'string' && TAG_SOURCES.has(value);
 }
 
@@ -53,7 +59,11 @@ export interface TagQueryResult {
    */
   total: number;
   counts: { total: number; uncategorized: number };
-  categories: { name: string; count: number }[];
+  /**
+   * 分类树（含**还没有词用的空分类**）：`parent` 非空 = 它是某个大类下的小类，面板按它排两级。
+   * 父名不在这个列表里时（大类被删了、手工 SQL 造出来的）当顶级渲染 —— 显示不该依赖数据完整。
+   */
+  categories: { name: string; count: number; parent: string | null }[];
 }
 
 /**

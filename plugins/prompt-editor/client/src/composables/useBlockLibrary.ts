@@ -12,14 +12,17 @@ import {
   createBlockPreset,
   deleteBlockPreset,
   exportBlockPresets,
+  fetchBundledBlocks,
   getBlockPreset,
   importBlockPresets,
+  importBundledBlocks,
   listBlockCategories,
   listBlockPresets,
   updateBlockPreset,
   type BlockCategorySummary,
   type BlockPreset,
   type BlockPresetSummary,
+  type BundledBlocks,
 } from '../api';
 import type { Mode } from '../model';
 import { useBlockCategoryManage } from './useBlockCategoryManage';
@@ -119,6 +122,43 @@ export function useBlockLibrary(hooks: {
       return `已导入 ${done.imported} 块${extra.length > 0 ? `（${extra.join('，')}）` : ''}`;
     },
   });
+
+  /**
+   * 产物里那份内置区块库（WeiLin 存档预处理来的，见 `scripts/build-blocks.ts`）。
+   * `null` = 还没问过，`available:false` = 产物里没有。
+   */
+  const bundled = ref<BundledBlocks | null>(null);
+  const importingBundled = ref(false);
+
+  async function loadBundled(): Promise<void> {
+    try {
+      bundled.value = await fetchBundledBlocks();
+    } catch {
+      bundled.value = null;
+    }
+  }
+
+  /**
+   * 导入内置区块库。**只有点了才写**（空库那张卡上的按钮 / 页脚的重导）：
+   * 160 块、12 个分类，比词库那份小得多，但也没必要在打开面板时偷偷改库。
+   */
+  async function importBundled(): Promise<void> {
+    importingBundled.value = true;
+    error.value = '';
+    hint.value = '';
+    try {
+      const done = await importBundledBlocks();
+      await refresh();
+      hint.value =
+        `已导入 ${done.imported} 块` +
+        (done.categoriesCreated > 0 ? `（新建 ${done.categoriesCreated} 个分类）` : '') +
+        ` · 库内共 ${presets.value.length} 块`;
+    } catch (err) {
+      error.value = `导入失败：${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      importingBundled.value = false;
+    }
+  }
 
   /** 存一块：分类认不出时后端会当未分类，所以这里不校验 `saveCategoryId` */
   async function save(pending: PendingBlock | null): Promise<void> {
@@ -277,6 +317,10 @@ export function useBlockLibrary(hooks: {
     cancelRemove,
     submitRemove,
     transfer,
+    bundled,
+    importingBundled,
+    loadBundled,
+    importBundled,
     ...manage,
     ...drag,
   };

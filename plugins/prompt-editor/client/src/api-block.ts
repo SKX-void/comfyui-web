@@ -83,20 +83,40 @@ export async function exportBlockPresets(ids: string[]): Promise<unknown> {
   return request<unknown>('/block-presets/export', { method: 'POST', body: JSON.stringify({ ids }) });
 }
 
-/**
- * 导入：**追加**（同名的照收，不覆盖）。分类按名字对齐，文件里认不出的名字会新建一个分类 ——
- * `categoriesCreated` / `categoriesDropped`（分类满员，退到未分类）就是这件事的回执。
- */
-export async function importBlockPresets(file: unknown): Promise<{
+/** 一份导入的回执（上传的文件与产物自带的那份是同一个形状） */
+export interface BlockImportReport {
   imported: number;
   skipped: number;
   categoriesCreated: number;
   categoriesDropped: number;
-}> {
-  return request<{ imported: number; skipped: number; categoriesCreated: number; categoriesDropped: number }>(
-    '/block-presets/import',
-    { method: 'POST', body: JSON.stringify(file) },
-  );
+}
+
+/**
+ * 导入：**追加**（同名的照收，不覆盖）。分类按名字对齐，文件里认不出的名字会新建一个分类 ——
+ * `categoriesCreated` / `categoriesDropped`（分类满员，退到未分类）就是这件事的回执。
+ */
+export async function importBlockPresets(file: unknown): Promise<BlockImportReport> {
+  return request<BlockImportReport>('/block-presets/import', { method: 'POST', body: JSON.stringify(file) });
+}
+
+/**
+ * 产物里那份内置区块库（`assets/block-library.json`，WeiLin 的存档预处理来的）：
+ * `available:false` = 产物里没有它（面板就不画那个按钮）。
+ */
+export interface BundledBlocks {
+  available: boolean;
+  bytes: number;
+  /** 里面有多少块 —— 按钮上要写清楚"这一下会多出多少块" */
+  count: number;
+}
+
+export async function fetchBundledBlocks(): Promise<BundledBlocks> {
+  return (await request<{ bundled: BundledBlocks }>('/block-presets/bundled')).bundled;
+}
+
+/** 导入产物自带的那份区块库：不用传文件，服务端自己读（跟上传那条路同一段合并逻辑） */
+export async function importBundledBlocks(): Promise<BlockImportReport> {
+  return request<BlockImportReport>('/block-presets/bundled', { method: 'POST' });
 }
 
 /** 左栏要的东西：分类（含计数）+ 未分类的块数（未分类不是一个分类，所以单独给） */

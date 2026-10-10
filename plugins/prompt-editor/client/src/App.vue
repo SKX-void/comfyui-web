@@ -8,7 +8,7 @@
  *
  * 这里只做装配与串线：状态在 composables/，视图在 components/。
  */
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import BlockCard from './components/BlockCard.vue';
 import BlockLibraryPanel from './components/BlockLibraryPanel.vue';
@@ -21,6 +21,7 @@ import TranslatePanel from './components/TranslatePanel.vue';
 import { fetchDraft, fetchSettings, type BlockPreset, type TranslateSettings } from './api';
 import { canDropItem, moveItem, type Block, type Doc, type ItemRef } from './model';
 import { useNotice } from './composables/useNotice';
+import { useTouchItemDrag } from './composables/useTouchItemDrag';
 import { useTranslate } from './composables/useTranslate';
 import { useWorkspace } from './composables/useWorkspace';
 import type { PendingBlock } from './composables/useBlockLibrary';
@@ -101,8 +102,8 @@ const { busyIds, failedIds, enqueueAuto, translateItem, translateBlock, promoteT
   useTranslate({ settings, flash, persistItems });
 
 /**
- * 触屏上 HTML5 拖拽压根不触发（`dragstart` 只有鼠标才有），所以换位退化成 ↑↓。
- * 按钮只在 `hover: none` 的设备上出现（见 BlockHeader / ItemChip），鼠标用户照旧拖。
+ * 触屏上 HTML5 拖拽压根不触发（`dragstart` 只有鼠标才有），所以**区块**换位退化成 ↑↓。
+ * 按钮只在 `hover: none` 的设备上出现（见 BlockHeader），鼠标用户照旧拖。
  */
 function moveBlock(index: number, delta: number): void {
   const to = index + delta;
@@ -111,16 +112,6 @@ function moveBlock(index: number, delta: number): void {
   doc.blocks.splice(index, 1);
   doc.blocks.splice(to, 0, moved);
   persistStructure();
-}
-
-/** 条目在**本块内**换位（跨块搬家触屏上做不到：那要拖到另一张卡片上） */
-function moveItemWithin(block: Block, index: number, delta: number): void {
-  const to = index + delta;
-  const moved = block.items[index];
-  if (moved === undefined || to < 0 || to >= block.items.length) return;
-  block.items.splice(index, 1);
-  block.items.splice(to, 0, moved);
-  persistItems(block);
 }
 
 /** 底部操作条上的「新建区块」：在输出屏上点它，得先回到工作区，否则新块加在看不见的地方 */
@@ -195,6 +186,33 @@ function dropItemAt(blockId: string, index: number): void {
   persistItems(src);
   if (dst !== src) persistItems(dst);
 }
+
+/**
+ * 触屏条目拖拽：和桌面 HTML5 drag 共用 `dragItem` / `overItem` / `dropItemAt` 这一套状态，
+ * 只是"起手"来自条目上的 ⠿ 把手，后续的悬停/落地由 window 上的 Pointer Events 接管。
+ */
+const { ghost: touchGhost, begin: beginTouchItemDrag } = useTouchItemDrag({
+  onStart: (blockId, index) => startItemDrag(blockId, index),
+  onOver: (target) => {
+    if (target === null) {
+      overItem.value = null;
+      return;
+    }
+    overItemAt(target.blockId, target.index);
+  },
+  onDrop: (target) => {
+    if (target === null) {
+      endItemDrag();
+      return;
+    }
+    dropItemAt(target.blockId, target.index);
+  },
+});
+
+const touchGhostStyle = computed(() => {
+  const g = touchGhost.value;
+  return { left: g === null ? '0px' : `${g.x}px`, top: g === null ? '0px' : `${g.y}px` };
+});
 
 function loadPreset(next: Doc): void {
   replaceDoc(next);
@@ -281,7 +299,10 @@ onMounted(async () => {
           @item-drag-over="(itemIndex: number) => overItemAt(block.id, itemIndex)"
           @item-drop="(itemIndex: number) => dropItemAt(block.id, itemIndex)"
           @item-drag-end="endItemDrag()"
-          @item-move="(itemIndex: number, delta: number) => moveItemWithin(block, itemIndex, delta)"
+          @item-touch-drag-start="
+            (itemIndex: number, event: PointerEvent) =>
+              beginTouchItemDrag(event, block.id, itemIndex, block.items[itemIndex]?.text ?? '')
+          "
           @structure-changed="persistStructure()"
           @items-committed="onItemsCommitted(block)"
           @translate="(itemIndex: number) => translateItem(block, itemIndex)"
@@ -314,6 +335,9 @@ onMounted(async () => {
       @insert="insertPresetBlock"
     />
     <TranslatePanel :open="translateOpen" @close="translateOpen = false" @saved="applySettings" />
+
+    <!-- 触屏拖拽的幽灵：跟着手指走，说明"现在拖的是哪一条"（pointer-events: none，见 app.css） -->
+    <div v-if="touchGhost" class="pe-touch-ghost" :style="touchGhostStyle">{{ touchGhost.text }}</div>
   </div>
 </template>
 

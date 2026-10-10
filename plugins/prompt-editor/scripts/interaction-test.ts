@@ -175,6 +175,8 @@ function presetSummary(one: (typeof fakePresets)[number]): Record<string, unknow
 let fakeCategories: string[] = [];
 /** 分类的手动顺序（空 = 还没拖过）。真库里是 `categories.sort`，这里只要顺序对得上就够 */
 let fakeCatOrder: string[] = [];
+/** 分类的父子关系（小类 → 大类）。真库里是 `categories.parent`（两级分类树靠它，见 TagCategoryNav） */
+let fakeCatParents: Record<string, string> = {};
 
 /** 假的 GET /tags：形状与 `server/tagdb.ts` 的 `query()` 一致（这一层只关心前端怎么用，不碰真库） */
 function fakeTagList(q: string, category: string, limitRaw?: string | null): unknown {
@@ -216,7 +218,7 @@ function fakeTagList(q: string, category: string, limitRaw?: string | null): unk
     total: Math.min(tags.length, limit + 1),
     counts,
     categories: [...new Set([...fakeCategories, ...byCategory.keys()])]
-      .map((name) => ({ name, count: byCategory.get(name) ?? 0 }))
+      .map((name) => ({ name, count: byCategory.get(name) ?? 0, parent: fakeCatParents[name] ?? null }))
       // 拖过顺序的排在前面（对应真库的 `(sort IS NULL), sort`），没序号的名次一律垫底
       .sort(
         (a, b) =>
@@ -229,8 +231,11 @@ function fakeTagList(q: string, category: string, limitRaw?: string | null): unk
   };
 }
 let translateFails = false;
-/** 产物里那份内置机翻表在不在（`GET /tags/import` 的答案）：面板靠它决定画不画导入按钮 */
+/** 产物里那两份内置词库表在不在（`GET /tags/import` 的答案）：面板靠它决定画不画导入按钮 */
 let bundledAvailable = true;
+let bundledBuiltinAvailable = true;
+/** 产物里那份内置区块库（`GET /block-presets/bundled` 的答案）在不在 */
+let bundledBlocksAvailable = true;
 const translateBatches: string[][] = [];
 /**
  * 假的下游插件：跨域调用要的两样东西 —— 宿主清单里的一行（探测）+ 它的参数快照（组包）。
@@ -357,7 +362,15 @@ Object.defineProperty(globalThis, 'fetch', {
     // 内置机翻表：面板打开时只**问一次**（GET，只 stat 产物里那份 CSV），点了按钮才写（POST）。
     // 这两条必须排在下面那条笼统的 `GET .../tags` 前面，否则会被它当成"查词库列表"接走。
     if (method === 'GET' && path.endsWith('/tags/import')) {
-      return reply({ bundled: { available: bundledAvailable, bytes: 5448620 } });
+      // 体积取真资产那个量级（机翻 13,231,876 + 人工 223,225 → 面板上写 12.8MB），
+      // 但**值仍然是从响应里算出来的**（面板不许写死体积）
+      return reply({
+        bundled: {
+          available: bundledAvailable,
+          bytes: 13231876,
+          builtin: { available: bundledBuiltinAvailable, bytes: 223225 },
+        },
+      });
     }
     // 手动排序：面板把这一页的新顺序整批发来，服务端记成 sort=1..N。
     // 这里也把它真的应用一遍（假库是对象，顺序另存一个数组），这样"拖完顺序真的变了"也验得到。
@@ -384,15 +397,17 @@ Object.defineProperty(globalThis, 'fetch', {
       }
       return reply({
         ok: true,
-        lines: 142571,
         rows: incoming.length,
         written,
         skipped: incoming.length - written,
         before: 0,
         after: Object.keys(fakeTags).length,
-        noZh: 0,
-        placeholder: 8224,
-        duplicates: 0,
+        // 服务端一次导两层：机翻那层进 2 条，人工那层在这个假库里是空的
+        layers: [
+          { name: '机翻表', rows: incoming.length, written },
+          { name: '人工词表', rows: 0, written: 0 },
+        ],
+        cooccur: { available: true, kept: 0, written: 0 },
         elapsedMs: 12,
       });
     }
@@ -522,6 +537,27 @@ Object.defineProperty(globalThis, 'fetch', {
         cleared += 1;
       }
       return reply({ removed: fakeBlockCats.length !== before, cleared });
+    }
+    // 产物里那份内置区块库（`assets/block-library.json`）：打开面板时问一次（GET 只 stat），
+    // 点了才导（POST）。**必须排在下面那条 `includes('/block-presets/')` 前面**，
+    // 否则 `bundled` 会被当成"按 id 取一条"接走（真宿主那边是靠注册顺序保证的，见 routes-block-presets.ts）
+    if (method === 'GET' && path.endsWith('/block-presets/bundled')) {
+      return reply({ bundled: { available: bundledBlocksAvailable, bytes: 110242, count: 160 } });
+    }
+    if (method === 'POST' && path.endsWith('/block-presets/bundled')) {
+      if (!bundledBlocksAvailable) return fail('产物里没有内置区块库（assets/block-library.json）—— 先 pnpm build:plugins');
+      fakeBlockSeq += 1;
+      fakeBlockPresets.push({
+        id: `bp${fakeBlockSeq}`,
+        name: '内置：屁股对着镜头',
+        updatedAt: 7,
+        title: '',
+        color: '#6ea8fe',
+        mode: 'tag',
+        categoryId: '',
+        items: ['close shot', '1girl'],
+      });
+      return reply({ imported: 160, skipped: 0, categoriesCreated: 12, categoriesDropped: 0 });
     }
     if (method === 'GET' && path.includes('/block-presets/')) {
       const id = path.slice(path.lastIndexOf('/') + 1);
@@ -1290,6 +1326,40 @@ check(
 check('条目都画出来了', libNames().length === 4, libNames().join('|'));
 check('顶上写明总数与未分类条数', pick('.pe-lib-stat')?.textContent?.includes('共 4 条') === true && pick('.pe-lib-stat')?.textContent?.includes('未分类 1') === true, pick('.pe-lib-stat')?.textContent);
 check('分类树：全部 / 未分类 / 已有分类（计数多的在前）', catLabels().join('|') === '全部|未分类|光照|画质', catLabels().join('|'));
+// 两级分类：词库里那批人工分类是 4 大类 / 22 小类，小类要挂在大类下面（而不是跟大类平铺在一起）
+{
+  const catRows = (): HTMLElement[] => pickAll<HTMLElement>('.pe-lib-cat-row');
+  const catRowNames = (): string =>
+    catRows()
+      .map((row) => row.querySelector('.pe-lib-cat-name')?.textContent?.trim() ?? '')
+      .join('|');
+  fakeCatParents = { 光照: '画质' };
+  // 点一次「全部」触发重拉（`pickCategory` 每次都 load）
+  (pickAll<HTMLButtonElement>('.pe-lib-cats > button')[0] as HTMLButtonElement).click();
+  await settleLib();
+  check(
+    '两级分类：小类排在大类后面（不按计数平铺）· 缩进 · 不给拖动手柄',
+    catRowNames() === '画质|光照' &&
+      catRows()[1]?.classList.contains('pe-lib-cat-row-child') === true &&
+      catRows()[1]?.querySelector('.pe-lib-grip') === null &&
+      catRows()[0]?.querySelector('.pe-lib-grip') !== null,
+    `${catRowNames()} · ${catRows().map((row) => row.className).join(' / ')}`,
+  );
+  (catPicks()[3] as HTMLButtonElement).click();
+  await settleLib();
+  check(
+    '两级分类：小类照样能点（点它 = 按这个小类筛）· 高亮它 · 筛出小类下那 2 条',
+    catPicks()[3]?.className.includes('on') === true && libNames().length === 2,
+    `${catPicks().map((el) => (el.textContent ?? '').trim()).join('|')} → ${libNames().join('|')}`,
+  );
+  // 复原：后面几节按平铺的分类树断言（父名不在列表里时当顶级处理，这里不留状态）
+  (pickAll<HTMLButtonElement>('.pe-lib-cats > button')[0] as HTMLButtonElement).click();
+  await settleLib();
+  fakeCatParents = {};
+  (pickAll<HTMLButtonElement>('.pe-lib-cats > button')[0] as HTMLButtonElement).click();
+  await settleLib();
+  check('复原：去掉父子关系后又回到平铺（光照 2 条排在画质前面）', catRowNames() === '光照|画质', catRowNames());
+}
 check(
   '库里的条目一律标「库」（不按来源分 —— 进库就是库）',
   pickAll('.pe-lib-src').length === 4 && pickAll('.pe-lib-src').every((el) => el.textContent?.trim() === '库') === true,
@@ -1466,7 +1536,7 @@ console.log('词库面板：关掉');
 await nextTick();
 check('关掉后面板不在了', pick('.pe-lib-row') === null);
 
-console.log('词库面板：空库 → 提示 + 手动导入内置机翻表');
+console.log('词库面板：空库 → 提示 + 手动导入内置词库');
 // 真·空库（把假词库清空）。导入只在这里发生，而且只有点了按钮才会发生
 for (const key of Object.keys(fakeTags)) delete fakeTags[key];
 (pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
@@ -1482,14 +1552,19 @@ await settleLib();
 const emptyCard = pick('.pe-lib-empty');
 check(
   '空库时给一条"不用自己收集 CSV"的路（说明 + 按钮）',
-  emptyCard?.textContent?.includes('导入内置的 danbooru 机翻表') === true,
+  emptyCard?.textContent?.includes('导入内置词库') === true,
   emptyCard?.textContent?.trim(),
 );
 check(
-  '按钮上写明这一下要写进去多少（体积从产物问出来，不写死）',
-  pick('.pe-lib-empty .pe-btn')?.textContent?.trim() === '导入内置机翻表' &&
-    emptyCard?.textContent?.includes('5.2MB') === true,
-  `${pick('.pe-lib-empty .pe-btn')?.textContent?.trim()} · ${emptyCard?.textContent?.includes('5.2MB')}`,
+  '说明里把两层都点出来：机翻 32 万条 + 人工 4 千条（带两级分类，压过机翻）',
+  emptyCard?.textContent?.includes('机翻 32 万条') === true && emptyCard?.textContent?.includes('人工 4 千条') === true,
+  emptyCard?.textContent?.trim(),
+);
+check(
+  '按钮上写明这一下要写进去多少（体积从产物问出来、两层相加，不写死）',
+  pick('.pe-lib-empty .pe-btn')?.textContent?.trim() === '导入内置词库' &&
+    emptyCard?.textContent?.includes('12.8MB') === true,
+  `${pick('.pe-lib-empty .pe-btn')?.textContent?.trim()} · ${emptyCard?.textContent?.includes('12.8MB')}`,
 );
 const markImport = calls.length;
 (pick('.pe-lib-empty .pe-btn') as HTMLButtonElement).click();
@@ -1522,7 +1597,7 @@ bundledAvailable = false;
 (pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
 await settleLib();
 check(
-  '产物里没有内置机翻表：不画按钮，写清楚先 pnpm build:plugins',
+  '产物里没有内置词库：不画按钮，写清楚先 pnpm build:plugins',
   pick('.pe-lib-empty .pe-btn') === null && pick('.pe-lib-empty')?.textContent?.includes('pnpm build:plugins') === true,
   pick('.pe-lib-empty')?.textContent?.trim(),
 );
@@ -2136,8 +2211,17 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
   check('表头有「区块库…」入口', (blkLibBtn.textContent ?? '').includes('区块库') === true, blkLibBtn.textContent ?? '');
   blkLibBtn.click();
   await settle();
-  check('打开面板并拉到列表', pick('.pe-panel')?.textContent?.includes('区块库') === true && pick('.pe-blk-tip') !== null);
-  check('空库给一句"怎么存"的提示', (pick('.pe-blk-tip')?.textContent ?? '').includes('点「存」') === true, pick('.pe-blk-tip')?.textContent ?? '');
+  check('打开面板并拉到列表', pick('.pe-panel')?.textContent?.includes('区块库') === true && pick('.pe-blk-bar .pe-blk-tip') !== null);
+  check('空库给一句"怎么存"的提示', (pick('.pe-blk-bar .pe-blk-tip')?.textContent ?? '').includes('点「存」') === true, pick('.pe-blk-bar .pe-blk-tip')?.textContent ?? '');
+  // 空库那张卡：产物里带着一份转好的 WeiLin 存档（scripts/build-blocks.ts），不用自己攒
+  check(
+    '空库时给一条"不用自己攒"的路：内置区块库（块数 / 体积从产物问出来，不写死）',
+    pick('.pe-blk-empty') !== null &&
+      (pick('.pe-blk-empty .pe-btn')?.textContent ?? '').trim() === '导入内置区块库' &&
+      (pick('.pe-blk-empty')?.textContent ?? '').includes('160 块') === true &&
+      (pick('.pe-blk-empty')?.textContent ?? '').includes('108KB') === true,
+    (pick('.pe-blk-empty')?.textContent ?? '').trim(),
+  );
 
   // 在区块表头点「存」：把这一块的快照送进面板
   const firstBlock = blockOf(0);
@@ -2154,7 +2238,7 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
   // 取消：待存的块收回去，输入框消失
   (pickAll('.pe-blk-save .pe-btn')[1] as HTMLButtonElement).click();
   await nextTick();
-  check('点「取消」把待存的块收回去', pick('.pe-blk-save') === null && pick('.pe-blk-tip') !== null);
+  check('点「取消」把待存的块收回去', pick('.pe-blk-save') === null && pick('.pe-blk-bar .pe-blk-tip') !== null);
 
   // 叉掉面板 = 这次「存块」不作数：不然下次从「区块库…」进来还停在待存那一屏
   headSave.click();
@@ -2167,8 +2251,8 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
   await settle();
   check(
     '叉掉后再打开区块库：是干净的面板（不是待存那一屏）',
-    pick('.pe-blk-save') === null && pick('.pe-blk-tip') !== null,
-    (pick('.pe-blk-save')?.textContent ?? pick('.pe-blk-tip')?.textContent ?? '').trim(),
+    pick('.pe-blk-save') === null && pick('.pe-blk-bar .pe-blk-tip') !== null,
+    (pick('.pe-blk-save')?.textContent ?? pick('.pe-blk-bar .pe-blk-tip')?.textContent ?? '').trim(),
   );
 
   // 真的存一次：先把这一块临时改成 2 条 + 1 条禁用，验证"禁用的不带进库"
@@ -2804,6 +2888,22 @@ console.log('区块库：多选与导入导出');
     pickAll('.pe-catnav-row').some((row) => (row.textContent ?? '').includes('新分类')),
     pickAll('.pe-catnav-row').map((row) => (row.textContent ?? '').trim()).join(' | '),
   );
+
+  // 库里有块之后：空态那张卡让位给页脚一个"重导内置区块库"（想把内置那套再导一遍）
+  check('库里有块：空态卡让位，页脚给一个"重导内置区块库"', pick('.pe-blk-empty') === null && (pick('.pe-btn-quiet')?.textContent ?? '').trim() === '重导内置区块库', pick('.pe-btn-quiet')?.textContent ?? '');
+  const markBundled = calls.length;
+  (pick('.pe-btn-quiet') as HTMLButtonElement).click();
+  await settle();
+  check(
+    '点了才发 POST /block-presets/bundled（不用传文件，服务端自己读产物里那份）',
+    calls
+      .slice(markBundled)
+      .filter((call) => call.url.includes('/block-presets/bundled'))
+      .map((call) => call.method)
+      .join() === 'POST',
+    JSON.stringify(calls.slice(markBundled).map((call) => `${call.method} ${call.url}`)),
+  );
+  check('导完说清导入多少块（列表跟着刷新）', (pick('.pe-hint')?.textContent ?? '').includes('已导入 160 块') === true, pick('.pe-hint')?.textContent ?? '');
 
   (pick('.pe-close') as HTMLButtonElement).click();
   await nextTick();

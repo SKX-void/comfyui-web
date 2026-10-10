@@ -208,6 +208,13 @@ function cancel(): void {
   padding: 2px 3px;
   border-radius: 4px;
   opacity: 0;
+  /* 和上格同款：看不见的按钮不该占点击位（误触就是这么来的） */
+  visibility: hidden;
+}
+
+.pe-chip-translation:hover .pe-chip-btn {
+  visibility: visible;
+  opacity: 1;
 }
 
 .pe-chip-btn:hover {
@@ -215,9 +222,10 @@ function cancel(): void {
   color: var(--fg, #e6e8ec);
 }
 
-@media (hover: none) {
+@media (hover: none), (pointer: coarse), (max-width: 720px) {
   /* 「译」原来也是悬停才出现的（opacity: 0）—— 触摸屏上不悬停，等于没法手动翻一条 */
   .pe-chip-btn {
+    visibility: visible;
     opacity: 1;
     min-width: 28px;
     min-height: 28px;

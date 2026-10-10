@@ -85,6 +85,16 @@
   gap: 2px;
 }
 
+/* 小类：缩进到大类名字下面（让开顶级那个 10px 的六点手柄），名字淡一点 —— 一眼看出是下一级。
+   它没有手柄、也不能拖：位置由 parent 决定（见 TagCategoryNav 的 tree） */
+.pe-lib-cat-row-child {
+  padding-left: 12px;
+}
+
+.pe-lib-cat-row-child .pe-lib-cat-pick {
+  opacity: 0.85;
+}
+
 /* 正在改名的那一行：管理区在上面，这里得看得出改的是哪一个 */
 .pe-lib-cat-row-editing .pe-lib-cat-pick {
   outline: 1px dashed var(--accent, #6ea8fe);

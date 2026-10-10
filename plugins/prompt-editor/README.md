@@ -112,7 +112,7 @@ const parts = splitByMode(input?.value ?? adding.value, props.block.mode);
 | `presets.json` | 预设库（命名保存的**整份**结构），原子写 |
 | `block-presets.json` | 区块库（命名保存的**单块**：标题 / 颜色 / 风格 / 条目文本 + **分类**），原子写。形状 v2：`{ version: 2, categories, presets }`；v1 老文件照读（没有分类段就是"还没有分类"，块缺 `categoryId` 当未分类） |
 | `draft.json` | 当前草稿，**分两段存**：组结构 + 条目 |
-| `tags.db` | 词库（**SQLite**）：**一张表两用** —— 翻译按 `en`/别名命中，面板按分类分组。`source:'user'` = 你改过的（导入不许覆盖它）· `import` = 外部机翻表导入的（见 [导入词库](#导入词库内置表--外部-csv)） |
+| `tags.db` | 词库（**SQLite**）：**一张表两用** —— 翻译按 `en`/别名命中，面板按分类分组。`source:'user'` = 你改过的 · `import` = 机翻表导入的 · `builtin` = 人工词表导入的。**来源也是信任级别**：重导机翻盖不掉人工，两者都盖不掉你手改的（见 [导入词库](#导入词库内置表--外部-csv)） |
 | `settings.json` | 翻译设置：provider、自动译开关、每日上限、超时、两次调用最小间隔 |
 | `usage.json` | 当日翻译调用次数（跨天自动清零） |
 
@@ -120,10 +120,25 @@ const parts = splitByMode(input?.value ?? adding.value, props.block.mode);
 预设与区块库各上限 300 条，量级差着两个数量级）。为什么换、换到多少条划算、为什么不上 FTS5，
 见 [词库往后怎么长](#词库往后怎么长) 的「规模」。
 
-**内置机翻表不在上面这个目录里**：它是**产物里的资产** —— 源码
-`plugins/prompt-editor/assets/danbooru-zh.csv`（**git-lfs**，5.2MB），构建时由 `pack.mjs` 的
-extras 拷进 `tabs/prompt-editor/assets/`，服务端按 `import.meta.url` 读它来导入
-（见 [导入词库](#导入词库内置表--外部-csv)）。
+**内置词库 / 区块库不在上面这个目录里**：它们是**产物里的资产** —— 源码
+`plugins/prompt-editor/assets/` 下四份：
+
+| 资产 | 是什么 | 谁生成 |
+|---|---|---|
+| `danbooru-zh.csv`（**git-lfs**，12.6MB / 32.4 万条） | 机翻词库表（`source:'import'`） | `scripts/build-dict.ts` |
+| `cooccur.tsv`（**git-lfs**，2.4MB / 20.2 万对邻居） | 共现邻居（`GET /tags/neighbors`） | 同上 |
+| `weilin-zh.csv`（218KB / 3,793 条） | **人工**词表（`source:'builtin'`，11 大类 / 128 小类） | `scripts/build-weilin.ts` |
+| `block-library.json`（108KB / 160 块 / 12 分类） | 内置区块库（WeiLin 存档转来的） | `scripts/build-blocks.ts` |
+
+构建时由 `pack.mjs` 的 extras 把整个 `assets/` 拷进 `tabs/prompt-editor/assets/`，
+服务端按 `import.meta.url` 读它们（见 [导入词库](#导入词库内置表--外部-csv) 与
+[区块库](#区块库预设单块)）。**原始素材 / 中间层一律放 `.cache/`**（`assets/` 整个目录都会进产物）：
+`.cache/dictpack/`（第三方 BMZ 包解开的那五层）、`.cache/weilin-prompt/`（WeiLin 词库仓的浅克隆）、
+以及 `assets/存档.json`（`block-library.json` 的源，留着是为了可重跑）。
+
+出处与许可：机翻表来自 Danbooru 标签的中英对照（MIT）与 ECDICT；人工词表来自
+[`weilin9999/WeiLin-Comfyui-Tools-Prompt`](https://github.com/weilin9999/WeiLin-Comfyui-Tools-Prompt)（MIT）；
+两者都可再分发，保留本段署名即可。
 
 ### 草稿为什么分两段
 
@@ -170,6 +185,9 @@ extras 拷进 `tabs/prompt-editor/assets/`，服务端按 `import.meta.url` 读�
 | PUT | `/settings` | 写翻译设置（越界收敛到范围内） |
 | POST | `/translate` | 翻译 `{ texts: [...] }`（1~50 条）→ `{ results: [...], error? }`，**按顺序对齐**。前端逐条发，这个接口本身也支持一批 |
 | GET | `/tags` | 词库列表 `?q=&category=&limit=` → `{ tags, total, counts, categories }`（面板用） |
+| GET | `/tags/neighbors` | 一个词的共现邻居 `?en=&limit=` → `{ tags }`（面板展开那一条时才问） |
+| GET | `/tags/import` | 产物里那两份内置词库表在不在 / 多大 → `{ bundled: { available, bytes, builtin } }`（面板靠它决定画不画按钮） |
+| POST | `/tags/import` | **一次导两层**（机翻 → 人工）+ 灌共现邻居 → `{ rows, written, skipped, before, after, layers, cooccur, elapsedMs }` |
 | PUT | `/tags/entry` | 写/改一条 `{ en, zh?, categories?, aliases?, source? }`；不给 `source` 沿用原值 |
 | DELETE | `/tags/entry` | 删一条 `{ en }` |
 | GET | `/block-presets` | 区块库清单（只给摘要 + 前 3 条预览，含 `categoryId`） |
@@ -179,6 +197,8 @@ extras 拷进 `tabs/prompt-editor/assets/`，服务端按 `import.meta.url` 读�
 | DELETE | `/block-presets/:id` | 删一条 |
 | POST | `/block-presets/export` | 导出选中的块 `{ ids }`（缺省 / 空 = 全选）→ 导出文件（分类只带名字） |
 | POST | `/block-presets/import` | 导入一份导出文件（追加）→ `{ imported, skipped, categoriesCreated, categoriesDropped }` |
+| GET | `/block-presets/bundled` | 产物里那份内置区块库在不在 / 多大 / 几块 → `{ bundled: { available, bytes, count } }`（**注册在 `/:id` 之前**） |
+| POST | `/block-presets/bundled` | 导入内置区块库（不用传文件，服务端自己读产物里那份；与 `/import` 同一段合并逻辑） |
 | PUT | `/block-presets/order` | 列表拖完的新顺序 `{ ids: [...] }`（整列重排，回新列表；**注册在 `/:id` 之前**，别让 `order` 被当成 id） |
 | GET | `/block-categories` | 左栏要的：`{ categories: [{ id, name, count }], uncategorized }`（计数现算） |
 | POST | `/block-categories` | 新建分类 `{ name }` → 201（**一块都不动**：先建分类再往里放块） |
@@ -209,6 +229,11 @@ extras 拷进 `tabs/prompt-editor/assets/`，服务端按 `import.meta.url` 读�
   全铺出来列表就没法看了；摘要里那 3 条预览也不再展示（要看就点开，反正一次取整条）。
   每次展开都重新取，不缓存。
 - 库上限 300 条；名字空白（只敲空格）算没名字，会被拒。
+- **内置那份**：产物里带着 `assets/block-library.json`（WeiLin 提示词盒子的存档转来的，160 块 /
+  12 分类，见 `scripts/build-blocks.ts`）。库空着时面板给一张卡（「导入内置区块库」），有块之后挪到页脚
+  （「重导内置区块库」）；`GET/POST /block-presets/bundled`，**不用传文件**，服务端自己读产物里那份。
+  导入是**追加**、同名的照收不覆盖，分类按名字现建（首次出现的顺序 = 左栏顺序，所以文件里按用途排好了）。
+  那份存档里"绑在某个按钮上"的负提示词没有对应机制，折进名字里（`xxx（用于「按钮名」）`）。
 - **两种模式**（跟词库面板同一套）：**浏览模式**只插不改，行上只有「插入」、行也不能拖；
   **编辑模式**才有改名 / 删除（"插入和编辑互斥"）、左栏才有建 / 改 / 删分类，**归类与排序都靠拖**：
   行拖到左栏的分类上 = 归到它（拖到「未分类」= 摘掉），行拖到行上 = 排库内顺序。
@@ -442,45 +467,83 @@ tag_aliases(tag_key, alias_key, alias)
 
 **面板按钮**：词库为空时，面板里直接给一条路 —— 不用自己去收集 CSV：
 
-> 也可以先导入内置的 danbooru 机翻表（5.2MB，约 14 万条）…　[导入内置机翻表]
+> 也可以先导入内置词库（12.8MB，机翻 32 万条 + 人工 4 千条（带两级分类，压过机翻））…　[导入内置词库]
 
-点一下就把**产物自带**的那份 CSV 灌进 `tags.db`（14 万行实测 2.1s，分批写、块间让出事件循环，
-不把宿主卡住）。库里有东西之后这个按钮挪到面板页脚（「重导内置机翻表」）—— 换了新版 CSV 再导一遍用。
-**不会自动导**：写几十 MB 是显式动作。
+点一下就把**产物自带**的表灌进 `tags.db`（32.4 万行 + 3,793 条人工 + 20 万对邻居实测 8.9s，分批写、
+块间让出事件循环，不把宿主卡住）。库里有东西之后这个按钮挪到面板页脚（「重导内置词库」）——
+换了新版再导一遍用。**不会自动导**：写几十 MB 是显式动作。
 
-那份 CSV 是 `plugins/prompt-editor/assets/danbooru-zh.csv`（**走 git-lfs**，5.2MB），构建时由
-`pack.mjs` 的 extras 拷进 `tabs/prompt-editor/assets/`，于是：
+一次导**两层**，顺序就是信任级别（低 → 高）：
 
-- 服务端按 `import.meta.url` **直接读自己目录里的它**，不走浏览器上传 —— 14 万行没必要过一遍
+| 层 | 文件 | 来源 | 导入守卫 |
+|---|---|---|---|
+| 机翻 | `danbooru-zh.csv`（12.6MB / 32.4 万条） | `source:'import'` | 只许盖 `import` 那层 |
+| 人工 | `weilin-zh.csv`（218KB / 3,793 条，11 大类 / 128 小类） | `source:'builtin'` | 只不许盖 `user` |
+
+于是同一个词（比如 `long hair`）人工那条**压过**机翻那条，而且**重导机翻表冲不掉它** ——
+人工表那边 `keepPlaceholders: false`：那份表里"译文 == 正名"是"这词不用翻"，真写进去反而会把
+机翻的中文盖成英文，跳过才对。共现邻居（`cooccur.tsv`）跟着一起灌，读不到只记一条日志、不让整次导入失败。
+
+产物里这几份资产都在 `plugins/prompt-editor/assets/`（两个大的走 **git-lfs**），构建时由 `pack.mjs`
+的 extras 拷进 `tabs/prompt-editor/assets/`，于是：
+
+- `danbooru-zh.csv` + `cooccur.tsv` = 机翻表与共现邻居，`weilin-zh.csv` = 人工表；
+- 服务端按 `import.meta.url` **直接读自己目录里的它们**，不走浏览器上传 —— 32 万行没必要过一遍
   HTTP 和宿主内存，解析规则也就能和命令行共用一份（`server/tagcsv.ts`）；
-- `dist/` 整包搬走也带着它：**LFS 只在源码 checkout 那一侧存在**，部署机不用装 lfs；
+- `dist/` 整包搬走也带着它们：**LFS 只在源码 checkout 那一侧存在**，部署机不用装 lfs；
 - 但 clone 时没装 lfs（或 `GIT_LFS_SKIP_SMUDGE=1`）时，源码里躺着的是 130 字节的**指针文件**。
   这条路被显式挡住：读到指针就报「先 `git lfs pull`」，而不是"导入成功，入库 0 条"。
 
 **命令行（任意 CSV）**：
 
 ```bash
-pnpm -C plugins/prompt-editor import:tags ~/danbooru-zh.csv                       # 全量
-pnpm -C plugins/prompt-editor import:tags ~/danbooru-zh.csv -- --min-count 100    # 只留 count>100
-pnpm -C plugins/prompt-editor import:tags ~/danbooru-zh.csv -- --dry-run          # 只看统计，不写库
+pnpm -C plugins/prompt-editor import:tags ~/词库.csv                                        # 全量（默认当机翻，source=import）
+pnpm -C plugins/prompt-editor import:tags ~/词库.csv -- --keep-placeholders                 # 占位行也收
+pnpm -C plugins/prompt-editor import:tags ~/词库.csv -- --cooccur ~/共现邻居.tsv            # 顺手灌邻居
+pnpm -C plugins/prompt-editor import:tags ~/词库.csv -- --source builtin                    # 当人工表导（压过机翻、不被机翻盖）
+pnpm -C plugins/prompt-editor import:tags ~/词库.csv -- --min-count 100 --dry-run           # 只看统计
 ```
 
-列序 `tag,category,count,译文`（按表头名字认；表头写 `alias` 也当译文读 —— 这份表是机翻表）：
+列序 `tag,category,count,译文[,group,sub,source]`（按表头名字认；表头写 `alias` 也当译文读）：
 
 | 列 | 去处 |
 |---|---|
-| `tag` | 正名（`key` 按 `tagKey` 归一；同键去重时留 count 大的那条） |
-| `category` | 数字 → `机翻-通用 / 画师 / 作品 / 角色 / 元信息`（0/1/3/4/5）。**6 是源表自己的兜底桶**（身体部位、组合词、个别作品混在一起），归「机翻-其他」；认不出的数字同样归「其他」，空值 = 未分类 |
+| `tag` | 正名（**下划线折成空格**：`long_hair` → `long hair`，源是 booru 写法而我们库里是空格形，不折就永远和机翻表对不上；`key` 按 `tagKey` 归一；同键去重时非 `import` 的先赢、同级再比 count） |
+| `category` | 数字 → `机翻-通用 / 画师 / 作品 / 角色 / 元信息`（0/1/3/4/5）。**6 是源表自己的兜底桶**（身体部位、组合词、个别作品混在一起），归「机翻-其他」；认不出的数字同样归「其他」，空值 = 未分类。**有 `group` 的行不挂机翻桶**：那批通用词已经被人工分类整理过了，再挂在"待整理收件箱"里就是两份互相矛盾的分类 |
 | `count` | `hot`（面板排序用；也留着以后按热度砍档） |
-| 第 4 列 | `zh`。**空译文的行跳过**，**译文和正名一样的行也跳过**（后者是机翻表里没翻出来的占位，真表里 8224 行 / 5.8%）—— 命中一条没译文的词等于白占一次「库」命中，不如让接口去翻 |
+| 第 4 列 | `zh`。**空译文的行跳过**；**译文和正名一样的行**（机翻表里没翻出来的占位）默认也跳过，`--keep-placeholders` 开着就收 —— 译文照存正名 |
+| `group` / `sub` | 人工分类的两级（大类 / 小类）。**父子关系不是词条上的字段**：它回一张映射，落进 `categories.parent`（见下）。小类留空 = 只挂大类 |
+| `source` | 这批行算什么来源（`user` / `import` / `builtin`）；没这列时用 `--source`（默认 `import`）。**来源决定导入守卫**，也决定同键撞车谁赢 |
 
-真表里有**引号包着的字段**（48 处），而且引号里带逗号：`"my_hero_academia,",6,39259,我的英雄学院`、
-`otu_(o2h2_oh4),1,679,"otu (O2H2, Oh4)"` —— 解析按 CSV 规矩读，不是按逗号裸切。
+> **占位行为什么要收**：新表里 77,237 行（23.8%）是"译文 == 正名"，其中 94.8% 是 `hololive`、
+> `fate/grand order` 这类**专有名词** —— 本来就不该翻。收进来 = 命中即原文（零请求、且比机翻更对），
+> 不收 = 这 7.7 万个词在面板里**搜不到**。所以面板那条路默认收（那份产物是我们自己造的），
+> CLI 默认不收（拿别的表来导时，那些占位多半真是没翻出来的）。
+
+> **`未分类` 不当分类名**：源分类表里 13,729 个词的小类是"未分类"（= 还没细分），
+> `build-dict.ts` 把它写成空 `sub`。它和面板内置的「未分类」伪筛选（`category=__none__`）同名，
+> 两个同名的东西并排出现必然被读错。
+
+**分类是两级的**（`categories.parent`）：机翻表那侧是 4 个大类（画面全局 / 穿搭 / 形体 / 头部神态）挂
+21 个小类（构图 / 发型 / 表情 / 上装 …），人工表那侧是 11 个大类（人物 / 服饰 / 表情动作 / 画面 /
+物品 / 场景 / 环境 / 汉服 / 镜头 / 魔法系 / NSFW（WeiLin专属））挂 128 个小类；
+面板左栏按这个字段排两级、小类缩进在大类下面，两级都能点、都能筛（点大类 = 连小类一起看）。
+父子关系挂在**分类**上而不是词条上 —— 挂在词条上，同一个名字在不同词上就会打架。大类改名 / 删除时
+小类跟着改 parent / 升成顶级（见 `tagdb.ts` 的 `renameCategory` / `removeCategory`）。
+
+**共现邻居**（`tag_cooccur`）：`词<TAB>邻居|邻居|…`，只存**键**，查询时 INNER JOIN `tags`
+（于是邻居表先落库也行，删词留下的死邻居自动不出现）。整表替换：重导一份就是换掉整张表。
+面板侧目前只有接口（`GET /tags/neighbors`），UI 还没做。
+
+真表里有**引号包着的字段**（69 处），而且引号里带逗号、还有引号套引号：
+`natsuiro egao de 1 2 jump!,0,0,"夏色笑颜1,2,Jump!",头部神态,表情`（译文里带逗号）、
+`"don't say ""lazy""",0,0,"Don't say ""lazy""",画面全局,`（字段内的引号翻倍转义）——
+解析按 CSV 规矩读，不是按逗号裸切。
 
 三条要点：
 
-- **不覆盖你改过的**（`source='user'` 整条跳过，连分类/别名都不动），所以换 `--min-count` 重导
-  几次都不会把整理好的那批打回原形。
+- **不覆盖你改过的**（守卫挡下的行整条跳过，连分类/别名都不动）：机翻那层只许盖机翻，人工那层只不许
+  盖手改的。所以换 `--min-count` 重导几次都不会把整理好的那批打回原形，**重导机翻也冲不掉人工译文**。
 - 导入的行 `updated_at = 0`：面板排序是 `updated_at DESC, hot DESC`，于是"你碰过的"永远压在
   "一整批导入的"前面，导入那批内部按热度排。
 - **不用重启宿主**：两条路写的是同一个 `tags.db`（WAL 允许宿主同时读），宿主的计数缓存靠
@@ -582,8 +645,11 @@ node scripts/scale-bench.ts                          # 规模基准（不在 ver
 
 | 脚本 | 手段 | 管什么 |
 |---|---|---|
-| `scripts/contract-test.ts` | 注入最小 document 桩 + SSR 真渲染产物 | 产物形状（tabs/routes/样式）、首屏结构、纯函数（切分/重切/输出/服务端收敛/草稿两段装配）、词库（命中/别名/迁移/排序/导入不覆盖手改的）、**机翻表解析与导入**（引号里的逗号 / 占位行 / 同键去重 / lfs 指针 + 子进程真跑一遍脚本端到端）、非安全上下文下的降级 |
-| `scripts/interaction-test.ts` | happy-dom 造 DOM，挂载产物、发真事件，**并记录发出去的请求** | 敲字/**失焦提交**、**输入法组字**、区块风格开关、单击改名、译文格编辑、双击禁用 → 输出跟着变；以及草稿的**两个写事件**（只发该发的那一段） |
+| `scripts/contract-test.ts` | 注入最小 document 桩 + SSR 真渲染产物 | 产物形状（tabs/routes/样式）、首屏结构、纯函数（切分/重切/输出/服务端收敛/草稿两段装配）、词库（命中/别名/迁移/排序/导入不覆盖手改的/两级分类的 parent 迁移与改名删除）、**词库表解析与导入**（引号里的逗号与转义引号 / 下划线归一 / 占位行与 `keepPlaceholders` / group·sub 两级 / `source` 列与两层守卫 / 同键去重 / 共现邻居 / 内置区块库路由不被 `/:id` 吃掉 / lfs 指针 + 子进程真跑一遍脚本端到端）、非安全上下文下的降级 |
+| `scripts/interaction-test.ts` | happy-dom 造 DOM，挂载产物、发真事件，**并记录发出去的请求** | 敲字/**失焦提交**、**输入法组字**、区块风格开关、单击改名、译文格编辑、双击禁用 → 输出跟着变；**两级分类树的渲染与筛选**；以及草稿的**两个写事件**（只发该发的那一段） |
+| `scripts/unpack-bmz.mjs` · `scripts/build-dict.ts` | 解开第三方词库包 → 生成机翻表 + 共现邻居（换词库时才跑） | 不进 verify：输入是 `.cache/dictpack/` 那 15MB 原始层，产物是入库的 LFS 资产 |
+| `scripts/build-weilin.ts` | 浅克隆 WeiLin 的人工词库仓（`.cache/weilin-prompt/`）→ `assets/weilin-zh.csv`（下划线折空格、热度从机翻表借、两级分类） | 不进 verify：要联网 clone；产物是入库的小文件（218KB） |
+| `scripts/build-blocks.ts` | `assets/存档.json` → `assets/block-library.json`（一条 prompt 按逗号切条目、分类按 `catOrder` 排、负提示词单列一类） | 不进 verify：纯离线转换，换存档时才跑 |
 
 交互层是补上 SSR 够不到的那一半：SSR 不跑事件处理器，"敲字进不去""点开关没反应"它一个都抓不到；
 而草稿的"只发该发的那一段"更是只能从**请求**上看出来（DOM 上看不出），所以那一层顺便记录 fetch。
@@ -605,10 +671,12 @@ node scripts/scale-bench.ts                          # 规模基准（不在 ver
 
 ## 词库往后怎么长
 
-- **导入外部机翻表**：两条路都能用（见 [导入词库](#导入词库内置表--外部-csv)）—— 面板那个
-  「导入内置机翻表」按钮读的是**产物自带**的 `assets/danbooru-zh.csv`（git-lfs，5.2MB / 14 万行，
-  实测 64MB 库 / 2.1s），命令行那条吃任意 CSV。一次全量 + 以后靠 `hot` 排序把长尾压下去，
+- **导入外部词库表**：两条路都能用（见 [导入词库](#导入词库内置表--外部-csv)）—— 面板那个
+  「导入内置词库」按钮读的是**产物自带**的 `assets/danbooru-zh.csv`（git-lfs，12.6MB / 32.4 万行，
+  实测 107MB 库 / 8.9s，另加 20 万对共现邻居），命令行那条吃任意 CSV。一次全量 + 以后靠 `hot` 排序把长尾压下去，
   比"先砍到 3 万"更划算（砍了再想加回来就得重新导一次；留全量随时能按 `hot` 一条 SQL 砍）。
+- **换词库**：`scripts/unpack-bmz.mjs`（解开第三方词库包）→ `scripts/build-dict.ts`（生成上面两个资产）。
+  原始层放 `.cache/dictpack/`，**别放 `assets/`** —— 那里整个目录都会被打进产物。
 - **内置一批常用 tag**：按 `post_count` 从 Danbooru 官方 API 拉 top N（实测 `limit=1000` 可用），
   顺手拉官方 `tag_aliases` / `tag_implications`（零维护），中文自己标或机翻。
 - **规模**：词库**已经换成 SQLite**（`tags.db`）。下面量的是**发货的那套代码**
@@ -650,6 +718,6 @@ pnpm --filter @comfyui-web/prompt-editor build:server   # 只打后端，改 ser
 pnpm --filter @comfyui-web/prompt-editor typecheck      # vue-tsc，含 server/**
 ```
 
-服务端源码分成 14 个 `server/*.ts`（每个 ≤300 行），`scripts/build-server.mjs` 用 esbuild 打成**一个** `server.js`
+服务端源码分成 20 个 `server/*.ts`（除 `tagdb.ts` 外每个 ≤300 行），`scripts/build-server.mjs` 用 esbuild 打成**一个** `server.js`
 （重挂只给入口加 `?v=`，多文件会命中 Node 的 ESM 缓存，见 `plugins/README.md` §2.4）；`tsconfig.json` 的
 `include` 含 `server/**/*.ts`，所以 typecheck 连服务端一起查。产物写进 `tabs/prompt-editor/`，设置页点一次「重新扫描插件目录」即可装载。

@@ -1,0 +1,3794 @@
+tag,zh,group,sub,count,source
+1girl,1女孩,人物,对象,8419190,builtin
+1boy,1男孩,人物,对象,0,builtin
+2girls,2女孩,人物,对象,1439774,builtin
+2boys,2男孩,人物,对象,468808,builtin
+3girls,3女孩,人物,对象,328249,builtin
+3boys,3男孩,人物,对象,105915,builtin
+girl,女孩,人物,对象,0,builtin
+boy,男孩,人物,对象,0,builtin
+solo,单人,人物,对象,7069970,builtin
+multiple girls,多个女孩,人物,对象,2115453,builtin
+little girl,小女孩,人物,对象,0,builtin
+little boy,小男孩,人物,对象,0,builtin
+shota,正太,人物,对象,30549,builtin
+loli,萝莉,人物,对象,210997,builtin
+kawaii,可爱,人物,对象,0,builtin
+mesugaki,雌小鬼,人物,对象,4366,builtin
+adorable girl,可爱的女孩,人物,对象,0,builtin
+bishoujo,美少女,人物,对象,0,builtin
+gyaru,辣妹,人物,对象,29410,builtin
+sisters,姐妹,人物,对象,119531,builtin
+ojousama,大小姐,人物,对象,0,builtin
+female,女性,人物,对象,0,builtin
+mature female,成熟女性,人物,对象,49839,builtin
+mature,成熟,人物,对象,0,builtin
+female pervert,痴女,人物,对象,8401,builtin
+male,男性,人物,对象,0,builtin
+milf,熟女,人物,对象,0,builtin
+otoko no ko,伪娘,人物,对象,0,builtin
+crossdressing,伪娘,人物,对象,57425,builtin
+lifeguard,救生员,人物,身份,1551,builtin
+boxer,拳击手,人物,身份,191,builtin
+scientist,科学家,人物,身份,673,builtin
+athletes,运动员,人物,身份,0,builtin
+office lady,职场女性,人物,身份,22744,builtin
+monk,和尚,人物,身份,1230,builtin
+acrobat,杂技演员,人物,身份,0,builtin
+nun,修女,人物,身份,34537,builtin
+nurse,护士,人物,身份,22718,builtin
+stewardess,空姐,人物,身份,0,builtin
+student,学生,人物,身份,0,builtin
+waitress,女服务员,人物,身份,17504,builtin
+teacher,老师,人物,身份,6599,builtin
+racer,赛车手,人物,身份,0,builtin
+police,警察,人物,身份,17189,builtin
+soldier,士兵,人物,身份,6618,builtin
+cheerleader,啦啦队,人物,身份,24942,builtin
+actor,男演员,人物,身份,161,builtin
+actress,女演员,人物,身份,90,builtin
+spy,间谍,人物,身份,95,builtin
+agent,特工,人物,身份,0,builtin
+assassin,刺客,人物,身份,201,builtin
+poet,诗人,人物,身份,0,builtin
+samurai,日本武士,人物,身份,3898,builtin
+dancing girl,舞女,人物,身份,0,builtin
+motorcyclist,摩托车手,人物,身份,0,builtin
+hacker,黑客,人物,身份,0,builtin
+magician,魔术师,人物,身份,1183,builtin
+detective,侦探,人物,身份,2653,builtin
+doll,人偶,人物,身份,58396,builtin
+maid,女仆,人物,身份,211709,builtin
+pilot,飞行员,人物,身份,1886,builtin
+diver,潜水员,人物,身份,0,builtin
+bar censor,酒吧审查员,人物,身份,242570,builtin
+missionary,传教士,人物,身份,49335,builtin
+firefighter,消防员,人物,身份,692,builtin
+goalkeeper,守门员,人物,身份,434,builtin
+chef,厨师,人物,身份,3065,builtin
+astronaut,宇航员,人物,身份,2348,builtin
+cashier,收银员,人物,身份,629,builtin
+mailman,邮递员,人物,身份,352,builtin
+barista,咖啡师,人物,身份,603,builtin
+the hermit,隐士,人物,身份,0,builtin
+makihitsuji,牧羊人,人物,身份,540,builtin
+race queen,赛车女郎,人物,身份,12354,builtin
+queen,女王,人物,身份,0,builtin
+doctor,医生,人物,身份,2747,builtin
+knight,骑士,人物,身份,11529,builtin
+housemaid,女仆,人物,身份,0,builtin
+dancer,舞者,人物,身份,7799,builtin
+ballerina,芭蕾舞演员,人物,身份,3447,builtin
+gym leader,体操教练,人物,身份,0,builtin
+trap,伪娘,人物,身份,77682,builtin
+harem,后宫,人物,身份,4291,builtin
+idol,偶像,人物,身份,19482,builtin
+priest,牧师,人物,身份,3458,builtin
+cleric,神职人员(基督教),人物,身份,201,builtin
+wa maid,和风女仆,人物,身份,7257,builtin
+yaoi,搞基,人物,身份,116830,builtin
+yuri,百合,人物,身份,330559,builtin
+albino,白化病患者,人物,身份,8385,builtin
+amputee,截肢者,人物,身份,10855,builtin
+princess,公主,人物,身份,6084,builtin
+pokemon,宝可梦,人物,二次元角色,411527,builtin
+teddy bear,泰迪熊,人物,二次元角色,36575,builtin
+mario,马里奥,人物,二次元角色,6300,builtin
+pikachu,皮卡丘,人物,二次元角色,17495,builtin
+neon genesis evangelion,新世纪福音战士,人物,二次元角色,35952,builtin
+hatsune miku,初音未来,人物,二次元角色,145900,builtin
+harry potter,哈利波特,人物,二次元角色,486,builtin
+doraemon,哆啦A梦,人物,二次元角色,2222,builtin
+saint seiya,圣斗士星矢,人物,二次元角色,1991,builtin
+gojou satoru,五条悟,人物,二次元角色,5698,builtin
+avengers,复仇者联盟,人物,二次元角色,0,builtin
+mazinger,神奇女侠,人物,二次元角色,0,builtin
+captain america,美国队长,人物,二次元角色,1025,builtin
+crayon shin-chan,蜡笔小新,人物,二次元角色,889,builtin
+slam dunk,灌篮高手,人物,二次元角色,0,builtin
+sun wukong,孙悟空,人物,二次元角色,740,builtin
+witch,女巫,人物,二次元角色,24791,builtin
+miko,巫女,人物,二次元角色,23042,builtin
+ninja,忍者,人物,二次元角色,21818,builtin
+vampire,吸血鬼,人物,二次元角色,21046,builtin
+magical girl,魔法少女,人物,二次元角色,116122,builtin
+orc,半兽人,人物,二次元角色,5190,builtin
+druid,德鲁伊,人物,二次元角色,58,builtin
+elf,妖精,人物,二次元角色,113501,builtin
+fairy,小精灵,人物,二次元角色,23432,builtin
+furry,兽人,人物,二次元角色,144476,builtin
+mermaid,美人鱼,人物,二次元角色,15809,builtin
+kamen rider,假面骑士,人物,二次元角色,12964,builtin
+magister,魔导师,人物,二次元角色,525,builtin
+spider-man,蜘蛛侠,人物,二次元角色,3323,builtin
+santa alter,圣诞老人,人物,二次元角色,393,builtin
+monster girl,人外娘,人物,二次元角色,126536,builtin
+cat girl,猫娘,人物,二次元角色,171323,builtin
+dog girl,犬娘,人物,二次元角色,51159,builtin
+fox girl,狐娘,人物,二次元角色,148328,builtin
+kitsune,狐妖,人物,二次元角色,18336,builtin
+kyuubi,九尾|九尾狐,人物,二次元角色,8198,builtin
+raccoon girl,浣熊娘,人物,二次元角色,10916,builtin
+wolf girl,狼女孩,人物,二次元角色,60423,builtin
+bunny girl,兔娘,人物,二次元角色,0,builtin
+horse girl,马娘,人物,二次元角色,230448,builtin
+cow girl,牛娘,人物,二次元角色,14826,builtin
+dragon girl,龙娘,人物,二次元角色,64156,builtin
+centaur,半人马,人物,二次元角色,3024,builtin
+slime musume,史莱姆娘,人物,二次元角色,0,builtin
+spider girl,蜘蛛娘,人物,二次元角色,3358,builtin
+dominatrix,女王(SM中),人物,二次元角色,3135,builtin
+sailor senshi,美少女战士,人物,二次元角色,0,builtin
+mecha,机甲,人物,二次元角色,55599,builtin
+mecha musume,机甲娘,人物,二次元角色,15868,builtin
+humanoid robot,类人机器人,人物,二次元角色,10408,builtin
+cyborg,半机械人,人物,二次元角色,13125,builtin
+angel,天使,人物,二次元角色,30604,builtin
+devil,魔鬼,人物,二次元角色,0,builtin
+dark elf,暗精灵,人物,二次元角色,9790,builtin
+imp,小恶魔,人物,二次元角色,248,builtin
+succubus,魅魔,人物,二次元角色,0,builtin
+giantess,女巨人,人物,二次元角色,12232,builtin
+minigirl,迷你女孩,人物,二次元角色,33226,builtin
+monster,怪物,人物,二次元角色,43254,builtin
+no humans,非人,人物,二次元角色,235994,builtin
+toddler,幼童,人物,年龄,917,builtin
+kindergartener,幼儿园,人物,年龄,0,builtin
+child,儿童,人物,年龄,79208,builtin
+underage,未成年,人物,年龄,0,builtin
+teenager,青少年(13-19),人物,年龄,0,builtin
+teen,青少年(13-19),人物,年龄,0,builtin
+early teen,青少年早期（11-15）,人物,年龄,0,builtin
+adult,大人,人物,年龄,0,builtin
+elder,老人,人物,年龄,0,builtin
+old,老年,人物,年龄,18671,builtin
+white skin,白皮肤,人物,皮肤,63820,builtin
+pale skin,苍白的皮肤,人物,皮肤,73830,builtin
+fair skin,白皙的皮肤,人物,皮肤,0,builtin
+brown skin,棕色皮肤,人物,皮肤,0,builtin
+deep skin,深色皮肤,人物,皮肤,26725,builtin
+dark skin,黑皮肤,人物,皮肤,408386,builtin
+black skin,黑皮肤,人物,皮肤,14814,builtin
+shiny skin,有光泽的皮肤,人物,皮肤,157771,builtin
+white marble glowing skin,白色大理石发光皮肤,人物,皮肤,0,builtin
+tattoo,纹身,人物,皮肤,211796,builtin
+tan,日晒,人物,皮肤,78870,builtin
+tanlines,日晒痕迹,人物,皮肤,41643,builtin
+oil,油性,人物,皮肤,0,builtin
+skinny,骨感,人物,身材,11534,builtin
+plump,丰满,人物,身材,44178,builtin
+curvy,魔鬼身材,人物,身材,76813,builtin
+pregnant,怀孕,人物,身材,13956,builtin
+fat,肥胖,人物,身材,19893,builtin
+thin,瘦,人物,身材,0,builtin
+slender,苗条,人物,身材,0,builtin
+glamor,魅力,人物,身材,0,builtin
+tall,高大,人物,身材,0,builtin
+petite,娇小,人物,身材,30946,builtin
+chibi,萌萌,人物,身材,380384,builtin
+muscular,肌肉,人物,身材,198337,builtin
+slender face,瘦脸,人物,脸型,0,builtin
+round face,圆脸,人物,脸型,0,builtin
+oval face,鹅蛋脸,人物,脸型,0,builtin
+baby face,娃娃脸,人物,脸型,0,builtin
+inverted triangle face,倒三角脸,人物,脸型,0,builtin
+heart shaped face,心形脸,人物,脸型,0,builtin
+diamond face,菱形脸,人物,脸型,0,builtin
+square face,方脸,人物,脸型,0,builtin
+long face,长脸,人物,脸型,75,builtin
+triangular face,三角脸,人物,脸型,0,builtin
+white hair,白色头发,人物,头发,1045572,builtin
+blonde hair,金色头发,人物,头发,2173814,builtin
+silver hair,银色头发,人物,头发,0,builtin
+grey hair,灰色头发,人物,头发,1029250,builtin
+purple hair,紫色头发,人物,头发,916652,builtin
+red hair,红色头发,人物,头发,736931,builtin
+yellow hair,黄色头发,人物,头发,0,builtin
+green hair,绿色头发,人物,头发,593348,builtin
+blue hair,蓝色头发,人物,头发,1203265,builtin
+black hair,黑色头发,人物,头发,2204431,builtin
+brown hair,棕色头发,人物,头发,2090643,builtin
+straight hair,直发,人物,头发,102122,builtin
+short hair,短发,人物,头发,3134561,builtin
+curly hair,卷发,人物,头发,47548,builtin
+long hair,长发,人物,头发,6214525,builtin
+pony-tail,马尾,人物,头发,0,builtin
+bunches,双马尾,人物,头发,0,builtin
+streaked hair,挑染,人物,头发,437906,builtin
+grey gradient hair,灰色渐变,人物,头发,0,builtin
+light brown hair,亮棕,人物,头发,0,builtin
+two-tone hair,双色,人物,头发,402923,builtin
+multicolored hair,五颜六色,人物,头发,1190997,builtin
+high ponytail,高马尾,人物,头发,127836,builtin
+twintails,双马尾二,人物,头发,1238108,builtin
+braided ponytail,马尾编发,人物,头发,54207,builtin
+ponytail,马尾辫,人物,头发,967157,builtin
+short ponytail,短马尾,人物,头发,48603,builtin
+twin braids,双辫子,人物,头发,249395,builtin
+medium hair,中发,人物,头发,642743,builtin
+very long hair,超长发,人物,头发,1416409,builtin
+braided bangs,辫子刘海,人物,头发,18029,builtin
+swept bangs,侧扫刘海,人物,头发,0,builtin
+hair between eyes,眼间头发,人物,头发,1789398,builtin
+bob cut,妹妹切,人物,头发,0,builtin
+hime cut,公主切,人物,头发,31789,builtin
+crossed bangs,交叉刘海,人物,头发,108702,builtin
+bangs,刘海,人物,头发,0,builtin
+blunt bangs,齐刘海,人物,头发,430011,builtin
+air bangs,空气刘海,人物,头发,0,builtin
+hair wings,翼状头发,人物,头发,1268,builtin
+long bangs,长刘海,人物,头发,47712,builtin
+side blunt bangs,侧面空气刘海,人物,头发,0,builtin
+centre parting bangs,中分刘海,人物,头发,0,builtin
+asymmetric bangs,不对称刘海,人物,头发,0,builtin
+disheveled hair,蓬发,人物,头发,0,builtin
+wavy hair,波浪形头发,人物,头发,149774,builtin
+hair in takes,收拢,人物,头发,0,builtin
+hair pink flowers,粉色花,人物,头发,0,builtin
+ahoge,呆毛,人物,头发,974441,builtin
+antenna hair,多根呆毛,人物,头发,128431,builtin
+Side ponytail,侧马尾,人物,头发,236055,builtin
+forehead,露额头,人物,头发,63030,builtin
+drill hair,钻头卷公主卷,人物,头发,131744,builtin
+hair bun,包子头,人物,头发,373252,builtin
+double bun,俩包子头,人物,头发,179052,builtin
+messy hair,凌乱发型,人物,头发,92104,builtin
+hair flaps,发翼,人物,头发,56735,builtin
+makeup,化妆,人物,面部,189542,builtin
+fundoshi,粉底,人物,面部,12350,builtin
+eyeshadow,眼影,人物,面部,73635,builtin
+lipstick,口红,人物,面部,75100,builtin
+mascara,睫毛膏,人物,面部,6273,builtin
+long eyelashes,长睫毛,人物,面部,12852,builtin
+red lips,红唇,人物,面部,40250,builtin
+facepaint,面部涂装,人物,面部,18253,builtin
+lipgloss,唇彩,人物,面部,1646,builtin
+colored eyelashes,彩色睫毛,人物,面部,58578,builtin
+blush,脸红,人物,面部,4105495,builtin
+light blush,淡淡的腮红,人物,面部,125707,builtin
+anime style blush,动画式脸红,人物,面部,0,builtin
+nose blush,鼻腮红,人物,面部,149144,builtin
+nosebleed,鼻血,人物,面部,18002,builtin
+bruise on face,脸上有瘀伤,人物,面部,4230,builtin
+facial mark,面部标记,人物,面部,152723,builtin
+forehead mark,额头标记,人物,面部,38918,builtin
+anger vein,头部愤怒符号,人物,面部,81846,builtin
+mole,痣,人物,面部,402686,builtin
+mole under eye,眼睛下方的痣,人物,面部,250417,builtin
+freckles,雀斑,人物,面部,71408,builtin
+food on face,食物在脸上,人物,面部,28952,builtin
+rice on face,饭在脸上,人物,面部,1452,builtin
+cream on face,奶油在脸上,人物,面部,1596,builtin
+mustache,小胡子,人物,面部,40522,builtin
+goatee,山羊胡,人物,面部,30869,builtin
+whisker markings,胡须斑纹,人物,面部,20365,builtin
+scar,疤痕,人物,面部,170925,builtin
+scar across eye,穿过眼睛的疤痕,人物,面部,40939,builtin
+smoking pipe,烟斗,人物,面部,13438,builtin
+elf ears,精灵耳朵,人物,耳朵,0,builtin
+fake animal ears,动物耳朵,人物,耳朵,237338,builtin
+cat ears,猫耳朵,人物,耳朵,409381,builtin
+dog ears,狗耳朵,人物,耳朵,91134,builtin
+fox ears,狐狸耳朵,人物,耳朵,218607,builtin
+bunny ears,兔子耳朵,人物,耳朵,0,builtin
+bear ears,熊耳朵,人物,耳朵,16045,builtin
+wolf ears,狼耳朵,人物,耳朵,116118,builtin
+horse ears,马耳朵,人物,耳朵,236224,builtin
+cow ears,牛耳朵,人物,耳朵,27623,builtin
+mouse ears,老鼠耳朵,人物,耳朵,35942,builtin
+pig ears,猪耳朵,人物,耳朵,1448,builtin
+sheep ears,羊耳朵,人物,耳朵,7303,builtin
+deer ears,鹿耳朵,人物,耳朵,7917,builtin
+goat ears,山羊耳朵,人物,耳朵,6203,builtin
+antelope ears,羚羊耳朵,人物,耳朵,242,builtin
+rhino ears,犀牛耳朵,人物,耳朵,0,builtin
+elephant ears,大象耳朵,人物,耳朵,318,builtin
+bat ears,蝙蝠耳朵,人物,耳朵,4762,builtin
+dragon ears,龙耳朵,人物,耳朵,1910,builtin
+demon ears,恶魔耳朵,人物,耳朵,0,builtin
+angel ears,天使耳朵,人物,耳朵,0,builtin
+alien ears,外星人耳朵,人物,耳朵,0,builtin
+ear blush,耳朵通红,人物,耳朵,19734,builtin
+ear ornament,耳饰,人物,耳朵,33451,builtin
+ear piercing,耳洞,人物,耳朵,108928,builtin
+animal ears,兽耳,人物,耳朵,1762524,builtin
+ears down,垂耳,人物,耳朵,9759,builtin
+floppy ears,松软的耳朵,人物,耳朵,18018,builtin
+animal ear fluff,动物耳朵绒毛,人物,耳朵,367030,builtin
+lion ears,狮子耳朵,人物,耳朵,15021,builtin
+jaguar ears,美洲豹耳朵,人物,耳朵,2538,builtin
+tiger ears,虎耳,人物,耳朵,25393,builtin
+coyote ears,郊狼耳朵,人物,耳朵,0,builtin
+pointy ears,尖耳朵,人物,耳朵,602820,builtin
+long pointy ears,长尖耳朵,人物,耳朵,39851,builtin
+raccoon ears,浣熊耳朵,人物,耳朵,20530,builtin
+squirrel ears,松鼠耳朵,人物,耳朵,6379,builtin
+panda ears,熊猫耳朵,人物,耳朵,3225,builtin
+robot ears,机器人耳朵,人物,耳朵,9714,builtin
+extra ears,额外的耳朵,人物,耳朵,90984,builtin
+ears through headwear,耳朵穿过帽子或头饰,人物,耳朵,20799,builtin
+alpaca ears,羊驼耳,人物,耳朵,1381,builtin
+horns,兽角,人物,耳朵,691598,builtin
+fake horns,假角,人物,耳朵,39562,builtin
+dragon horns,龙角,人物,耳朵,76525,builtin
+oni horns,鬼角,人物,耳朵,0,builtin
+antlers,鹿角,人物,耳朵,31923,builtin
+curled horns,弯角,人物,耳朵,27406,builtin
+goat horns,山羊角,人物,耳朵,16584,builtin
+hair on horn,角上的头发,人物,耳朵,3706,builtin
+thick eyebrows,浓眉,人物,眉毛,141396,builtin
+cocked eyebrow,眉毛翘起,人物,眉毛,737,builtin
+short eyebrows,短眉毛,人物,眉毛,42124,builtin
+v-shaped eyebrows,V字眉,人物,眉毛,266121,builtin
+blue eyes,蓝色眼睛,人物,眼睛,2473278,builtin
+red eyes,红色眼睛,人物,眼睛,1780833,builtin
+brown eyes,棕色眼睛,人物,眼睛,1092269,builtin
+green eyes,绿色眼睛,人物,眼睛,1196862,builtin
+purple eyes,紫色眼睛,人物,眼睛,1202229,builtin
+yellow eyes,黄色眼睛,人物,眼睛,1024289,builtin
+pink eyes,粉色眼睛,人物,眼睛,431926,builtin
+black eyes,黑色眼睛,人物,眼睛,341176,builtin
+aqua eyes,水蓝色眼睛,人物,眼睛,256330,builtin
+orange eyes,橙色眼睛,人物,眼睛,256576,builtin
+grey eyes,灰色眼睛,人物,眼睛,290247,builtin
+multicolored eyes,多彩眼睛,人物,眼睛,67362,builtin
+white eyes,白色眼睛,人物,眼睛,28037,builtin
+gradient eyes,渐变眼睛,人物,眼睛,13473,builtin
+closed eyes,闭上眼睛,人物,眼睛,1060739,builtin
+half-closed eyes,半闭眼,人物,眼睛,176271,builtin
+crying with eyes open,睁着眼睛哭,人物,眼睛,55730,builtin
+narrowed eyes,眯起眼睛,人物,眼睛,10764,builtin
+hidden eyes,隐藏眼睛,人物,眼睛,0,builtin
+heart-shaped eyes,心形眼睛,人物,眼睛,1738,builtin
+button eyes,纽扣眼睛,人物,眼睛,2822,builtin
+cephalopod eyes,头足类眼睛,人物,眼睛,2594,builtin
+eyes visible through hair,透过头发看见眼睛,人物,眼睛,104736,builtin
+glowing eyes,发光的眼睛,人物,眼睛,62555,builtin
+empty eyes,空洞的眼睛,人物,眼睛,50474,builtin
+rolling eyes,翻白眼,人物,眼睛,23204,builtin
+cross eyed,斗鸡眼,人物,眼睛,0,builtin
+blank eyes,空白的眼睛,人物,眼睛,18900,builtin
+no eyes,没有眼睛,人物,眼睛,14373,builtin
+sparkling eyes,闪闪发光的眼睛,人物,眼睛,18888,builtin
+extra eyes,额外的眼睛,人物,眼睛,14393,builtin
+crazy eyes,疯狂的眼睛,人物,眼睛,8746,builtin
+solid circle eyes,实心圆眼,人物,眼睛,12775,builtin
+solid oval eyes,实心椭圆形眼睛,人物,眼睛,14222,builtin
+uneven eyes,不均匀的眼睛,人物,眼睛,9833,builtin
+blood from eyes,眼里流血,人物,眼睛,5005,builtin
+red eyeshadow,红色眼影,人物,眼睛,21642,builtin
+blue eyeshadow,蓝色眼影,人物,眼睛,6008,builtin
+purple eyeshadow,紫色眼影,人物,眼睛,5895,builtin
+pink eyeshadow,粉色眼影,人物,眼睛,6547,builtin
+green eyeshadow,绿色眼影,人物,眼睛,1706,builtin
+bags under eyes,眼袋,人物,眼睛,43615,builtin
+ringed eyes,眼圈,人物,眼睛,40327,builtin
+covered eyes,蒙住眼睛,人物,眼睛,29053,builtin
+covering eyes,遮住眼睛,人物,眼睛,0,builtin
+shading eyes,挡着眼睛,人物,眼睛,4417,builtin
+devil eyes,魔鬼眼,人物,眼睛,0,builtin
+slit pupils,猫眼,人物,眼睛,92716,builtin
+bloodshot eyes,充血的眼睛,人物,眼睛,1976,builtin
+tsurime,眼尾上扬,人物,眼睛,65452,builtin
+tareme,眼尾下垂,人物,眼睛,58426,builtin
+constricted pupils,瞳孔收缩,人物,眼睛,20392,builtin
+devil pupils,魔瞳,人物,眼睛,0,builtin
+snake pupils,蛇瞳,人物,眼睛,0,builtin
+pupils sparkling,瞳孔闪烁,人物,眼睛,0,builtin
+flower-shaped pupils,花状瞳孔,人物,眼睛,12433,builtin
+heart-shaped pupils,心形瞳孔,人物,眼睛,120769,builtin
+heterochromia,异色瞳,人物,眼睛,173873,builtin
+color contact lenses,美瞳,人物,眼睛,0,builtin
+longeyelashes,长睫毛,人物,眼睛,0,builtin
+light eyes,明亮的眼睛,人物,眼睛,0,builtin
+glowing eye,发光的眼睛,人物,眼睛,15595,builtin
+shiny eyes,闪亮的眼睛,人物,眼睛,992,builtin
+anime style eyes,动画眼,人物,眼睛,0,builtin
+water eyes,水汪汪,人物,眼睛,0,builtin
+beautiful detailed eyes,美丽的眼睛,人物,眼睛,0,builtin
+solid circle pupils,Q版实心圆瞳孔,人物,眼睛,1753,builtin
+blush stickers,Q版腮红贴纸,人物,眼睛,159570,builtin
+heart in eye,心形眼,人物,眼睛,15193,builtin
+evil eyes,邪恶的眼睛,人物,眼睛,747,builtin
+hollow eyes,star-shaped_pupils,人物,眼睛,3615,builtin
+sanpaku,三白症(瞳孔偏移),人物,眼睛,16901,builtin
+mismatched sclera,错配巩膜,人物,眼睛,2408,builtin
+eye relfection,眼睛反射(没有效果,人物,眼睛,0,builtin
+mechanical eye,机械眼,人物,眼睛,0,builtin
+clock eyes,钟眼,人物,眼睛,1288,builtin
+compound eyes,复眼,人物,眼睛,2920,builtin
+fisheye,鱼眼,人物,眼睛,6802,builtin
+solid eyes,坚定的眼睛,人物,眼睛,3956,builtin
+sparkling anime eyes,闪光动画眼,人物,眼睛,0,builtin
+eye contact,眼神交流,人物,眼睛,69435,builtin
+eye of horus,荷鲁斯之眼,人物,眼睛,1925,builtin
+eyeball,眼球,人物,眼睛,25695,builtin
+eyeliner,眼线,人物,眼睛,45851,builtin
+eyes,眼睛,人物,眼睛,0,builtin
+glint,眼中闪现强烈的情感,人物,眼睛,38476,builtin
+half-closed eye,半闭的眼睛(单眼),人物,眼睛,11273,builtin
+horizontal pupils,NULL,人物,眼睛,7247,builtin
+jitome,轻蔑的眼神,人物,眼睛,49986,builtin
+light brown eyes,浅棕色眼睛,人物,眼睛,0,builtin
+one-eyed,反光的眼睛,人物,眼睛,17650,builtin
+reflective eyes,NULL,人物,眼睛,0,builtin
+silver eyes,银色的眼睛,人物,眼睛,0,builtin
+spiral eyes,漩涡眼,人物,眼睛,0,builtin
+third eye,第三只眼,人物,眼睛,13523,builtin
+flaming eye,焰目,人物,眼睛,4325,builtin
+eyes closed,闭眼,人物,眼睛,0,builtin
+half closed eyes,半闭双眼,人物,眼睛,0,builtin
+squinting,眯起眼睛看,人物,眼睛,2618,builtin
+tears,眼泪,人物,眼睛,295899,builtin
+sharp eyes,锐利的眼,人物,眼睛,0,builtin
+slanted eyes,锐利的眼,人物,眼睛,0,builtin
+upturned eyes,上翘的眼睛,人物,眼睛,6747,builtin
+cross-eyed,斗鸡眼,人物,眼睛,1642,builtin
+hair over eyes,头发遮着双眼,人物,眼睛,31655,builtin
+hair over one eye,头发遮住了一只眼睛,人物,眼睛,372071,builtin
+one eye covered,一只眼被遮住,人物,眼睛,73859,builtin
+eyepatch,眼罩,人物,眼睛,104434,builtin
+medical eyepatch,医用眼罩,人物,眼睛,9524,builtin
+no blindfold,去掉了(原设有的)蒙眼要素,人物,眼睛,2303,builtin
+no eyepatch,去掉了(原设有的)眼罩,人物,眼睛,1794,builtin
+ahegao,阿嘿颜,人物,眼睛,28630,builtin
+pupils,瞳孔,人物,瞳孔,0,builtin
+bright pupils,明亮的瞳孔,人物,瞳孔,153048,builtin
+symbol-shaped pupils,符号形瞳孔,人物,瞳孔,252264,builtin
+diamond-shaped pupils,钻石形状瞳孔,人物,瞳孔,16809,builtin
+star-shaped pupils,五角星形状瞳孔,人物,瞳孔,33851,builtin
+dilated pupils,瞳孔散大,人物,瞳孔,1071,builtin
+no pupils,没有瞳孔,人物,瞳孔,22848,builtin
+star in eye,眼睛里的星星,人物,瞳孔,13760,builtin
+x-shaped pupils,X形瞳孔,人物,瞳孔,8697,builtin
+dashed eyes,虚线的眼睛,人物,瞳孔,2542,builtin
+butterfly-shaped pupils,蝴蝶形瞳孔,人物,瞳孔,2042,builtin
+rectangular pupils,长方形瞳孔,人物,瞳孔,653,builtin
+square pupils,方形瞳孔,人物,瞳孔,1268,builtin
+dot pupils,点瞳孔,人物,瞳孔,409,builtin
+extra pupils,额外的瞳孔,人物,瞳孔,1271,builtin
+mismatched pupils,不匹配的瞳孔,人物,瞳孔,14069,builtin
++ +,十字星星眼,人物,瞳孔,0,builtin
+cross-shaped pupils,符号形瞳孔(没有效果,人物,瞳孔,19205,builtin
+purple pupils,紫色瞳孔,人物,瞳孔,3206,builtin
+orange pupils,橙色瞳孔,人物,瞳孔,2330,builtin
+blue pupils,橙色瞳孔,人物,瞳孔,9148,builtin
+symbol in eye,眼睛里有符号,人物,瞳孔,35008,builtin
+pointed nose,尖鼻子,人物,鼻子,0,builtin
+small nose,小鼻子,人物,鼻子,0,builtin
+big nose,大鼻子,人物,鼻子,0,builtin
+no nose,没鼻子的,人物,鼻子,30528,builtin
+dot nose,点状鼻,人物,鼻子,99365,builtin
+nose bubble,鼻泡,人物,鼻子,4460,builtin
+smelling,闻,人物,鼻子,7082,builtin
+nose,鼻子,人物,鼻子,33997,builtin
+snot,鼻涕,人物,鼻子,5758,builtin
+snout,动物口鼻部,人物,鼻子,10771,builtin
+chestnut mouth,栗子嘴,人物,嘴巴,18602,builtin
+thick lips,厚嘴唇,人物,嘴巴,4721,builtin
+puffy lips,肿嘴唇,人物,嘴巴,0,builtin
+heart-shaped mouth,心形嘴,人物,嘴巴,361,builtin
+pout,嘟嘴,人物,嘴巴,38237,builtin
+open mouth,张嘴,人物,嘴巴,3518246,builtin
+closed mouth,闭嘴,人物,嘴巴,1971894,builtin
+shark mouth,鲨鱼嘴,人物,嘴巴,0,builtin
+parted lips,张开的嘴,人物,嘴巴,745970,builtin
+mole under mouth,嘴下痣,人物,嘴巴,78257,builtin
+gasping,喘气（张大嘴）,人物,嘴巴,0,builtin
+Slightly open mouth,嘴巴微微张开,人物,嘴巴,0,builtin
+wavy mouth,波浪嘴,人物,嘴巴,102455,builtin
+close mouth,闭嘴,人物,嘴巴,0,builtin
+dot mouth,点嘴,人物,嘴巴,10929,builtin
+no mouth,没有嘴,人物,嘴巴,21953,builtin
+gag,堵嘴,人物,嘴巴,31934,builtin
+gnaw,啃,人物,嘴巴,0,builtin
+:3,猫嘴,人物,嘴巴,0,builtin
+:o,张嘴,人物,嘴巴,265254,builtin
+:>,V嘴,人物,嘴巴,0,builtin
+bit gag,勒住嘴,人物,嘴巴,4439,builtin
+cleave gag,被封住嘴,人物,嘴巴,2624,builtin
+covered mouth,蒙住的嘴,人物,嘴巴,30505,builtin
+extra mouth,有多张嘴巴,人物,嘴巴,2903,builtin
+hair in mouth,嘴里有头发,人物,嘴巴,0,builtin
+hair tie in mouth,将系头发的东西叼在嘴里,人物,嘴巴,7137,builtin
+homu,嘟嘴|抿嘴,人物,嘴巴,0,builtin
+lips,嘴唇,人物,嘴巴,179399,builtin
+mouth,嘴,人物,嘴巴,0,builtin
+mouth hold,用嘴叼着,人物,嘴巴,102079,builtin
+oral,用嘴,人物,嘴巴,120463,builtin
+pacifier,奶嘴,人物,嘴巴,3581,builtin
+Pouted lips,撅起的嘴唇,人物,嘴巴,0,builtin
+sideways mouth,把嘴画在侧脸,人物,嘴巴,11014,builtin
+spoon in mouth,嘴里含着勺子,人物,嘴巴,0,builtin
+triangle mouth,三角嘴,人物,嘴巴,22695,builtin
+saliva,唾液,人物,嘴巴,152647,builtin
+drooling,流口水,人物,嘴巴,80638,builtin
+mouth drool,嘴角画着口水滴形状的缺口,人物,嘴巴,14824,builtin
+teeth,牙齿,人物,牙齿,775442,builtin
+upper teeth,上牙,人物,牙齿,0,builtin
+fang,虎牙,人物,牙齿,455281,builtin
+skin fang,肤色虎牙,人物,牙齿,105225,builtin
+round teeth,圆齿,人物,牙齿,20051,builtin
+sharp teeth,锋利的牙齿,人物,牙齿,124367,builtin
+clenched teeth,咬紧牙关,人物,牙齿,106353,builtin
+tongue,舌头,人物,牙齿,557888,builtin
+buck teeth,龅牙,人物,牙齿,5013,builtin
+fang out,露出虎牙|露出尖牙,人物,牙齿,18474,builtin
+fangs,尖牙,人物,牙齿,157099,builtin
+spiked club,狼牙棒,人物,牙齿,2571,builtin
+tooth,牙,人物,牙齿,1160,builtin
+toothbrush,牙刷,人物,牙齿,5428,builtin
+tusks,象牙,人物,牙齿,6420,builtin
+:q,舌头放在上唇,人物,舌头,49758,builtin
+:p,舌头放在下唇,人物,舌头,0,builtin
+;p,眨眼舌头上伸,人物,舌头,0,builtin
+french kiss,舌吻|法式湿吻,人物,舌头,23496,builtin
+long tongue,长舌头,人物,舌头,9673,builtin
+oral invitation,迎接射精而伸出舌头,人物,舌头,2679,builtin
+tongue out,吐舌头,人物,舌头,421540,builtin
+uvula,小舌头|口盖垂|悬雍垂,人物,舌头,2286,builtin
+fingernails,手指甲,人物,指甲,276023,builtin
+toenails,脚趾甲,人物,指甲,74658,builtin
+nail polish,指甲油,人物,指甲,345463,builtin
+toenail polish,脚趾甲油,人物,指甲,39900,builtin
+black nails,黑指甲,人物,指甲,122062,builtin
+red nails,红指甲,人物,指甲,89205,builtin
+pink nails,粉色指甲,人物,指甲,75116,builtin
+long fingernails,长指甲,人物,指甲,55578,builtin
+nail,钉子|指甲,人物,指甲,0,builtin
+multicolored nails,多彩指甲,人物,指甲,13674,builtin
+nail art,美甲,人物,指甲,3549,builtin
+brown vest,棕色马甲,人物,指甲,16083,builtin
+bare shoulders,赤肩,人物,肩部,1399783,builtin
+collarbonea,锁骨,人物,肩部,0,builtin
+armpits,腋下,人物,肩部,333036,builtin
+armpit crease,腋窝皱痕,人物,肩部,40808,builtin
+chest,胸部,人物,胸部,0,builtin
+flat chest,贫乳(A_),人物,胸部,237643,builtin
+small breasts,小胸部(B),人物,胸部,718925,builtin
+medium breasts,中等胸部(C),人物,胸部,1217218,builtin
+big breasts,大胸部(D),人物,胸部,0,builtin
+huge breasts,巨乳(E),人物,胸部,328285,builtin
+gigantic breasts,超巨乳(F),人物,胸部,16404,builtin
+between breasts,两胸之间,人物,胸部,65078,builtin
+breasts apart,胸部分开,人物,胸部,62388,builtin
+hanging breasts,下垂,人物,胸部,28163,builtin
+bouncing breasts,晃动,人物,胸部,39230,builtin
+cleavage,乳沟,人物,胸部,1422933,builtin
+areola,乳晕,人物,胸部,0,builtin
+nipples,乳头,人物,胸部,1142268,builtin
+pectorals,胸肌,人物,胸部,130308,builtin
+large pectorals,大胸肌,人物,胸部,57198,builtin
+unbuttoned clothes,半露前胸,人物,胸部,0,builtin
+narrow waist,细腰,人物,腰部,16270,builtin
+slender waist,纤细的腰,人物,腰部,0,builtin
+midriff,腹部,人物,腹部,404574,builtin
+belly,肚子,人物,腹部,23510,builtin
+absolute territory,腹肌,人物,腹部,0,builtin
+inflation,隆起的腹部,人物,腹部,3708,builtin
+navel,肚脐,人物,腹部,1608351,builtin
+groin,腹股沟,人物,腹部,189202,builtin
+wings,翅膀,人物,翅膀,629064,builtin
+bat wings,蝙蝠翅膀,人物,翅膀,75567,builtin
+butterfly wings,蝴蝶翅膀,人物,翅膀,8321,builtin
+black wings,黑色之翼,人物,翅膀,70411,builtin
+demon wings,恶魔之翼,人物,翅膀,68087,builtin
+asymmetrical wings,不对称的翅膀,人物,翅膀,14296,builtin
+detached wings,不与本体相连的翅膀,人物,翅膀,16673,builtin
+fairy wings,妖精的翅膀,人物,翅膀,25924,builtin
+fake wings,仿造的翅膀,人物,翅膀,5068,builtin
+fiery wings,燃烧着的翅膀,人物,翅膀,1465,builtin
+insect wings,昆虫翅膀,人物,翅膀,14770,builtin
+large wings,大翅膀,人物,翅膀,0,builtin
+low wings,腰间的翅膀,人物,翅膀,45926,builtin
+mini wings,迷你翅膀,人物,翅膀,9396,builtin
+multicolored wings,有多种颜色的翅膀,人物,翅膀,10976,builtin
+multiple wings,多对翅膀,人物,翅膀,12654,builtin
+no wings,去掉了(原设有的)翅膀,人物,翅膀,0,builtin
+winged helmet,带翅膀的头盔,人物,翅膀,4757,builtin
+suit,西装,服饰,正装,106994,builtin
+tuxedo,燕尾服,服饰,正装,4238,builtin
+formal dress,礼服,服饰,正装,0,builtin
+evening gown,礼服,服饰,正装,6768,builtin
+canonicals,晚会礼服,服饰,正装,0,builtin
+cocktail dress,鸡尾酒连衣裙,服饰,正装,2551,builtin
+gown,女长服,服饰,正装,6625,builtin
+japanese clothes,和服,服饰,正装,530860,builtin
+kimono,和服,服饰,正装,343636,builtin
+sleeveless kimono,无袖和服,服饰,正装,10801,builtin
+short kimono,短和服,服饰,正装,18013,builtin
+print kimono,印花和服,服饰,正装,34071,builtin
+furisode,振袖(和服的一部份),服饰,正装,9961,builtin
+obi,衣带(和服用),服饰,正装,107738,builtin
+sash,饰带,服饰,正装,199934,builtin
+cheongsam,旗袍,服饰,正装,0,builtin
+china dress,旗袍,服饰,正装,0,builtin
+print cheongsam,印花旗袍,服饰,正装,0,builtin
+pelvic curtain,旗袍类衣物的前摆,服饰,正装,74784,builtin
+wedding dress,婚纱,服饰,正装,30759,builtin
+uchikake,白无垢(日式嫁衣),服饰,正装,2192,builtin
+school uniform,校服,服饰,正装,1058057,builtin
+sailor,水手服,服饰,正装,6701,builtin
+serafuku,水手服,服饰,正装,393860,builtin
+summer uniform,夏季制服,服饰,正装,51695,builtin
+kindergarten uniform,幼儿园制服,服饰,正装,6108,builtin
+police uniform,警服,服饰,正装,15497,builtin
+naval uniform,海军制服,服饰,正装,14294,builtin
+military uniform,陆军制服,服饰,正装,116175,builtin
+ss uniform/nazi uniform,纳粹制服,服饰,正装,0,builtin
+stile uniform,女侍从的制服,服饰,正装,930,builtin
+overalls,工作服,服饰,正装,34896,builtin
+business suit,职场制服,服饰,正装,8082,builtin
+chef uniform,厨师工装,服饰,正装,0,builtin
+labcoat,白大褂,服饰,正装,0,builtin
+band uniform,乐队制服,服饰,正装,1202,builtin
+space suit,宇航服,服饰,正装,0,builtin
+leotard,连衣裤,服饰,正装,316373,builtin
+domineering,修女服,服饰,正装,0,builtin
+chinese style,中国风,服饰,风格,0,builtin
+traditional clothes,传统服装|民族服装,服饰,风格,0,builtin
+hanten (clothes),袢缠(日式,服饰,风格,1855,builtin
+hanbok,韩服,服饰,风格,2887,builtin
+korean clothes,朝鲜服饰,服饰,风格,5525,builtin
+western,西部风格,服饰,风格,0,builtin
+german clothes,德国服装,服饰,风格,3481,builtin
+gothic,哥特风格,服饰,风格,0,builtin
+lolita,洛丽塔风格,服饰,风格,0,builtin
+gothic lolita,哥特洛丽塔风格,服饰,风格,23545,builtin
+byzantine fashion,拜占庭风格,服饰,风格,0,builtin
+Tropical,热带特征的,服饰,风格,553,builtin
+indian style,印度风格,服饰,风格,21189,builtin
+Ao Dai,越南校服（奥黛）,服饰,风格,1653,builtin
+ainu clothes,阿伊努人的服饰,服饰,风格,3610,builtin
+arabian clothes,阿拉伯服饰,服饰,风格,5230,builtin
+egyptian clothes,埃及风格服饰,服饰,风格,0,builtin
+costume,套装,服饰,风格,0,builtin
+animal costume,动物系套装(皮套),服饰,风格,22504,builtin
+bunny costume,兔子服装,服饰,风格,0,builtin
+adapted costume,原设服装改编,服饰,风格,67096,builtin
+cat costume,猫系服装,服饰,风格,1735,builtin
+dog costume,皮套狗,服饰,风格,624,builtin
+bear costume,熊套装,服饰,风格,1767,builtin
+embellished costume,经润饰的服装,服饰,风格,2381,builtin
+santa costume,圣诞风格服装,服饰,风格,45447,builtin
+halloween costume,万圣节服装,服饰,风格,24792,builtin
+kourindou tengu costume,香霖堂天狗装束,服饰,风格,1918,builtin
+alternate costume,与原设不同衣服,服饰,风格,647240,builtin
+costume switch,换衣play,服饰,风格,10524,builtin
+meme attire,模因服装,服饰,风格,0,builtin
+casual,休闲,服饰,休闲装,65692,builtin
+loungewear,休闲服,服饰,休闲装,2920,builtin
+hoodie,卫衣,服饰,休闲装,199158,builtin
+homewear,居家服,服饰,休闲装,0,builtin
+pajamas,睡衣,服饰,休闲装,40907,builtin
+nightgown,睡衣,服饰,休闲装,13273,builtin
+sleepwear,睡衣,服饰,休闲装,6860,builtin
+babydoll,情趣睡衣,服饰,休闲装,15259,builtin
+print pajamas,印花睡衣,服饰,休闲装,989,builtin
+polka dot pajamas,波点睡衣,服饰,休闲装,1654,builtin
+yukata,浴衣,服饰,休闲装,32248,builtin
+chinese clothes,唐装,服饰,休闲装,163260,builtin
+hanfu,汉服,服饰,休闲装,24778,builtin
+Taoist robe,道袍,服饰,休闲装,0,builtin
+robe,长袍,服饰,休闲装,68438,builtin
+robe of blending,混合长袍,服饰,休闲装,0,builtin
+cloak,斗篷,服饰,休闲装,79714,builtin
+hooded cloak,连帽斗篷,服饰,休闲装,19251,builtin
+winter clothes,冬装,服饰,休闲装,27251,builtin
+down jacket,羽绒服,服饰,休闲装,1830,builtin
+santa,圣诞装,服饰,休闲装,0,builtin
+harem outfit,舞娘服,服饰,休闲装,6572,builtin
+shrug (clothing),耸肩（服装）,服饰,休闲装,47751,builtin
+sportswear,运动服,服饰,运动服,33660,builtin
+gym uniform,运动服,服饰,运动服,42301,builtin
+athletic leotard,体操服,服饰,运动服,2212,builtin
+tennis uniform,网球衫,服饰,运动服,3482,builtin
+baseball uniform,棒球服,服饰,运动服,5204,builtin
+letterman jacket,棒球夹克,服饰,运动服,7122,builtin
+volleyball uniform,排球服,服饰,运动服,3504,builtin
+biker clothes,自行车运动服,服饰,运动服,3923,builtin
+bikesuit,骑行套装,服饰,运动服,2944,builtin
+wrestling outfit,摔角服,服饰,运动服,4190,builtin
+dougi,武道服,服饰,运动服,0,builtin
+swimsuit,泳装,服饰,泳装,921749,builtin
+swimwear,泳衣,服饰,泳装,0,builtin
+wet swimsuit,湿泳衣,服饰,泳装,5396,builtin
+school swimsuit,学校泳装（死库水）,服饰,泳装,75890,builtin
+new school swimsuit,新式死库水,服饰,泳装,1956,builtin
+old school swimsuit,旧式死库水,服饰,泳装,9817,builtin
+competition school swimsuit,竞泳死库水,服饰,泳装,10344,builtin
+competition swimsuit,赛用泳衣,服饰,泳装,38563,builtin
+casual one-piece swimsuit,连体泳衣,服饰,泳装,15803,builtin
+front zipper swimsuit,拉链在正面的泳衣,服饰,泳装,0,builtin
+highleg swimsuit,高开衩的泳衣,服饰,泳装,0,builtin
+one-piece swimsuit,一体式泳衣,服饰,泳装,187643,builtin
+swimsuit of perpetual summer,常夏的泳衣(fgo学妹灵衣),服饰,泳装,0,builtin
+bikini,比基尼,服饰,泳装,702913,builtin
+highleg bikini,高腰比基尼,服饰,泳装,23698,builtin
+lowleg bikini,低腰比基尼,服饰,泳装,6112,builtin
+slingshot swimsuit,V字泳衣,服饰,泳装,17669,builtin
+sailor bikini,水手服款比基尼,服饰,泳装,4518,builtin
+shell bikini,贝壳比基尼,服饰,泳装,2333,builtin
+sports bikini,运动比基尼,服饰,泳装,3571,builtin
+string bikini,系绳比基尼,服饰,泳装,68429,builtin
+strapless bikini,无肩带比基尼,服饰,泳装,8309,builtin
+side-tie bikini,细带款比基尼,服饰,泳装,0,builtin
+front-tie bikini top,前系带比基尼上衣,服饰,泳装,33891,builtin
+multi-strapped bikini,多绑带比基尼,服饰,泳装,0,builtin
+thong bikini,丁字裤比基尼,服饰,泳装,9797,builtin
+front-tie bikini,从正面打结的比基尼,服饰,泳装,0,builtin
+frilled bikini,花边比基尼,服饰,泳装,53379,builtin
+o-ring bikini,带O型环的比基尼,服饰,泳装,17175,builtin
+eyepatch bikini,眼罩比基尼,服饰,泳装,6987,builtin
+layered bikini,分层比基尼,服饰,泳装,6346,builtin
+bow bikini,带蝴蝶结的比基尼,服饰,泳装,5250,builtin
+frilled swimsuit,花边泳衣,服饰,泳装,0,builtin
+polka dot swimsuit,圆斑泳衣,服饰,泳装,1766,builtin
+striped swimsuit,条纹泳衣,服饰,泳装,0,builtin
+striped bikini,条纹比基尼,服饰,泳装,35037,builtin
+plaid bikini,格子比基尼,服饰,泳装,4194,builtin
+polka dot bikini,圆斑比基尼,服饰,泳装,6180,builtin
+print bikini,印花比基尼,服饰,泳装,38450,builtin
+american flag bikini,美国国旗比基尼,服饰,泳装,6395,builtin
+german flag bikini,德国国旗比基尼,服饰,泳装,908,builtin
+impossible swimsuit,人体彩绘般的泳衣,服饰,泳装,3075,builtin
+bikini top,只穿着比基尼上衣,服饰,泳装,0,builtin
+bikini top only,仅比基尼上衣,服饰,泳装,43762,builtin
+bikini top removed,脱下了比基尼上衣,服饰,泳装,0,builtin
+bikini bottom only,仅比基尼下装,服饰,泳装,11862,builtin
+bikini bottom,比基尼泳裤,服饰,泳装,0,builtin
+untied bikini,解开的比基尼,服饰,泳装,9754,builtin
+bikini aside,从三点剥开的比基尼,服饰,泳装,0,builtin
+swimsuit aside,把泳衣的裆部挪到一边,服饰,泳装,7211,builtin
+swimsuit under clothes,衣服里面穿着泳衣,服饰,泳装,19027,builtin
+torn swimsuit,破损的泳衣,服饰,泳装,1495,builtin
+bikini skirt,比基尼裙,服饰,泳装,19833,builtin
+swim briefs,泳裤,服饰,泳装,3251,builtin
+swim cap,泳帽,服饰,泳装,1658,builtin
+swim trunks,泳裤,服饰,泳装,6262,builtin
+male swimwear,男用泳裤,服饰,泳装,13221,builtin
+adapted uniform,改装制服,服饰,制服,1194,builtin
+anzio military uniform,安齐奥军服,服饰,制服,1173,builtin
+anzio school uniform,安齐奥校服,服饰,制服,2509,builtin
+aria company uniform,亚利亚公司制服,服饰,制服,1565,builtin
+ashford academy uniform,阿什福特学院制服,服饰,制服,0,builtin
+bc freedom military uniform,BC自由学园制服,服饰,制服,1343,builtin
+chaldea uniform,迦勒底制服,服饰,制服,3203,builtin
+chi-hatan military uniform,知波单学院制服,服饰,制服,992,builtin
+fleur de lapin uniform,点兔女仆装,服饰,制服,1252,builtin
+garreg mach monastery uniform,加尔格·马可大修道院制服,服饰,制服,7937,builtin
+gem uniform (houseki no kuni),宝石之国的制服,服饰,制服,3872,builtin
+hanasakigawa school uniform,花咲川女子学园,服饰,制服,4218,builtin
+hikarizaka private high school uniform,私立光坂高等学校校服,服饰,制服,2897,builtin
+homurahara academy uniform,穗群原学园制服,服饰,制服,0,builtin
+kamiyama high school uniform,神山高中校服,服饰,制服,0,builtin
+keizoku military uniform,继续高中军服,服饰,制服,1548,builtin
+kita high school uniform,北高中制服,服饰,制服,13434,builtin
+kiyosumi school uniform,清澄高中校服,服饰,制服,1522,builtin
+luna nova school uniform,鲁纳诺娃魔法学校校服,服饰,制服,1259,builtin
+meiji schoolgirl uniform,明治女学生制服,服饰,制服,3738,builtin
+mitakihara school uniform,见泷原中学校制服,服饰,制服,13864,builtin
+nami junior high school uniform,波路中学校服,服饰,制服,558,builtin
+nanairogaoka middle school uniform,七色丘中学校服,服饰,制服,1457,builtin
+nanamori school uniform,七森中学校服,服饰,制服,4558,builtin
+naoetsu high school uniform,私立直江津高校制服,服饰,制服,4065,builtin
+national shin ooshima school uniform,新大岛学园校服,服饰,制服,521,builtin
+ooarai military uniform,大洗联队军装,服饰,制服,2908,builtin
+ooarai school uniform,大洗联队校服,服饰,制服,10414,builtin
+otonokizaka school uniform,国立音乃木坂学院女子制服,服饰,制服,8593,builtin
+paradis military uniform,帕拉迪岛军装,服饰,制服,4243,builtin
+polar chaldea uniform,极地迦勒底制服,服饰,制服,0,builtin
+pravda military uniform,真理学院军装,服饰,制服,1004,builtin
+pravda school uniform,真理学院校服,服饰,制服,1440,builtin
+rabbit house uniform,点兔兔之家制服,服饰,制服,2267,builtin
+raimon soccer uniform,雷门足球队服,服饰,制服,1076,builtin
+ryouou school uniform,陵樱学园制服,服饰,制服,5581,builtin
+sailor senshi uniform,美少女战士制服,服饰,制服,10125,builtin
+sakugawa school uniform,栅川中学校服,服饰,制服,2054,builtin
+sakuragaoka high school uniform,樱丘女子高等学校校服,服饰,制服,10908,builtin
+saunders military uniform,桑德斯军装,服饰,制服,1327,builtin
+saunders school uniform,桑德斯附高校服,服饰,制服,945,builtin
+seishou elementary school uniform,圣祥大附小学校校服,服饰,制服,748,builtin
+shinda sekai sensen uniform,死后世界战线制服,服饰,制服,2113,builtin
+shuuchiin academy uniform,秀知院学园制服,服饰,制服,0,builtin
+shuujin academy uniform,秀尽学院制服,服饰,制服,0,builtin
+st. gloriana's military uniform,圣葛罗莉安娜军装,服饰,制服,2702,builtin
+st. gloriana's school uniform,圣葛罗莉安娜女学园校服,服饰,制服,3156,builtin
+starlight academy uniform,星光学园制服,服饰,制服,0,builtin
+tokisadame school uniform,时定高校校服,服饰,制服,1258,builtin
+tokiwadai school uniform,常盘台中学校服,服饰,制服,8801,builtin
+tomoeda elementary school uniform,友枝小学校服,服饰,制服,2276,builtin
+tsab ground military uniform,时空管理局军服,服饰,制服,865,builtin
+u.a. school uniform,雄英高中校服,服饰,制服,2646,builtin
+uranohoshi school uniform,浦之星女学院校服,服饰,制服,5169,builtin
+yasogami school uniform,八十神高中校服,服饰,制服,3839,builtin
+mismatched bikini,双色比基尼,服饰,制服,5265,builtin
+multicolored bikini,多色款比基尼,服饰,制服,11262,builtin
+blouse,女式衬衫,服饰,上衣,50242,builtin
+white shirt,白衬衫,服饰,上衣,1419179,builtin
+collared shirt,有领衬衫,服饰,上衣,766138,builtin
+dress shirt,西服衬衫,服饰,上衣,166546,builtin
+sailor shirt,水手服衬衫,服饰,上衣,38256,builtin
+cropped shirt,短衬衫,服饰,上衣,46034,builtin
+t-shirt,T恤,服饰,上衣,100156,builtin
+casual T-shirts,日常T恤,服饰,上衣,0,builtin
+short sleeve T-shirts,短袖T恤,服饰,上衣,0,builtin
+off-shoulder shirt,露肩衬衫(搭肩衫),服饰,上衣,36538,builtin
+cardigan,开襟毛衣衫,服饰,上衣,128305,builtin
+criss-cross halter,交叉吊带衫,服饰,上衣,34112,builtin
+frilled shirt,褶边衬衫,服饰,上衣,37675,builtin
+sweatshirt,长袖运动卫衣,服饰,上衣,0,builtin
+hawaiian shirt,夏威夷衫,服饰,上衣,4464,builtin
+Impossible shirt,贴合程度不合逻辑的衬衫,服饰,上衣,6934,builtin
+kappougi,(烹饪时穿的)罩衫,服饰,上衣,3005,builtin
+plaid shirt,格子衬衫,服饰,上衣,12604,builtin
+polo shirt,马球衫,服饰,上衣,3907,builtin
+print shirt,印花衬衫,服饰,上衣,28819,builtin
+shirt,衬衫,服饰,上衣,2946997,builtin
+sleeveless hoodie,无袖连帽衫,服饰,上衣,3219,builtin
+sleeveless shirt,无袖衬衫,服饰,上衣,229687,builtin
+striped shirt,条纹衬衫,服饰,上衣,51523,builtin
+tank top,背心(居家),服饰,上衣,123534,builtin
+vest,背心(正式),服饰,上衣,324190,builtin
+waistcoat,背心(正式),服饰,上衣,10536,builtin
+camisole,吊帶背心(小可愛),服饰,上衣,67791,builtin
+tied shirt,系带衬衫(把衣角和下擺打结),服饰,上衣,21870,builtin
+undershirt,汗衫,服饰,上衣,26590,builtin
+crop top,截短上衣,服饰,上衣,285357,builtin
+highleg,高开衩的衣物,服饰,上衣,167396,builtin
+clothing cutout,衣服漏洞,服饰,上衣,267952,builtin
+back cutout,露背上衣,服饰,上衣,9792,builtin
+cleavage cutout,乳沟处开洞,服饰,上衣,122504,builtin
+navel cutout,肚脐开洞,服饰,上衣,20973,builtin
+heart cutout,心形开口,服饰,上衣,15884,builtin
+torn clothes,撕裂的衣服,服饰,上衣,212647,builtin
+torn shirt,撕裂的衬衫,服饰,上衣,17382,builtin
+undressing,脱衣服中,服饰,上衣,68914,builtin
+clothes down,褪下衣物,服饰,上衣,4440,builtin
+shirt lift,掀起衬衫,服饰,上衣,109552,builtin
+shirt pull,衬衫拉下来,服饰,上衣,13102,builtin
+shirt tucked in,衬衫塞进去,服饰,上衣,57818,builtin
+clothes tug,拖拽衣服,服饰,上衣,1780,builtin
+shirt tug,拖拽衬衫,服饰,上衣,4910,builtin
+untucked shirt,解开的衬衫,服饰,上衣,5697,builtin
+lifted by self,掀自己衣服,服饰,上衣,0,builtin
+untied,掀自己衣服,服饰,上衣,0,builtin
+open clothes,敞开的衣服,服饰,上衣,755603,builtin
+unbuttoned shirt,解开纽扣的衬衫,服饰,上衣,7632,builtin
+button gap,纽扣之间的缝隙(没解开,服饰,上衣,12141,builtin
+partially unbuttoned,解开部分纽扣,服饰,上衣,25109,builtin
+partially unzipped,拉开上部分拉链,服饰,上衣,12633,builtin
+clothes removed,脱下的衣服,服饰,上衣,0,builtin
+shirt removed,脱下衬衫,服饰,上衣,0,builtin
+wardrobe error,衣服滑落,服饰,上衣,830,builtin
+undersized clothes,穿衣方式错了,服饰,上衣,5359,builtin
+tight,衣物紧紧的,服饰,上衣,0,builtin
+wedgie,嵌入(拉裆部衣物所致),服饰,上衣,19018,builtin
+wardrobe malfunction,衣服出了意外(如崩开),服饰,上衣,11523,builtin
+taut shirt,绷紧的衬衫,服饰,上衣,8670,builtin
+taut clothes,绷紧的衣服,服饰,上衣,21976,builtin
+underbust,勒出下胸围,服饰,上衣,27130,builtin
+oversized clothes,过大号的衣服,服饰,上衣,18589,builtin
+oversized shirt,过大号衬衫,服饰,上衣,6705,builtin
+borrowed garments,男友的衣服,服饰,上衣,0,builtin
+strap slip,衣物吊带滑落(导致走光),服饰,上衣,0,builtin
+wet shirt,湿衬衫,服饰,上衣,21520,builtin
+clothes theft,偷衣服,服饰,上衣,1058,builtin
+blazer,西装外套,服饰,外套,98347,builtin
+overcoat,大衣,服饰,外套,2358,builtin
+double-breasted,双排纽扣(双排扣,服饰,外套,41538,builtin
+long coat,长外套,服饰,外套,12076,builtin
+haori,一种宽上衣,服饰,外套,28194,builtin
+winter coat,冬季大衣,服饰,外套,9212,builtin
+hooded coat,连帽大衣,服饰,外套,15731,builtin
+fur coat,皮草大衣,服饰,外套,5024,builtin
+fur-trimmed coat,镶边皮草大衣,服饰,外套,25254,builtin
+duffel coat,粗呢大衣,服饰,外套,2363,builtin
+fishnet top,渔网上衣,服饰,外套,5709,builtin
+parka,派克大衣,服饰,外套,1332,builtin
+jacket,夹克衫,服饰,外套,1495650,builtin
+jacket partially removed,夹克部分移除,服饰,外套,19258,builtin
+jacket removed,夹克被移除,服饰,外套,0,builtin
+open jacket,开襟夹克(配合spread_legs),服饰,外套,381629,builtin
+cropped jacket,短款夹克,服饰,外套,79790,builtin
+track jacket,运动夹克,服饰,外套,56593,builtin
+hooded track jacket,连帽运动夹克,服饰,外套,1290,builtin
+military jacket,军装夹克,服饰,外套,12502,builtin
+camouflage jacket,迷彩夹克,服饰,外套,3210,builtin
+leather jacket,皮夹克,服饰,外套,10939,builtin
+bomber jacket,飞行员夹克,服饰,外套,4209,builtin
+denim jacket,牛仔夹克,服饰,外套,3015,builtin
+loating jacket,休闲夹克,服饰,外套,0,builtin
+fur-trimmed jacket,毛皮边饰夹克,服饰,外套,39895,builtin
+two-tone jacket,两色夹克,服饰,外套,18163,builtin
+trench coat,风衣,服饰,外套,8288,builtin
+windbreaker,冲锋衣,服饰,外套,178,builtin
+raincoat,雨衣,服饰,外套,6483,builtin
+hagoromo,羽衣,服饰,外套,7417,builtin
+tunic,束腰外衣,服饰,外套,19105,builtin
+cape,披肩,服饰,外套,304111,builtin
+capelet,披肩,服饰,外套,178259,builtin
+sweater,毛衣,服饰,外套,306007,builtin
+pullover sweaters,套頭毛衣,服饰,外套,0,builtin
+ribbed sweater,罗纹毛衣,服饰,外套,48364,builtin
+sweater vest,毛衣背心,服饰,外套,67092,builtin
+backless sweater,露背毛衣,服饰,外套,98,builtin
+aran sweater,爱尔兰毛衣,服饰,外套,5646,builtin
+beige sweater,米色毛衣,服饰,外套,0,builtin
+brown sweater,棕色毛衣,服饰,外套,21031,builtin
+hooded sweater,连帽毛衣,服饰,外套,2854,builtin
+off-shoulder sweater,露肩毛衣,服饰,外套,19780,builtin
+striped sweater,条纹毛衣,服饰,外套,4864,builtin
+virgin killer sweater,处男杀手毛衣,服饰,外套,6118,builtin
+puffer jacket,羽绒服,服饰,外套,0,builtin
+transparent,透明的,服饰,其他,14426,builtin
+burnt clothes,烧焦的衣服,服饰,其他,2216,builtin
+dissolving clothes,溶解掉的衣服,服饰,其他,1075,builtin
+dirty clothes,弄脏的衣服,服饰,其他,5280,builtin
+expressive clothes,富有表现力的衣服,服饰,其他,1717,builtin
+impossible clothes,有不现实的包裹程度的衣服,服饰,其他,38551,builtin
+living clothes,活体衣服,服饰,其他,1953,builtin
+leotard under clothes,内层穿着连衣裤,服饰,其他,10545,builtin
+multicolored clothes,多色款衣服,服饰,其他,5162,builtin
+ofuda on clothes,衣服上贴着符纸,服饰,其他,4777,builtin
+wringing clothes,拧干衣服,服饰,其他,1548,builtin
+clothesline,晒衣服,服饰,其他,1437,builtin
+shiny clothes,有光泽的衣服,服饰,其他,32662,builtin
+kariginu,狩衣,服饰,其他,11291,builtin
+front-tie top,从正面打结的衣物,服饰,其他,53324,builtin
+jacket on shoulders,用夹克披肩,服饰,其他,33979,builtin
+short jumpsuit,短裤腿连体衣,服饰,其他,2401,builtin
+harness,背带；挽具,服饰,其他,25493,builtin
+rigging,舰装,服饰,其他,33603,builtin
+aiguillette,肩带,服饰,其他,12079,builtin
+apron,围裙,服饰,腰部,309048,builtin
+waist apron,腰围裙,服饰,腰部,73175,builtin
+maid apron,女仆围裙,服饰,腰部,81163,builtin
+bow tied at the waist,系在前腰的蝴蝶结,服饰,腰部,0,builtin
+waist cape,穿在腰部的小披风,服饰,腰部,11982,builtin
+clothes around waist,腰间衣服,服饰,腰部,23353,builtin
+jacket around waist,腰围夹克,服饰,腰部,9145,builtin
+sweater around waist,围腰毛衣,服饰,腰部,4039,builtin
+loincloth,缠腰布,服饰,腰部,9833,builtin
+bustier,胸衣,服饰,腰部,7329,builtin
+corset,束腰(马甲),服饰,腰部,67203,builtin
+girdle,紧身褡,服饰,腰部,166,builtin
+armor,盔甲,服饰,盔甲,307204,builtin
+bikini armor,比基尼盔甲,服饰,盔甲,23782,builtin
+full armor,穿着全套盔甲的,服饰,盔甲,11172,builtin
+plate armor,板甲,服饰,盔甲,3656,builtin
+japanese armor,日本铠甲,服饰,盔甲,26861,builtin
+kusazuri,腹当|草摺(日式下半盔甲,服饰,盔甲,2539,builtin
+power armor,动力装甲,服饰,盔甲,8792,builtin
+helmet,头盔,服饰,盔甲,114519,builtin
+kabuto,头盔(日式),服饰,盔甲,0,builtin
+off-shoulder armor,無肩甲盔甲,服饰,盔甲,0,builtin
+shoulder armor,肩甲,服饰,盔甲,104167,builtin
+muneate,日本弓道護胸甲,服饰,盔甲,13877,builtin
+breastplate,胸甲,服饰,盔甲,41134,builtin
+faulds,腹甲,服饰,盔甲,10329,builtin
+greaves,胫甲,服饰,盔甲,13895,builtin
+shin guards,胫甲,服饰,盔甲,2784,builtin
+armored boots,装甲靴,服饰,盔甲,25091,builtin
+dress,连衣裙,服饰,裙子,1956310,builtin
+microdress,微型连衣裙,服饰,裙子,6985,builtin
+long dress,长连衣裙,服饰,裙子,51585,builtin
+off-shoulder dress,露肩连衣裙,服饰,裙子,45773,builtin
+strapless dress,无肩带连衣裙,服饰,裙子,77915,builtin
+backless dress,露背连衣裙,服饰,裙子,21116,builtin
+halter dress,绕颈露背吊带裙,服饰,裙子,14798,builtin
+sundress,吊帶連衣裙（大熱天穿的無袖連衣裙）,服饰,裙子,21919,builtin
+sleeveless dress,无袖连衣裙,服饰,裙子,232975,builtin
+sailor dress,水手服款裙子,服饰,裙子,50135,builtin
+summer dress,夏日长裙,服饰,裙子,0,builtin
+pinafore dress,围裙连衣裙,服饰,裙子,37046,builtin
+sweater dress,围裙连衣裙,服饰,裙子,12798,builtin
+armored dress,战甲裙,服饰,裙子,17933,builtin
+frilled dress,花边连衣裙,服饰,裙子,150962,builtin
+lace-trimmed dress,蕾丝边连衣裙,服饰,裙子,5820,builtin
+collared dress,有领连衣裙,服饰,裙子,51398,builtin
+fur-trimmed dress,毛皮镶边连衣裙,服饰,裙子,16019,builtin
+layered dress,分层连衣裙,服饰,裙子,24158,builtin
+pleated dress,百褶连衣裙,服饰,裙子,32779,builtin
+taut dress,绷紧的连衣裙,服饰,裙子,4106,builtin
+pencil dress,铅笔裙,服饰,裙子,4398,builtin
+impossible dress,过分紧身的衣服,服饰,裙子,4163,builtin
+multicolored dress,多色款连衣裙,服饰,裙子,15476,builtin
+striped dress,条纹连衣裙,服饰,裙子,21584,builtin
+checkered skirt,格子裙,服饰,裙子,6660,builtin
+plaid dress,格子连衣裙,服饰,裙子,10068,builtin
+ribbed dress,罗纹连衣裙,服饰,裙子,4858,builtin
+polka dot dress,波点连衣裙,服饰,裙子,3945,builtin
+print dress,印花连衣裙,服饰,裙子,15455,builtin
+vertical-striped dress,竖条纹连衣裙,服饰,裙子,11111,builtin
+see-through dress,透视连衣裙,服饰,裙子,9464,builtin
+skirt,短裙,服饰,裙子,2182846,builtin
+microskirt,超短裙,服饰,裙子,27755,builtin
+miniskirt,迷你裙,服饰,裙子,386802,builtin
+skirt suit,正装短裙,服饰,裙子,5735,builtin
+pleated skirt,百褶裙,服饰,裙子,711439,builtin
+pencil skirt,短铅笔裙,服饰,裙子,55322,builtin
+bubble skirt,蓬蓬裙,服饰,裙子,8998,builtin
+tutu,芭蕾舞裙,服饰,裙子,0,builtin
+ballgown,蓬蓬裙(禮服),服饰,裙子,0,builtin
+pettiskirt,蓬蓬裙(兒童),服饰,裙子,0,builtin
+showgirl skirt,展会女郎装束,服饰,裙子,15774,builtin
+Medium length skirt,中等长裙子,服饰,裙子,0,builtin
+beltskirt,皮带裙,服饰,裙子,0,builtin
+denim skirt,牛仔裙,服饰,裙子,6130,builtin
+suspender skirt,吊带裙,服饰,裙子,28988,builtin
+skirt set,与上衣搭配的短裙,服饰,裙子,66821,builtin
+long skirt,长裙,服饰,裙子,55551,builtin
+summer long skirt,夏日长裙,服饰,裙子,0,builtin
+overskirt,外裙,服饰,裙子,7207,builtin
+hakama skirt,袴裙,服饰,裙子,47109,builtin
+high-waist skirt,高腰裙,服饰,裙子,55045,builtin
+kimono skirt,和服裙,服饰,裙子,2126,builtin
+suspender long skirt,背带裙;吊带裙,服饰,裙子,0,builtin
+chiffon skirt,雪紡裙,服饰,裙子,0,builtin
+frilled skirt,花边裙子,服饰,裙子,117671,builtin
+fur-trimmed skirt,毛皮镶边短裙,服饰,裙子,4691,builtin
+lace skirt,蕾絲短裙,服饰,裙子,95,builtin
+lace-trimmed skirt,蕾丝边短裙,服饰,裙子,2637,builtin
+ribbon-trimmed skirt,缎带饰边短裙,服饰,裙子,6327,builtin
+layered skirt,分层的半裙,服饰,裙子,23395,builtin
+print skirt,印花短裙,服饰,裙子,11480,builtin
+multicolored skirt,多色款裙子,服饰,裙子,7991,builtin
+striped skirt,条纹裙,服饰,裙子,11020,builtin
+vertical-striped skirt,竖条纹裙子,服饰,裙子,4897,builtin
+plaid skirt,格子呢短裙,服饰,裙子,134364,builtin
+flared skirt,伞裙,服饰,裙子,0,builtin
+floral skirt,碎花裙,服饰,裙子,0,builtin
+skirt hold,优雅地提着裙子,服饰,与裙子互动,564,builtin
+skirt tug,扯住裙摆|按住裙摆,服饰,与裙子互动,4584,builtin
+dress tug,压住裙摆,服饰,与裙子互动,2881,builtin
+skirt lift,掀起裙子,服饰,与裙子互动,95128,builtin
+skirt around one leg,一条腿上挂着短裙,服饰,与裙子互动,3290,builtin
+skirt removed,脱下的短裙,服饰,与裙子互动,0,builtin
+dress removed,脱下裙子,服饰,与裙子互动,0,builtin
+open skirt,敞开的裙子,服饰,与裙子互动,3345,builtin
+dress bow,连衣裙上的蝴蝶结,服饰,裤子,16710,builtin
+dressing another,着装,服饰,裤子,1414,builtin
+shorts under skirt,短裙里穿着短裤,服饰,裤子,14821,builtin
+side slit,侧开衩,服饰,裤子,59807,builtin
+shorts,短裤,服饰,裤子,661860,builtin
+micro shorts,小尺寸短裤,服饰,裤子,18530,builtin
+short shorts,热裤,服饰,裤子,194026,builtin
+hot pants,热裤,服饰,裤子,0,builtin
+cutoffs,热裤,服饰,裤子,14904,builtin
+striped shorts,条纹短裤,服饰,裤子,5229,builtin
+suspender shorts,吊带短裤,服饰,裤子,5943,builtin
+denim shorts,牛仔短裤,服饰,裤子,49763,builtin
+puffy shorts,蓬蓬的短裤,服饰,裤子,4393,builtin
+dolphin shorts,海豚短褲(真理褲),服饰,裤子,17799,builtin
+dolfin shorts,海豚短褲(真理褲),服饰,裤子,0,builtin
+tight pants,紧身裤/运动裤,服饰,裤子,9985,builtin
+crotchless pants,无裆裤（紧身）,服饰,裤子,895,builtin
+track pants,运动裤,服饰,裤子,9983,builtin
+yoga pants,瑜伽裤,服饰,裤子,7182,builtin
+bike shorts,自行车短裤,服饰,裤子,64476,builtin
+gym shorts,体操短裤,服饰,裤子,7989,builtin
+pants,长裤,服饰,裤子,709431,builtin
+puffy pants,蓬松裤/宽松裤,服饰,裤子,3939,builtin
+pumpkin pants,南瓜裤,服饰,裤子,0,builtin
+hakama pants,袴裤,服饰,裤子,4313,builtin
+harem pants,哈伦裤,服饰,裤子,3062,builtin
+bloomers,灯笼裤,服饰,裤子,28459,builtin
+buruma,女式灯笼裤,服饰,裤子,40844,builtin
+jeans,牛仔裤,服饰,裤子,45221,builtin
+cargo pants,工装裤,服饰,裤子,2664,builtin
+camouflage pants,迷彩裤,服饰,裤子,3218,builtin
+capri pants,七分裤,服饰,裤子,5066,builtin
+chaps,皮套裤(上宽下窄,服饰,裤子,3674,builtin
+jumpsuit,(尤指女式)连衫裤,服饰,裤子,15310,builtin
+lowleg pants,低腰裤子,服饰,裤子,1796,builtin
+plaid pants,格子呢裤子,服饰,裤子,4682,builtin
+single pantsleg,单边长裤,服饰,裤子,3737,builtin
+striped pants,条纹裤,服饰,裤子,7515,builtin
+asymmetrical legwear,不对称的裤子,服饰,与裤子互动,56702,builtin
+leotard aside,把连衣裤裆部剥到一边,服饰,与裤子互动,9069,builtin
+open fly,解开的裤子拉链,服饰,与裤子互动,27559,builtin
+pants down,褪下裤子,服饰,与裤子互动,0,builtin
+pants rolled up,裤子卷起来,服饰,与裤子互动,2890,builtin
+pants tucked in,裤子塞进去,服饰,与裤子互动,2716,builtin
+torn jeans,破损的牛仔裤,服饰,与裤子互动,3903,builtin
+torn pants,破损的裤子,服饰,与裤子互动,15274,builtin
+torn shorts,破损的短裤,服饰,与裤子互动,6530,builtin
+bodystocking,全身袜,服饰,袜子,26253,builtin
+pantyhose,连裤袜|裤袜,服饰,袜子,738749,builtin
+leggings,裤袜,服饰,袜子,24402,builtin
+legwear,裤袜(泛指裤袜或长筒袜),服饰,袜子,0,builtin
+thighhighs,长筒袜(过膝高筒袜),服饰,袜子,1535062,builtin
+kneehighs,中筒袜,服饰,袜子,0,builtin
+socks,短袜,服饰,袜子,580623,builtin
+bare legs,裸腿,服饰,袜子,179974,builtin
+black bodystocking,连体黑丝,服饰,袜子,1115,builtin
+white bodystocking,连体白丝,服饰,袜子,141,builtin
+stocking under clothes,衣服下的袜子,服饰,袜子,0,builtin
+black pantyhose,黑丝裤袜,服饰,袜子,299814,builtin
+white pantyhose,白丝裤袜,服饰,袜子,91040,builtin
+thighband pantyhose,有腿环的裤袜,服饰,袜子,36814,builtin
+pantylines,紧致的裤袜(勾勒出线条,服饰,袜子,5392,builtin
+single leg pantyhose,单边穿着连裤袜,服饰,袜子,13102,builtin
+panties under pantyhose,裤袜里的内裤,服饰,袜子,35664,builtin
+fishnets,网袜(材质),服饰,袜子,93598,builtin
+stirrup legwear,渔网袜,服饰,袜子,15283,builtin
+toeless legwear,露趾袜,服饰,袜子,28481,builtin
+mismatched legwear,双色裤袜,服饰,袜子,22959,builtin
+two-tone legwear,双色裤袜,服饰,袜子,2040,builtin
+uneven legwear,长短袜,服饰,袜子,19539,builtin
+white thighhighs,白色长筒袜,服饰,袜子,350058,builtin
+black thighhighs,黑色长筒袜,服饰,袜子,508340,builtin
+pink thighhighs,粉色长筒袜,服饰,袜子,19502,builtin
+suspenders,吊带袜,服饰,袜子,96690,builtin
+garter straps,腰带(吊带袜的),服饰,袜子,114322,builtin
+torn legwear,破损的裤袜,服饰,袜子,0,builtin
+torn thighhighs,损坏了的长筒袜,服饰,袜子,25403,builtin
+see-through legwear,透明的袜子,服饰,袜子,3667,builtin
+frilled legwear,花边袜,服饰,袜子,0,builtin
+lace-trimmed legwear,蕾边袜丝,服饰,袜子,0,builtin
+seamed legwear,有接缝的袜,服饰,袜子,4023,builtin
+back-seamed legwear,中间有一条黑线的袜子,服饰,袜子,1823,builtin
+animal ear legwear,动物耳朵过膝袜,服饰,袜子,2593,builtin
+striped legwear,横条纹袜,服饰,袜子,0,builtin
+vertical-striped legwear,竖条纹袜,服饰,袜子,0,builtin
+polka dot legwear,圆斑袜,服饰,袜子,0,builtin
+print legwear,印花袜,服饰,袜子,0,builtin
+legwear under shorts,短裤穿在袜子外,服饰,袜子,0,builtin
+over-kneehighs,过膝袜,服饰,袜子,9898,builtin
+bobby socks,鲍比袜(白短袜),服饰,袜子,11833,builtin
+tabi,日式厚底短袜(足袋),服饰,袜子,25222,builtin
+loose socks,泡泡袜,服饰,袜子,22847,builtin
+ankle socks,踝袜,服饰,袜子,10773,builtin
+leg warmers,腿套|暖腿袜,服饰,袜子,25201,builtin
+single sock,单短袜,服饰,袜子,13469,builtin
+striped socks,横条短袜,服饰,袜子,12596,builtin
+leg cutout,袜子有开口,服饰,与袜子互动,1076,builtin
+thighhighs under boots,靴子穿在袜子外面,服饰,与袜子互动,9473,builtin
+adjusting legwear,整理裤袜,服饰,与袜子互动,1812,builtin
+pantyhose pull,褪下的裤袜,服饰,与袜子互动,14392,builtin
+socks removed,脱袜子,服饰,与袜子互动,0,builtin
+sock pull,拉着袜子(短袜,服饰,与袜子互动,895,builtin
+thighhighs pull,拉着袜子(长袜,服饰,与袜子互动,2207,builtin
+garters,袜带,服饰,其他,0,builtin
+leg garter,腿环|袜带,服饰,其他,0,builtin
+thigh strap,大腿绑带,服饰,其他,251700,builtin
+thigh ribbon,大腿缎带,服饰,其他,4033,builtin
+leg ribbon,腿锻带,服饰,其他,17675,builtin
+bandaid on leg,腿上的绷带,服饰,其他,24154,builtin
+bandaged leg,包扎过的腿,服饰,其他,22186,builtin
+ankle lace-up,脚踝系带,服饰,其他,3820,builtin
+thigh holster,大腿皮套,服饰,其他,10837,builtin
+bandaid on knee,膝盖上的创可贴,服饰,其他,11864,builtin
+argyle legwear,含菱形花纹的裤袜,服饰,其他,0,builtin
+bow legwear,带蝴蝶结的裤袜,服饰,其他,5108,builtin
+arm garter,手臂袜带,服饰,其他,10824,builtin
+armored,装甲的,服饰,材质,0,builtin
+canvas,帆布的,服饰,材质,0,builtin
+denim,牛仔布,服饰,材质,107936,builtin
+fluffy,毛茸茸,服饰,材质,6467,builtin
+fur,毛皮,服饰,材质,0,builtin
+latex,乳胶,服饰,材质,19302,builtin
+leather,皮制,服饰,材质,21245,builtin
+see-through,透明,服饰,材质,0,builtin
+spandex,弹性纤维,服饰,材质,3252,builtin
+frilled,褶边,服饰,装饰,0,builtin
+center frills,中心褶花边,服饰,装饰,38638,builtin
+crease,起皱的(有褶的),服饰,装饰,2015,builtin
+layered,分层的,服饰,装饰,0,builtin
+lace,蕾丝,服饰,装饰,78999,builtin
+fur trim,皮草饰边,服饰,装饰,235598,builtin
+fur-trimmed,毛边的,服饰,装饰,0,builtin
+fine fabric emphasis,材质增强,服饰,装饰,3710,builtin
+latex thighhighs,乳胶材质的长筒袜,服饰,装饰,1478,builtin
+see-through thighhighs,透明的长筒袜,服饰,装饰,1225,builtin
+ass cutout,露出屁股的服饰,服饰,装饰,2529,builtin
+asymmetrical clothes,不对称的服饰,服饰,装饰,15435,builtin
+back bow,(服饰)打在背后的结,服饰,装饰,44501,builtin
+cross-laced clothes,交叉花边服饰,服饰,装饰,32367,builtin
+double vertical stripe,服饰上有两条平行条纹,服饰,装饰,1824,builtin
+halter top,吊带式的上身的服饰,服饰,装饰,0,builtin
+multicolored legwear,多色款腿部服饰,服饰,装饰,0,builtin
+navy blue legwear,海军蓝腿部服饰,服饰,装饰,0,builtin
+nontraditional miko,改款过的日本服饰,服饰,装饰,36111,builtin
+side cutout,侧边开口的服饰,服饰,装饰,8763,builtin
+sideless outfit,侧面没有布料的服饰,服饰,装饰,7265,builtin
+single kneehigh,单边穿着过膝服饰,服饰,装饰,6000,builtin
+single vertical stripe,露出单边服饰上的垂直条纹,服饰,装饰,3328,builtin
+turtleneck,高领服饰,服饰,装饰,181043,builtin
+two-sided fabric,双层样式的服饰画法,服饰,装饰,37495,builtin
+o-ring,带O型环的衣物,服饰,装饰,76446,builtin
+o-ring top,带O型环的上衣,服饰,装饰,15023,builtin
+fringe trim,须边(围巾末端,服饰,装饰,12494,builtin
+loose belt,松散的带子(衣物),服饰,装饰,5280,builtin
+pom pom (clothes),小绒球(衣物挂件),服饰,装饰,72496,builtin
+drawstring,衣服的抽绳,服饰,装饰,39810,builtin
+full-length zipper,有整件衣物长的拉链,服饰,装饰,2817,builtin
+gathers,褶裥(衣物),服饰,装饰,1352,builtin
+gusset,缝在衣服上衬料,服饰,装饰,2619,builtin
+breast pocket,胸口的袋子,服饰,装饰,32393,builtin
+argyle,阿盖尔菱形花纹,服饰,花纹,0,builtin
+checkered,格子花纹,服饰,花纹,3821,builtin
+colored stripes,多彩条纹,服饰,花纹,656,builtin
+diagonal stripes,斜条纹,服饰,花纹,0,builtin
+horizontal stripes,水平条纹,服饰,花纹,0,builtin
+multicolored stripes,多彩条纹,服饰,花纹,799,builtin
+polka dot,点装纹,服饰,花纹,84896,builtin
+ribbed,棱纹,服饰,花纹,0,builtin
+striped,横条纹,服饰,花纹,0,builtin
+unmoving pattern,连续重复花纹,服饰,花纹,8716,builtin
+vertical stripes,竖条纹,服饰,花纹,0,builtin
+plaid,格子呢图案,服饰,花纹,3187,builtin
+animal print,动物印花,服饰,花纹,98240,builtin
+cat print,猫咪印花,服饰,花纹,5474,builtin
+bear print,熊印花,服饰,花纹,2727,builtin
+bird print,鸟印花,服饰,花纹,2078,builtin
+bunny print,兔子印花,服饰,花纹,0,builtin
+cow print,奶牛印花,服饰,花纹,28399,builtin
+dragon print,龙印花,服饰,花纹,8353,builtin
+fish print,鱼印花,服饰,花纹,2560,builtin
+frog print,青蛙印花,服饰,花纹,2750,builtin
+shark print,鲨鱼印花,服饰,花纹,919,builtin
+snake print,蛇纹,服饰,花纹,1310,builtin
+zebra print,斑马印花,服饰,花纹,1003,builtin
+tiger print,虎纹,服饰,花纹,14550,builtin
+leopard print,豹纹,服饰,花纹,10807,builtin
+jaguar print,美洲豹印花,服饰,花纹,0,builtin
+bat print,蝙蝠印花,服饰,花纹,6839,builtin
+aardwolf print,土狼印花,服饰,花纹,0,builtin
+african wild dog print,非洲野狗印花,服饰,花纹,0,builtin
+cheetah print,猎豹印花,服饰,花纹,0,builtin
+dog print,狗印花,服饰,花纹,427,builtin
+fox print,狐狸印花,服饰,花纹,248,builtin
+giraffe print,长颈鹿印花,服饰,花纹,414,builtin
+panda print,熊猫印花,服饰,花纹,459,builtin
+sand cat print,沙猫印花,服饰,花纹,0,builtin
+whale print,鲸鱼印花,服饰,花纹,434,builtin
+white tiger print,白虎纹,服饰,花纹,378,builtin
+goldfish print,金鱼印花,服饰,花纹,264,builtin
+wing print,翼印,服饰,花纹,586,builtin
+spider web print,蛛网纹,服饰,花纹,6728,builtin
+butterfly print,蝴蝶印花,服饰,花纹,4814,builtin
+floral print,碎花,服饰,花纹,129193,builtin
+leaf print,叶印花,服饰,花纹,8506,builtin
+clover print,三叶草印花,服饰,花纹,2689,builtin
+maple leaf print,枫叶印花,服饰,花纹,2038,builtin
+rose print,玫瑰印花,服饰,花纹,9414,builtin
+strawberry print,草莓印花,服饰,花纹,3624,builtin
+cherry print,樱桃印花,服饰,花纹,1058,builtin
+bamboo print,竹印花,服饰,花纹,617,builtin
+carrot print,胡萝卜印花,服饰,花纹,835,builtin
+hibiscus print,芙蓉印花,服饰,花纹,703,builtin
+jack-o'-lantern print,南瓜灯印花,服饰,花纹,397,builtin
+petal print,花瓣印花,服饰,花纹,412,builtin
+sunflower print,向日葵印花,服饰,花纹,638,builtin
+watermelon print,西瓜印花,服饰,花纹,583,builtin
+sky print,天空印花,服饰,花纹,1157,builtin
+cloud print,云印花,服饰,花纹,3813,builtin
+lightning bolt print,闪电印花,服饰,花纹,1851,builtin
+rainbow print,彩虹印花,服饰,花纹,576,builtin
+snowflake print,雪花印花,服饰,花纹,5666,builtin
+starry sky print,星空印花,服饰,花纹,4881,builtin
+crescent print,新月印花,服饰,花纹,3765,builtin
+star print,星形印花,服饰,花纹,22788,builtin
+star (symbol),星形符号,服饰,花纹,360613,builtin
+moon print,月亮印花,服饰,花纹,538,builtin
+sun print,太阳印花,服饰,花纹,1167,builtin
+character print,字符印花,服饰,花纹,6188,builtin
+clothes writing,衣服上的字,服饰,花纹,59643,builtin
+anchor print,锚印花,服饰,花纹,2237,builtin
+cherry blossom print,樱花印花,服饰,花纹,4094,builtin
+musical note print,音符印花,服饰,花纹,2237,builtin
+triangle print,三角印花,服饰,花纹,2365,builtin
+arrow print,箭头打印,服饰,花纹,846,builtin
+wave print,波浪纹,服饰,花纹,669,builtin
+peace symbol,☮(东方仗助衣服上有),服饰,花纹,1643,builtin
+heart print,心形图案|心形印花,服饰,花纹,12804,builtin
+flame print,火焰印花,服饰,花纹,4415,builtin
+hitodama print,鬼火印花,服饰,花纹,0,builtin
+paw print,爪印花,服饰,花纹,21584,builtin
+skeleton print,骨架印花,服饰,花纹,1756,builtin
+skull print,骷髅头印花,服饰,花纹,4914,builtin
+sparkle print,闪闪发光的印花,服饰,花纹,2151,builtin
+yin yang print,阴阳印花,服饰,花纹,1435,builtin
+cross print,十字架元素图案,服饰,花纹,4613,builtin
+camoflage,迷彩,服饰,花纹,0,builtin
+flag print,旗帜印花,服饰,花纹,12855,builtin
+bone print,骨印花,服饰,花纹,767,builtin
+ghost print,幽灵印画,服饰,花纹,701,builtin
+mushroom print,蘑菇印花,服饰,花纹,286,builtin
+onigiri print,饭团打印,服饰,花纹,759,builtin
+cat ear,猫耳造型,服饰,花纹,0,builtin
+cat ear cutout,猫耳造型镂空,服饰,花纹,0,builtin
+barefoot,赤脚,服饰,鞋子,502989,builtin
+no shoes,没有鞋子,服饰,鞋子,125908,builtin
+shoes removed,脱下的鞋子,服饰,鞋子,0,builtin
+single shoe,单鞋,服饰,鞋子,10883,builtin
+the only shoe,单鞋,服饰,鞋子,538,builtin
+black loafers,乐福鞋(小皮鞋),服饰,鞋子,0,builtin
+shoes,运动鞋,服饰,鞋子,856735,builtin
+uwabaki,室内鞋,服饰,鞋子,10378,builtin
+platform footwear,厚底鞋,服饰,鞋子,0,builtin
+high heels,高跟鞋,服饰,鞋子,291912,builtin
+stiletto heels,细跟高跟鞋,服饰,鞋子,5044,builtin
+strappy heels,带束带的高跟鞋,服饰,鞋子,6303,builtin
+platform heels,厚底高跟鞋,服饰,鞋子,4251,builtin
+rudder footwear,舰C舰娘专用鞋,服饰,鞋子,5541,builtin
+sandals,凉鞋,服饰,鞋子,152337,builtin
+barefoot sandals,裸足凉鞋,服饰,鞋子,0,builtin
+clog sandals,木屐凉鞋,服饰,鞋子,0,builtin
+geta,木屐,服饰,鞋子,0,builtin
+slippers,拖鞋,服饰,鞋子,23302,builtin
+skates,溜冰鞋,服饰,鞋子,7144,builtin
+roller skates,旱冰鞋,服饰,鞋子,4632,builtin
+animal feet,动物脚,服饰,鞋子,9185,builtin
+animal slippers,动物拖鞋,服饰,鞋子,2329,builtin
+anklet,脚环,服饰,鞋子,29807,builtin
+shackles,镣铐,服饰,鞋子,15652,builtin
+brown footwear,棕色鞋类,服饰,鞋子,0,builtin
+cross-laced footwear,交叉系带鞋,服饰,鞋子,0,builtin
+loafers,乐福鞋,服饰,鞋子,84961,builtin
+mary janes,珍妮鞋,服饰,鞋子,57123,builtin
+mismatched footwear,双色鞋子,服饰,鞋子,6450,builtin
+pointy footwear,尖头鞋,服饰,鞋子,0,builtin
+pumps,低胸装高跟鞋打扮,服饰,鞋子,10195,builtin
+sandals removed,脱下凉鞋,服饰,鞋子,0,builtin
+shoe soles,鞋底,服饰,鞋子,18539,builtin
+shoelaces,鞋带,服饰,鞋子,4290,builtin
+sneakers,运动鞋,服饰,鞋子,96988,builtin
+winged footwear,带翅膀的鞋子,服饰,鞋子,0,builtin
+zouri,日式草鞋,服饰,鞋子,14581,builtin
+boots,靴子,服饰,靴子,704098,builtin
+boots removed,脱下的靴子,服饰,靴子,0,builtin
+thigh boots,大腿靴,服饰,靴子,123992,builtin
+knee boots,及膝靴(马靴),服饰,靴子,84412,builtin
+ankle boots,踝靴,服饰,靴子,25132,builtin
+high heel boots,高跟靴,服饰,靴子,58399,builtin
+toeless boots,露趾靴,服饰,靴子,0,builtin
+lace-up boots,系带靴,服饰,靴子,38297,builtin
+fur-trimmed boots,毛边靴子,服饰,靴子,12420,builtin
+snow boots,雪地靴,服饰,靴子,330,builtin
+rubber boots,胶靴,服饰,靴子,5153,builtin
+santa boots,圣诞靴,服饰,靴子,0,builtin
+leather boots,皮靴,服饰,靴子,2558,builtin
+combat boots,作战靴,服饰,靴子,2161,builtin
+doc martens,马丁靴,服饰,靴子,0,builtin
+rain boots,雨靴,服饰,靴子,0,builtin
+belt boots,皮带靴,服饰,靴子,2116,builtin
+fur boots,矮跟休闲皮草靴,服饰,靴子,1488,builtin
+single boot,一只脚没穿靴子,服饰,靴子,1756,builtin
+arched soles,拱形鞋底,服饰,鞋底,418,builtin
+paw print soles,爪印鞋底,服饰,鞋底,876,builtin
+horseshoe,马蹄铁,服饰,鞋底,1712,builtin
+sailor collar,水手领,服饰,领口,413900,builtin
+fur collar,毛皮衣领,服饰,领口,37351,builtin
+frilled collar,花边衣领,服饰,领口,14197,builtin
+popped collar,竖起来的衣领,服饰,领口,16054,builtin
+choker,颈部饰品,服饰,领口,622180,builtin
+black choker,黑色颈圈,服饰,领口,274491,builtin
+belt collar,皮带颈环,服饰,领口,19970,builtin
+frilled choker,褶边项链,服饰,领口,16859,builtin
+neckerchief,领巾,服饰,领口,256914,builtin
+red neckerchief,红领巾,服饰,领口,77304,builtin
+necktie,领带,服饰,领口,665484,builtin
+short necktie,短领带,服饰,领口,14784,builtin
+white necktie,白色领带,服饰,领口,14243,builtin
+bowtie,蝴蝶结领带,服饰,领口,493291,builtin
+headphones around neck,挂在脖子上的耳机,服饰,领口,21202,builtin
+goggles around neck,脖子上护目镜,服饰,领口,7188,builtin
+neck bell,颈铃,服饰,领口,67357,builtin
+neck ruff,领口,服饰,领口,5390,builtin
+v-neck,V领,服饰,领口,17801,builtin
+towel around neck,脖子上的毛巾,服饰,领口,9515,builtin
+loose necktie,宽松领带,服饰,领口,10358,builtin
+neck tattoo,颈部纹身,服饰,领口,12982,builtin
+ascot,领巾状宽领带,服饰,领口,205514,builtin
+ribbon choker,颈丝带,服饰,领口,16456,builtin
+maebari/pasties,阴贴/乳贴,服饰,领口,0,builtin
+iron cross,铁十字勋章,服饰,领口,11009,builtin
+chinese knot,中国结,服饰,领口,5782,builtin
+cross necklace,十字架项链,服饰,领口,21442,builtin
+bead necklace,珠子项链,服饰,领口,20002,builtin
+pearl necklace,珍珠项链,服饰,领口,16399,builtin
+heart necklace,心形项链,服饰,领口,10627,builtin
+carrot necklace,胡萝卜项链,服饰,领口,3886,builtin
+chain necklace,锁链项链,服饰,领口,12050,builtin
+magatama necklace,珠玉项链,服饰,领口,4511,builtin
+tooth necklace,牙项链,服饰,领口,4005,builtin
+key necklace,钥匙项链,服饰,领口,4060,builtin
+anchor necklace,锚项链,服饰,领口,1816,builtin
+skull necklace,骷髅项链,服饰,领口,1774,builtin
+shell necklace,贝壳项链,服饰,领口,2239,builtin
+gold necklace,金项链,服饰,领口,11293,builtin
+crescent necklace,新月项链,服饰,领口,2077,builtin
+ring necklace,戒指项链,服饰,领口,1373,builtin
+feather necklace,羽毛项链,服饰,领口,624,builtin
+bone necklace,骨项链,服饰,领口,448,builtin
+ankh necklace,十字项链,服饰,领口,611,builtin
+multiple necklaces,多条项链,服饰,领口,2980,builtin
+bullet necklace,子弹项链,服饰,领口,246,builtin
+holding necklace,拿着项链,服饰,领口,1757,builtin
+necklace removed,项链被移除,服饰,领口,0,builtin
+brown neckwear,棕色领饰,服饰,领口,0,builtin
+checkered neckwear,格子领口,服饰,领口,0,builtin
+diagonal-striped neckwear,斜纹领结,服饰,领口,0,builtin
+halterneck,绕颈系带,服饰,领口,145864,builtin
+mole on neck,脖子上有痣,服饰,领口,12474,builtin
+neck,脖子,服饰,领口,0,builtin
+neck ribbon,颈部系着缎带,服饰,领口,214499,builtin
+neck ring,颈环,服饰,领口,16894,builtin
+necklace,项链,服饰,领口,377975,builtin
+plaid neckwear,格子呢领子,服饰,领口,0,builtin
+plunging neckline,深领,服饰,领口,7940,builtin
+print neckwear,印花领带,服饰,领口,0,builtin
+sleeveless turtleneck,无袖高领毛衣,服饰,领口,23157,builtin
+star necklace,星形项链,服饰,领口,4700,builtin
+striped neckwear,条纹领子,服饰,领口,0,builtin
+turtleneck sweater,高领毛衣,服饰,领口,58641,builtin
+undone necktie,解开领带,服饰,领口,3562,builtin
+whistle around neck,脖子上挂着口哨,服饰,领口,7738,builtin
+plaid scarf,格子围巾,服饰,围巾,10326,builtin
+striped scarf,条纹围巾,服饰,围巾,8868,builtin
+print scarf,印花围巾,服饰,围巾,1074,builtin
+vertical-striped scarf,竖条纹围巾,服饰,围巾,576,builtin
+polka dot scarf,波点围巾,服饰,围巾,516,builtin
+argyle scarf,菱形围巾,服饰,围巾,312,builtin
+beige scarf,米色围巾,服饰,围巾,0,builtin
+scarf bow,围巾蝴蝶结,服饰,围巾,767,builtin
+fur scarf,皮草围巾,服饰,围巾,5198,builtin
+naked scarf,裸围巾,服饰,围巾,1485,builtin
+multicolored scarf,五彩围巾,服饰,围巾,1620,builtin
+floating scarf,漂浮围巾,服饰,围巾,2250,builtin
+long scarf,长围巾,服饰,围巾,1490,builtin
+arm scarf,手臂围巾,服饰,围巾,522,builtin
+scarf on head,头上的围巾,服饰,围巾,236,builtin
+scarf over mouth,围巾在嘴上,服饰,围巾,2193,builtin
+scarf removed,围巾被取下,服饰,围巾,0,builtin
+adjusting scarf,调整围巾,服饰,围巾,1348,builtin
+holding scarf,拿着围巾,服饰,围巾,0,builtin
+scarf pull,扯围巾,服饰,围巾,327,builtin
+brown scarf,棕色围巾,服饰,围巾,8403,builtin
+scarf,围巾,服饰,围巾,283271,builtin
+glasses,眼镜,服饰,眼镜,560711,builtin
+eyewear,眼睛,服饰,眼镜,0,builtin
+monocle,单片眼镜,服饰,眼镜,13484,builtin
+under-rim eyewear,带框眼镜,服饰,眼镜,39311,builtin
+rimless eyewear,无框眼镜,服饰,眼镜,11987,builtin
+semi-rimless eyewear,半无框眼镜,服饰,眼镜,64978,builtin
+red-framed eyewear,红框眼镜,服饰,眼镜,44268,builtin
+round eyewear,圆框眼镜,服饰,眼镜,77892,builtin
+black-framed eyewear,黑框眼镜,服饰,眼镜,57349,builtin
+tinted eyewear,有色眼镜,服饰,眼镜,46637,builtin
+bandage over one eye,用绷带包扎一只眼睛,服饰,眼镜,8935,builtin
+crooked eyewear,歪斜的眼镜,服饰,眼镜,476,builtin
+eyewear removed,取下眼镜,服饰,眼镜,0,builtin
+sunglasses,太阳镜,服饰,眼镜,148415,builtin
+goggles,风镜,服饰,眼镜,88257,builtin
+Blindfold,眼罩,服饰,眼镜,30357,builtin
+visor,面罩|遮阳帽舌|遮阳板,服饰,眼镜,0,builtin
+bespectacled,戴眼镜的,服饰,眼镜,31067,builtin
+blue-framed eyewear,蓝框眼镜,服饰,眼镜,5869,builtin
+brown-framed eyewear,棕色镜框眼镜,服饰,眼镜,3832,builtin
+coke-bottle glasses,厚如玻璃瓶底的圆眼镜,服饰,眼镜,2623,builtin
+no eyewear,去掉了(原设有的)眼镜,服饰,眼镜,4867,builtin
+opaque glasses,没透出眼睛的眼镜,服饰,眼镜,8159,builtin
+over-rim eyewear,下半无框眼镜,服饰,眼镜,5084,builtin
+mask,面具,服饰,面具,200950,builtin
+half mask,半面罩,服饰,面具,3173,builtin
+masked,蒙面,服饰,面具,2391,builtin
+mask lift,抬起面罩,服饰,面具,1159,builtin
+mask on head,掀到头上的面具,服饰,面具,28426,builtin
+mask removed,摘下的面具,服饰,面具,0,builtin
+mouth mask,口罩,服饰,面具,46405,builtin
+surgical mask,医用口罩,服饰,面具,7354,builtin
+plague doctor mask,瘟疫医生口罩,服饰,面具,944,builtin
+gas mask,防毒面具,服饰,面具,5552,builtin
+fox mask,狐狸面具,服饰,面具,19494,builtin
+diving mask,潜水面罩,服饰,面具,3347,builtin
+diving mask on head,头戴式潜水面罩,服饰,面具,1783,builtin
+oni mask,鬼面具,服饰,面具,3848,builtin
+tengu mask,天狗面具,服饰,面具,1103,builtin
+ninja mask,忍者面具,服饰,面具,2670,builtin
+skull mask,骷髅面具,服饰,面具,3242,builtin
+hockey mask,曲棍球面具,服饰,面具,814,builtin
+bird mask,鸟面具,服饰,面具,1838,builtin
+stone mask,石鬼面,服饰,面具,55,builtin
+horse mask,马面具,服饰,面具,262,builtin
+masquerade mask,化妆舞会面具,服饰,面具,1364,builtin
+domino mask,SM面具,服饰,面具,7622,builtin
+long sleeves,长袖,服饰,手臂,2358696,builtin
+short sleeves,短袖,服饰,手臂,913313,builtin
+wide sleeves,宽袖,服饰,手臂,360894,builtin
+detached sleeves,分离式袖子,服饰,手臂,592165,builtin
+single sleeve,单袖,服饰,手臂,9651,builtin
+sleeveless,无袖,服饰,手臂,636753,builtin
+asymmetrical sleeves,不对称袖子,服饰,手臂,12388,builtin
+puffy sleeves,蓬松的袖子,服饰,手臂,525382,builtin
+puffy long sleeves,蓬蓬长袖,服饰,手臂,98906,builtin
+puffy short sleeves,蓬蓬短袖,服饰,手臂,261394,builtin
+frilled sleeves,褶袖边,服饰,手臂,123965,builtin
+juliet sleeves,朱丽叶袖,服饰,手臂,102076,builtin
+bandaged arm,绷带手臂,服饰,手臂,46369,builtin
+raglan sleeves,插肩袖,服饰,手臂,15429,builtin
+vambraces,下臂护甲,服饰,手臂,0,builtin
+layered sleeves,分层袖子,服饰,手臂,48533,builtin
+fur-trimmed sleeves,毛边袖子,服饰,手臂,19262,builtin
+see-through sleeves,透明袖子,服饰,手臂,20014,builtin
+torn sleeves,撕裂的袖子,服饰,手臂,6428,builtin
+sleeves past fingers,袖子过指,服饰,手臂,78839,builtin
+sleeves past wrists,袖子过腕,服饰,手臂,238574,builtin
+sleeves past elbows,袖子过肘,服饰,手臂,0,builtin
+sleeves pushed up,袖子上推,服饰,手臂,6057,builtin
+arm out of sleeve,袖子里的手臂,服饰,手臂,1428,builtin
+uneven sleeves,不均匀的袖子,服饰,手臂,4699,builtin
+mismatched sleeves,不匹配的袖子,服饰,手臂,3259,builtin
+sleeve rolled up,袖子卷起,服饰,手臂,1024,builtin
+sleeves rolled up,单只袖子卷起,服饰,手臂,59040,builtin
+feather-trimmed sleeves,羽毛装饰的袖子,服饰,手臂,3615,builtin
+hands in opposite sleeves,双手交叉伸进袖子里,服饰,手臂,4585,builtin
+lace-trimmed sleeves,蕾丝边袖子,服饰,手臂,4536,builtin
+pinching sleeves,掐袖子,服饰,手臂,2263,builtin
+puffy detached sleeves,蓬蓬的袖子,服饰,手臂,6978,builtin
+ribbed sleeves,棱纹袖子,服饰,手臂,2744,builtin
+single detached sleeve,单边没脱掉的袖子,服饰,手臂,10169,builtin
+sleeves folded up,叠起来的袖子,服饰,手臂,0,builtin
+striped sleeves,条纹袖子,服饰,手臂,6569,builtin
+wrist cuffs,和袖子分开的手腕的袖口,服饰,手臂,214752,builtin
+armband,袖章(臂带),服饰,手臂,83480,builtin
+armlet,臂镯,服饰,手臂,64787,builtin
+bandage,绷带,服饰,手,0,builtin
+leash,皮带,服饰,手,56642,builtin
+arm tattoo,手臂纹身,服饰,手,41990,builtin
+number tattoo,数字文身,服饰,手,15045,builtin
+bead bracelet,珠子手链,服饰,手,16786,builtin
+bracelet,手镯,服饰,手,271152,builtin
+flower bracelet,花手镯,服饰,手,1955,builtin
+spiked bracelet,带钉手镯,服饰,手,16086,builtin
+wristband,腕带,服饰,手,69682,builtin
+bracer,护腕,服饰,手,19066,builtin
+cuffs,袖口,服饰,手,58394,builtin
+bound wrists,绑定手腕,服饰,手,30044,builtin
+wrist scrunchie,手腕发圈,服饰,手,29549,builtin
+handcuffs,手铐,服饰,手,17693,builtin
+chains,锁链,服饰,手,0,builtin
+chain leash,锁链带牵绳,服饰,手,7569,builtin
+gloves,手套,服饰,手套,1942270,builtin
+gloves removed,脱下手套,服饰,手套,0,builtin
+no gloves,去掉了(原设有的)手套,服饰,手套,2346,builtin
+single glove,单只手套,服饰,手套,58668,builtin
+single elbow glove,单手戴着过肘的手套,服饰,手套,11079,builtin
+long gloves,长手套,服饰,手套,0,builtin
+elbow gloves,长袖手套（肘部手套）,服饰,手套,408498,builtin
+bridal gauntlets,新娘手套,服饰,手套,73185,builtin
+half gloves,很短的手套|半截手套,服饰,手套,28697,builtin
+fingerless gloves,露指手套,服饰,手套,374546,builtin
+partially fingerless gloves,部分露指手套,服饰,手套,41140,builtin
+paw gloves,爪子手套(分指手套),服饰,手套,22804,builtin
+mittens,连指手套(两指手套),服饰,手套,20877,builtin
+baseball mitt,棒球手套,服饰,手套,3430,builtin
+fur-trimmed gloves,毛边手套,服饰,手套,17324,builtin
+latex gloves,乳胶手套,服饰,手套,3963,builtin
+lace-trimmed gloves,蕾丝边手套,服饰,手套,2294,builtin
+leather gloves,皮手套,服饰,手套,3115,builtin
+frilled gloves,花边手套,服饰,手套,10008,builtin
+mismatched gloves,双色手套,服饰,手套,14186,builtin
+multicolored gloves,多色款手套,服饰,手套,15620,builtin
+asymmetrical gloves,不对称的手套,服饰,手套,24524,builtin
+brown gloves,棕色手套,服饰,手套,66364,builtin
+oven mitts,隔热手套,服饰,手套,2440,builtin
+print gloves,印花手套,服饰,手套,12757,builtin
+striped gloves,条纹手套,服饰,手套,3401,builtin
+torn gloves,破损的手套,服饰,手套,2626,builtin
+cross earrings,十字耳环,服饰,耳饰,14375,builtin
+crystal earrings,水晶耳环,服饰,耳饰,2702,builtin
+earrings,耳环,服饰,耳饰,856970,builtin
+flower earrings,花耳环,服饰,耳饰,8545,builtin
+heart earrings,心形耳环,服饰,耳饰,19239,builtin
+hoop earrings,环状耳环,服饰,耳饰,45239,builtin
+multiple earrings,多个耳环,服饰,耳饰,9707,builtin
+pill earrings,药丸样式的耳环,服饰,耳饰,1490,builtin
+single earring,只一边戴着耳环,服饰,耳饰,72141,builtin
+skull earrings,骷髅耳环,服饰,耳饰,3486,builtin
+star earrings,星形耳环,服饰,耳饰,20876,builtin
+halo,光环,服饰,头饰,513134,builtin
+mechanical halo,机械光环,服饰,头饰,22678,builtin
+headwear,头饰,服饰,头饰,0,builtin
+headpiece,头饰,服饰,头饰,27651,builtin
+headwear removed,头饰已移除,服饰,头饰,0,builtin
+head wreath,头花环,服饰,头饰,21165,builtin
+crown,皇冠,服饰,头饰,113631,builtin
+mini crown,迷你皇冠,服饰,头饰,26890,builtin
+tiara,头冠,服饰,头饰,88310,builtin
+diadem,同上,服饰,头饰,0,builtin
+tilted headwear,倾斜的头饰,服饰,头饰,20610,builtin
+head fins,头鳍,服饰,头饰,19558,builtin
+maid headdress,女仆头饰,服饰,头饰,208933,builtin
+bridal veil,新娘头纱,服饰,头饰,22415,builtin
+headband,头带,服饰,头饰,149661,builtin
+alternate headwear,与原设不同的头饰,服饰,头饰,3886,builtin
+fur-trimmed headwear,毛边头饰,服饰,头饰,13147,builtin
+goggles on headwear,帽子上的护目镜,服饰,头饰,9115,builtin
+earphones,耳机,服饰,头饰,15153,builtin
+earmuffs,耳罩,服饰,头饰,17901,builtin
+xx on head,xx在头上,服饰,头饰,0,builtin
+leaf on head,头上的叶子,服饰,头饰,13069,builtin
+topknot,纂,服饰,头饰,15860,builtin
+suigintou,水银头,服饰,头饰,5107,builtin
+triangular headpiece,三角头饰,服饰,头饰,21763,builtin
+forehead protector,护额,服饰,头饰,12061,builtin
+radio antenna,天线,服饰,头饰,11028,builtin
+animal hood,兽耳头罩,服饰,头饰,33540,builtin
+arrow (symbol),箭头,服饰,头饰,39844,builtin
+axe,斧头,服饰,头饰,21162,builtin
+bald,秃头,服饰,头饰,23554,builtin
+bandana,头巾,服饰,头饰,34598,builtin
+bone,骨头,服饰,头饰,9892,builtin
+bowl cut,锅盖头,服饰,头饰,4690,builtin
+circlet,头冠,服饰,头饰,40958,builtin
+double dildo,双头假阴茎,服饰,头饰,1457,builtin
+drill,钻头,服饰,头饰,2691,builtin
+faucet,水龙头,服饰,头饰,3848,builtin
+hachimaki,扎头巾(名词),服饰,头饰,10079,builtin
+hair behind ear,耳后有头发,服饰,头饰,51576,builtin
+hair bell,头发上系着铃铛,服饰,头饰,31304,builtin
+hair down,披下来的头发,服饰,头饰,44120,builtin
+hair flip,拨头发,服饰,头饰,1595,builtin
+hair flower,头发上别着花,服饰,头饰,401486,builtin
+hair spread out,散开的头发,服饰,头饰,47479,builtin
+hair up,盘起来的头发,服饰,头饰,16506,builtin
+helm,戴着头盔的,服饰,头饰,4754,builtin
+helmet removed,摘下头盔|被摘下的头盔,服饰,头饰,0,builtin
+horned helmet,带角头盔,服饰,头饰,6725,builtin
+japari bun,加帕里馒头,服饰,头饰,0,builtin
+kerchief,方头巾,服饰,头饰,1735,builtin
+mami mogu mogu,麻美断头梗,服饰,头饰,783,builtin
+mob cap,头巾式室内女帽,服饰,头饰,107810,builtin
+one side up,只扎了一边的头发,服饰,头饰,151535,builtin
+owl,猫头鹰,服饰,头饰,5758,builtin
+pier,突码头,服饰,头饰,1631,builtin
+pillow,枕头,服饰,头饰,204961,builtin
+raised fist,举起的拳头,服饰,头饰,2831,builtin
+skull and crossbones,头骨和交叉的骨头,服饰,头饰,4963,builtin
+stone,石头,服饰,头饰,0,builtin
+turban,穆斯林头巾,服饰,头饰,4437,builtin
+twin drills,双钻头发型,服饰,头饰,71997,builtin
+updo,头发往上蜷的发型,服饰,头饰,10791,builtin
+wet hair,湿头发,服饰,头饰,20518,builtin
+headdress,头部穿戴物(偏笼统),服饰,头饰,23245,builtin
+adjusting headwear,整理头饰,服饰,头饰,12387,builtin
+bear hair ornament,熊印花头饰,服饰,头饰,4305,builtin
+brown headwear,棕色头饰,服饰,头饰,0,builtin
+horned headwear,角状头饰,服饰,头饰,5742,builtin
+horns through headwear,为角留了洞的头饰,服饰,头饰,3464,builtin
+no headwear,去掉了(原设有的)头饰,服饰,头饰,0,builtin
+object on head,头上有非头饰类的物体,服饰,头饰,11943,builtin
+print headwear,印花头饰,服饰,头饰,2057,builtin
+bone hair ornament,骨头状饰品,服饰,头饰,7540,builtin
+bunny hair ornament,兔子饰品,服饰,头饰,0,builtin
+horn ornament,角上有饰物,服饰,头饰,20765,builtin
+animal on head,头上有动物,服饰,头饰,18384,builtin
+behind-the-head headphones,从后脑戴上的耳机,服饰,头饰,1492,builtin
+bird on head,头上的鸟,服饰,头饰,6201,builtin
+cat ear headphones,猫耳式耳机,服饰,头饰,12178,builtin
+cat on head,头上趴着猫,服饰,头饰,3060,builtin
+eyewear on head,眼镜别在头上,服饰,头饰,100109,builtin
+forehead jewel,额前有宝石,服饰,头饰,28847,builtin
+forehead kiss,亲吻额头,服饰,头饰,0,builtin
+forehead-to-forehead,额头贴额头,服饰,头饰,2812,builtin
+goggles on head,头上别着护目镜,服饰,头饰,51386,builtin
+head,头,服饰,头饰,0,builtin
+head bump,头上起包,服饰,头饰,3158,builtin
+head down,低着头,服饰,头饰,3788,builtin
+head mounted display,戴着头戴显示设备,服饰,头饰,0,builtin
+head out of frame,一部分头部没画进框里,服饰,头饰,29252,builtin
+head rest,枕着头|托着头,服饰,头饰,45273,builtin
+head tilt,歪着头,服饰,头饰,173703,builtin
+head wings,头上有翅膀,服饰,头饰,94213,builtin
+headgear,头部饰品(含一定科幻元素),服饰,头饰,101336,builtin
+headphones,耳机,服饰,头饰,138021,builtin
+heads-up display,状态条(游戏和科幻风格),服饰,头饰,1631,builtin
+headset,头戴式耳机,服饰,头饰,52629,builtin
+inter headset,EVA神经连接器,服饰,头饰,0,builtin
+on head,在头上,服饰,头饰,26937,builtin
+person on head,小人儿在头上,服饰,头饰,950,builtin
+single head wing,单侧头上有翅膀,服饰,头饰,1770,builtin
+hat,帽子,服饰,帽子,1701608,builtin
+no hat,没有帽子,服饰,帽子,0,builtin
+large hat,大帽子,服饰,帽子,7900,builtin
+mini hat,迷你帽,服饰,帽子,38840,builtin
+witch hat,魔女帽,服饰,帽子,136447,builtin
+mini witch hat,迷你魔女帽,服饰,帽子,966,builtin
+wizard hat,巫师帽子,服饰,帽子,7488,builtin
+party hat,派对帽,服饰,帽子,5535,builtin
+jester cap,小丑帽,服饰,帽子,12165,builtin
+tokin hat,大礼帽,服饰,帽子,47119,builtin
+top hat,高顶礼帽,服饰,帽子,47804,builtin
+mini top hat,迷你礼帽,服饰,帽子,14784,builtin
+bowler hat,圆顶礼帽,服饰,帽子,1923,builtin
+pillbox hat,药盒帽,服饰,帽子,4979,builtin
+cloche hat,钟形女帽,服饰,帽子,121,builtin
+side cap,侧边帽,服饰,帽子,0,builtin
+military hat,军帽,服饰,帽子,32295,builtin
+beret,贝雷帽,服饰,帽子,151009,builtin
+garrison cap,驻军帽,服饰,帽子,0,builtin
+police hat,警察帽,服饰,帽子,6635,builtin
+nurse cap,护士帽,服饰,帽子,34747,builtin
+chef hat,厨师帽,服饰,帽子,7560,builtin
+school hat,校帽,服饰,帽子,4414,builtin
+pirate hat,海盗帽,服饰,帽子,8346,builtin
+cabbie hat,出租车司机帽,服饰,帽子,0,builtin
+bucket hat,渔夫帽,服饰,帽子,3835,builtin
+hardhat,安全帽,服饰,帽子,0,builtin
+straw hat,草帽,服饰,帽子,34210,builtin
+sun hat,太阳帽,服饰,帽子,42818,builtin
+rice hat,斗笠,服饰,帽子,1578,builtin
+animal hat,动物帽,服饰,帽子,19811,builtin
+fur hat,皮帽,服饰,帽子,9120,builtin
+hat with ears,带耳朵的帽子,服饰,帽子,2136,builtin
+bobblehat,泡泡帽,服饰,帽子,0,builtin
+pillow hat,枕帽,服饰,帽子,0,builtin
+pumpkin hat,南瓜帽,服饰,帽子,1232,builtin
+baseball cap,棒球帽,服饰,帽子,71884,builtin
+flat cap,鸭舌帽,服饰,帽子,15848,builtin
+torn hat,撕裂的帽子,服饰,帽子,1064,builtin
+newsboy cap,报童帽,服饰,帽子,28491,builtin
+bowknot over white beret,白色贝雷帽上的蝴蝶结,服饰,帽子,0,builtin
+backwards hat,反扣的帽子,服饰,帽子,8968,builtin
+bowl hat,碗状帽子,服饰,帽子,2869,builtin
+cat hat,猫耳帽子,服饰,帽子,6491,builtin
+chat log,聊天框风格,服饰,帽子,2839,builtin
+cowboy hat,牛仔帽,服饰,帽子,13538,builtin
+dixie cup hat,狗盆帽,服饰,帽子,3080,builtin
+hat bow,带有蝴蝶结的帽子,服饰,帽子,87442,builtin
+hat feather,带有羽毛的帽子,服饰,帽子,19545,builtin
+hat flower,带着花的帽子,服饰,帽子,38875,builtin
+hat ornament,带有饰物的帽子,服饰,帽子,45889,builtin
+hat over one eye,帽子遮住了一只眼,服饰,帽子,2156,builtin
+hat removed,帽子被摘下|摘下帽子,服饰,帽子,0,builtin
+hat ribbon,带有缎带的帽子,服饰,帽子,86863,builtin
+hat tip,捏着帽檐,服饰,帽子,2239,builtin
+hatching (texture),线影法(纹理),服饰,帽子,14200,builtin
+hatsune miku (cosplay),cos成初音未来,服饰,帽子,2697,builtin
+is that so,so-nanoka(是这样啊的口癖),服饰,帽子,607,builtin
+porkpie hat,道士帽,服饰,帽子,4269,builtin
+sailor hat,水手帽,服饰,帽子,22628,builtin
+santa hat,圣诞帽,服饰,帽子,48750,builtin
+sideways hat,帽舌划到侧面,服饰,帽子,1939,builtin
+what,作者犯病,服饰,帽子,4637,builtin
+what if,另一条世界线,服饰,帽子,0,builtin
+hair ribbon,发_带,服饰,发饰,797776,builtin
+hairband,发_带,服饰,发饰,707089,builtin
+hair tie,发_带,服饰,发饰,33615,builtin
+lolita hairband,洛丽塔发带,服饰,发饰,17857,builtin
+frilled hairband,褶边发带,服饰,发饰,23952,builtin
+lace-trimmed hairband,蕾丝边饰发带,服饰,发饰,1641,builtin
+hair bobbles,头绳,服饰,发饰,68366,builtin
+hair ornament,发饰,服饰,发饰,2073585,builtin
+x hair ornament,x_发饰,服饰,发饰,119031,builtin
+hair bow,蝴蝶结发饰,服饰,发饰,762965,builtin
+frog hair ornament,青蛙发饰,服饰,发饰,22560,builtin
+heart hair ornament,心形发饰,服饰,发饰,46045,builtin
+butterfly hair ornament,蝴蝶发饰,服饰,发饰,37094,builtin
+star hair ornament,星星发饰,服饰,发饰,55319,builtin
+food-themed hair ornament,食物主题发饰,服饰,发饰,29713,builtin
+anchor hair ornament,锚形发饰,服饰,发饰,9008,builtin
+bat hair ornament,蝙蝠发饰,服饰,发饰,5781,builtin
+carrot hair ornament,胡萝卜发饰,服饰,发饰,7638,builtin
+cat hair ornament,猫系发饰,服饰,发饰,10114,builtin
+clover hair ornament,三叶草发饰,服饰,发饰,6326,builtin
+crescent hair ornament,月牙发饰,服饰,发饰,18152,builtin
+cross hair ornament,十字发饰,服饰,发饰,18807,builtin
+d-pad hair ornament,方向键发饰,服饰,发饰,3354,builtin
+fish hair ornament,鱼形发饰,服饰,发饰,5354,builtin
+hairpods,头发上成对的像无线蓝牙的发饰,服饰,发饰,0,builtin
+leaf hair ornament,叶子发饰,服饰,发饰,20414,builtin
+musical note hair ornament,音符发饰,服饰,发饰,10068,builtin
+pumpkin hair ornament,南瓜发饰,服饰,发饰,1131,builtin
+skull hair ornament,骷髅发饰,服饰,发饰,12541,builtin
+snake hair ornament,蛇形发饰|蛙头发饰,服饰,发饰,18531,builtin
+snowflake hair ornament,雪花发饰,服饰,发饰,5330,builtin
+strawberry hair ornament,草莓发饰,服饰,发饰,3005,builtin
+sunflower hair ornament,向日葵发饰,服饰,发饰,3498,builtin
+hairpin,发夹,服饰,发饰,0,builtin
+hairclip,发_夹,服饰,发饰,512216,builtin
+hair tubes,发管,服饰,发饰,104169,builtin
+hair stick,发棒,服饰,发饰,29057,builtin
+single hair bun,发髻(单),服饰,发饰,93084,builtin
+hair rings,发_圈,服饰,发饰,70597,builtin
+ring,戒指,服饰,小装饰,130321,builtin
+wedding band,婚戒,服饰,小装饰,0,builtin
+stud earrings,耳钉,服饰,小装饰,0,builtin
+jewelry,首饰,服饰,小装饰,1603570,builtin
+crystal,水晶,服饰,小装饰,36092,builtin
+brooch,胸针,服饰,小装饰,93532,builtin
+gem,宝石,服饰,小装饰,118501,builtin
+chest jewel,胸前宝石,服饰,小装饰,21904,builtin
+tassel,流苏,服饰,小装饰,98340,builtin
+belly chain,肚链,服饰,小装饰,5414,builtin
+ribbon,丝带,服饰,小装饰,1463956,builtin
+stitches,缝饰,服饰,小装饰,19493,builtin
+bandaid,创可贴,服饰,小装饰,98130,builtin
+collar,项圈,服饰,小装饰,279625,builtin
+belt,皮带,服饰,小装饰,514764,builtin
+steam,蒸汽,服饰,小装饰,75662,builtin
+bell,铃铛,服饰,小装饰,163539,builtin
+amulet,护身符,服饰,小装饰,1939,builtin
+emblem,徽章,服饰,小装饰,22824,builtin
+anchor symbol,锚符号,服饰,小装饰,20480,builtin
+cross,十字,服饰,小装饰,104923,builtin
+diffraction spikes,衍射十字星,服饰,小装饰,7952,builtin
+latin cross,拉丁式十字架,服饰,小装饰,6848,builtin
+st. gloriana's (emblem),圣葛罗莉安娜女学园校徽,服饰,小装饰,1330,builtin
+heart lock (kantai collection),舰娘锁(舰C),服饰,小装饰,965,builtin
+joints,关节,服饰,小装饰,29334,builtin
+kneepits,膝盖,服饰,小装饰,29237,builtin
+knee pads,护膝,服饰,小装饰,18634,builtin
+metal collar,金属项圈,服饰,首饰,10334,builtin
+pendant,吊坠,服饰,首饰,48167,builtin
+bangle,手镯,服饰,首饰,22656,builtin
+sunburst,旭日形首饰,服饰,首饰,5203,builtin
+pearl bracelet,珍珠手链,服饰,首饰,3313,builtin
+drop earrings,耳坠,服饰,首饰,0,builtin
+puppet rings,木偶戒指,服饰,首饰,900,builtin
+corsage,胸花,服饰,首饰,1561,builtin
+sapphire brooch,蓝宝石胸针,服饰,首饰,0,builtin
+smile,微笑,表情动作,笑,4175843,builtin
+laughing,大笑,表情动作,笑,22960,builtin
+kind smile,开心,表情动作,笑,0,builtin
+:d,开心的笑_:D😀,表情动作,笑,0,builtin
+;d,眨眼笑_:D,表情动作,笑,0,builtin
+grin,露齿咧嘴笑,表情动作,笑,357996,builtin
+teasing smile,被逗笑，咧嘴傻笑,表情动作,笑,0,builtin
+seductive smile,魅惑的微笑,表情动作,笑,15738,builtin
+smirk,"傻笑,自鸣得意的笑",表情动作,笑,36723,builtin
+giggling,咯咯傻笑,表情动作,笑,606,builtin
+smug,洋洋得意,表情动作,笑,39095,builtin
+naughty face,调皮的脸,表情动作,笑,36061,builtin
+evil smile,邪恶笑,表情动作,笑,22922,builtin
+crazy smile,疯狂的笑,表情动作,笑,5785,builtin
+happy,快乐|幸福,表情动作,笑,139383,builtin
+happy birthday,生日快乐,表情动作,笑,66817,builtin
+happy halloween,万圣节快乐,表情动作,笑,6397,builtin
+happy new year,新年快乐,表情动作,笑,21805,builtin
+happy tears,开心的眼泪,表情动作,笑,4267,builtin
+happy valentine,情人节快乐,表情动作,笑,6162,builtin
+sad,伤心,表情动作,哭,17954,builtin
+tear,啜泣,表情动作,哭,0,builtin
+crying,大哭,表情动作,哭,115288,builtin
+streaming tears,流泪,表情动作,哭,13272,builtin
+teardrop,泪珠,表情动作,哭,10523,builtin
+tearing clothes,撕破衣服,表情动作,哭,1807,builtin
+tearing up,要哭的表情,表情动作,哭,73549,builtin
+wiping tears,擦眼泪,表情动作,哭,3208,builtin
+badmood,心情不好,表情动作,哭,0,builtin
+frustrated,沮丧,表情动作,不开心,840,builtin
+frustrated brow,沮丧的眉头,表情动作,不开心,0,builtin
+annoyed,苦恼的,表情动作,不开心,20429,builtin
+anguish,苦闷,表情动作,不开心,0,builtin
+sigh,叹气,表情动作,不开心,4555,builtin
+gloom,忧郁的,表情动作,不开心,0,builtin
+disappointed,失望的,表情动作,不开心,709,builtin
+despair,绝望,表情动作,不开心,874,builtin
+disgust,厌恶(看垃圾一样的眼神),表情动作,蔑视,4166,builtin
+disdain,轻蔑,表情动作,蔑视,400,builtin
+contempt,蔑视,表情动作,蔑视,0,builtin
+shaded face,脸上有阴影，配合蔑视,表情动作,蔑视,82280,builtin
+frown,皱眉/蹙额,表情动作,蔑视,154425,builtin
+wince,皱眉蹙额(性交前),表情动作,蔑视,17248,builtin
+furrowed brow,眉头紧锁,表情动作,蔑视,70485,builtin
+fear kubrick,害怕侧目,表情动作,蔑视,129,builtin
+angry,生气的,表情动作,生气,62274,builtin
+glaring,怒目而视,表情动作,生气,12494,builtin
+serious,严肃的（和angry有点像）,表情动作,生气,39885,builtin
+kubrick stare,侧头瞪着你,表情动作,生气,106,builtin
+evil,邪恶的,表情动作,生气,0,builtin
+sulking,生_闷气,表情动作,生气,397,builtin
+screaming,尖叫|大声喊,表情动作,生气,9253,builtin
+shouting,喊叫,表情动作,生气,13036,builtin
+expressionless,面无表情,表情动作,其他表情,181463,builtin
+sleepy,困乏的,表情动作,其他表情,13385,builtin
+drunk,喝醉的,表情动作,其他表情,20267,builtin
+bored,无聊的,表情动作,其他表情,2076,builtin
+confused,使困惑,表情动作,其他表情,5958,builtin
+thinking,思考,表情动作,其他表情,8354,builtin
+lonely,孤独,表情动作,其他表情,771,builtin
+shy,害羞的,表情动作,其他表情,14573,builtin
+embarrass,害羞的(尴尬的),表情动作,其他表情,0,builtin
+facepalm,捂脸,表情动作,其他表情,1823,builtin
+flustered,慌张的,表情动作,其他表情,7339,builtin
+sweat,流汗,表情动作,其他表情,773037,builtin
+scared,害怕的,表情动作,其他表情,21849,builtin
+endured face,忍耐的表情,表情动作,其他表情,0,builtin
+restrained,忍耐,表情动作,其他表情,70720,builtin
+dark persona,黑化的,表情动作,其他表情,17302,builtin
+crazy,疯狂的,表情动作,其他表情,1990,builtin
+exhausted,筋疲力尽的,表情动作,其他表情,3761,builtin
+Tsundere,傲娇,表情动作,其他表情,6263,builtin
+yandere,病娇,表情动作,其他表情,9586,builtin
+multiple persona,多重人格,表情动作,其他表情,17439,builtin
+Jekyll and Hyde,多重人格,表情动作,其他表情,0,builtin
+twitching,抽搐,表情动作,其他表情,10597,builtin
+spasm,痉挛,表情动作,其他表情,919,builtin
+trembling,颤抖,表情动作,其他表情,108898,builtin
+rape face,强奸脸,表情动作,其他表情,783,builtin
+envy,嫉妒,表情动作,其他表情,262,builtin
+female orgasm,绝顶,表情动作,其他表情,14947,builtin
+heavy breathing,重呼吸，可能没用,表情动作,其他表情,51904,builtin
+naughty,淘气,表情动作,其他表情,0,builtin
+expressions,表情差分（大概）,表情动作,其他表情,0,builtin
+moaning,呻吟,表情动作,其他表情,18562,builtin
+scowl,嫌弃的眼神,表情动作,其他表情,6535,builtin
+standing,站立,表情动作,基础动作,1334022,builtin
+on back,躺,表情动作,基础动作,358733,builtin
+on stomach,趴,表情动作,基础动作,92342,builtin
+kneeling,跪,表情动作,基础动作,157340,builtin
+on side,侧卧,表情动作,基础动作,124589,builtin
+top-down bottom-up,趴着翘臀,表情动作,基础动作,28832,builtin
+the pose,趴在地上并翘起脚,表情动作,基础动作,12813,builtin
+bent over,翘臀姿势,表情动作,基础动作,84721,builtin
+upside-down,倒立,表情动作,基础动作,34853,builtin
+reversal,反转,表情动作,基础动作,0,builtin
+fighting stance,战斗姿态,表情动作,基础动作,34005,builtin
+leaning to the side,靠在一边,表情动作,基础动作,15014,builtin
+leaning,倚靠|身体倾斜,表情动作,基础动作,6747,builtin
+leaning back,身体往后靠,表情动作,基础动作,26231,builtin
+leaning on object,靠在物体上,表情动作,基础动作,4153,builtin
+arched back,弓身体,表情动作,基础动作,24870,builtin
+leaning forward,身体前倾,表情动作,基础动作,163463,builtin
+afloat,浮(在水上,表情动作,基础动作,6299,builtin
+lying,躺着的,表情动作,基础动作,624560,builtin
+fetal position,胎儿姿势(躺),表情动作,基础动作,4875,builtin
+lying on person,躺在人身上,表情动作,基础动作,8057,builtin
+lying on the lake,躺在湖面上,表情动作,基础动作,0,builtin
+lying on water,躺在水中,表情动作,基础动作,1353,builtin
+prone bone,俯卧后入,表情动作,基础动作,6617,builtin
+reclining,斜倒斜躺姿势,表情动作,基础动作,11151,builtin
+sleeping upright,(不躺着)睡觉|直立睡觉,表情动作,基础动作,4296,builtin
+presenting,展示（后接部位）,表情动作,基础动作,0,builtin
+spinning,旋转,表情动作,基础动作,4075,builtin
+posing,摆姿势,表情动作,基础动作,1846,builtin
+stylish pose,时尚姿势,表情动作,基础动作,0,builtin
+public indecency,公然猥亵,表情动作,基础动作,44961,builtin
+parody,模仿,表情动作,基础动作,109708,builtin
+in container,在容器中,表情动作,基础动作,16820,builtin
+against glass,挤压玻璃(无效),表情动作,基础动作,10114,builtin
+aiming,瞄准,表情动作,基础动作,16741,builtin
+aiming at viewer,瞄准了读者(的视角),表情动作,基础动作,7102,builtin
+applying makeup,化妆,表情动作,基础动作,3262,builtin
+bathing,洗澡,表情动作,基础动作,18175,builtin
+biting,咬,表情动作,基础动作,17828,builtin
+bleeding,出血,表情动作,基础动作,8204,builtin
+blowing,吹,表情动作,基础动作,1663,builtin
+bowing,鞠躬,表情动作,基础动作,3011,builtin
+breathing fire,喷火,表情动作,基础动作,3286,builtin
+broom riding,骑扫帚,表情动作,基础动作,11880,builtin
+brushing teeth,刷牙,表情动作,基础动作,2988,builtin
+bubble blowing,吹泡泡,表情动作,基础动作,0,builtin
+bullying,欺负,表情动作,基础动作,1772,builtin
+burning,燃烧,表情动作,基础动作,5140,builtin
+cast,投掷,表情动作,基础动作,1206,builtin
+chasing,追逐,表情动作,基础动作,3457,builtin
+cleaning,打扫,表情动作,基础动作,2696,builtin
+climbing,攀爬,表情动作,基础动作,2133,builtin
+comforting,安慰,表情动作,基础动作,2417,builtin
+cooking,烹饪,表情动作,基础动作,12171,builtin
+cuddling,拥抱,表情动作,基础动作,5761,builtin
+dancing,跳舞,表情动作,基础动作,23225,builtin
+diving,潜水,表情动作,基础动作,1050,builtin
+dragging,拖某物,表情动作,基础动作,1710,builtin
+drawing,绘画,表情动作,基础动作,0,builtin
+drawing bow,拉弓,表情动作,基础动作,3850,builtin
+dreaming,做梦,表情动作,基础动作,3984,builtin
+drinking,喝,表情动作,基础动作,26700,builtin
+driving,驾驶,表情动作,基础动作,6492,builtin
+dropping,(意外)掉落,表情动作,基础动作,2398,builtin
+drying,弄干(浴后),表情动作,基础动作,3670,builtin
+dual wielding,双持,表情动作,基础动作,41313,builtin
+exercise,做运动,表情动作,基础动作,0,builtin
+fighting,战斗中的,表情动作,基础动作,8579,builtin
+firing,射击,表情动作,基础动作,10659,builtin
+fishing,钓鱼,表情动作,基础动作,3427,builtin
+flapping,拍打动作,表情动作,基础动作,1074,builtin
+flashing,露出,表情动作,基础动作,7791,builtin
+fleeing,在逃跑的,表情动作,基础动作,4503,builtin
+flexing,秀肌肉,表情动作,基础动作,5075,builtin
+flying,飞行,表情动作,基础动作,43783,builtin
+flying kick,飞踢,表情动作,基础动作,1987,builtin
+hair brushing,梳头,表情动作,基础动作,0,builtin
+hair tucking,撩头发,表情动作,基础动作,0,builtin
+hanging,吊起来的,表情动作,基础动作,2874,builtin
+hitting,击打,表情动作,基础动作,2461,builtin
+imagining,在想象的,表情动作,基础动作,8294,builtin
+jumping,跳跃,表情动作,基础动作,32323,builtin
+kicking,踢,表情动作,基础动作,15661,builtin
+licking,舔,表情动作,基础动作,59924,builtin
+licking lips,舔嘴唇,表情动作,基础动作,31122,builtin
+lip biting,咬嘴唇,表情动作,基础动作,0,builtin
+meditation,冥想,表情动作,基础动作,637,builtin
+painting,绘画,表情动作,基础动作,0,builtin
+Painting (Action),画画,表情动作,基础动作,3095,builtin
+playing card,扑克牌,表情动作,基础动作,16557,builtin
+playing games,打游戏,表情动作,基础动作,11186,builtin
+playing instrument,演奏乐器,表情动作,基础动作,20694,builtin
+pole dancing,钢管舞,表情动作,基础动作,3482,builtin
+praying,祈祷,表情动作,基础动作,6100,builtin
+punching,挥拳,表情动作,基础动作,11667,builtin
+pushing,推搡,表情动作,基础动作,1847,builtin
+railing,用手扶着,表情动作,基础动作,34292,builtin
+reading,阅读,表情动作,基础动作,23838,builtin
+riding,骑,表情动作,基础动作,23513,builtin
+running,奔跑,表情动作,基础动作,45098,builtin
+sewing,缝纫,表情动作,基础动作,1377,builtin
+shopping,购物,表情动作,基础动作,2084,builtin
+showering,淋浴,表情动作,基础动作,6602,builtin
+sing,唱歌,表情动作,基础动作,0,builtin
+singing,唱歌,表情动作,基础动作,16480,builtin
+slashing,砍,表情动作,基础动作,2272,builtin
+sleeping,睡觉,表情动作,基础动作,101366,builtin
+smoking,抽烟,表情动作,基础动作,34949,builtin
+sneezing,打喷嚏,表情动作,基础动作,1523,builtin
+snowing,下雪,表情动作,基础动作,37651,builtin
+soaking feet,泡脚,表情动作,基础动作,12643,builtin
+soccer,足球运动,表情动作,基础动作,1874,builtin
+spilling,从容器中倒出液体的动作,表情动作,基础动作,4262,builtin
+spitting,从嘴里吐出液体的动作,表情动作,基础动作,3048,builtin
+splashing,飞溅,表情动作,基础动作,13179,builtin
+standing on liquid,站在水上或液体上,表情动作,基础动作,3607,builtin
+standing on one leg,单腿站立,表情动作,基础动作,127517,builtin
+standing split,站立劈叉|站立高抬腿,表情动作,基础动作,13538,builtin
+steepled fingers,指尖抵着指间,表情动作,基础动作,11105,builtin
+strangling,绞首,表情动作,基础动作,6591,builtin
+sweeping,打扫,表情动作,基础动作,665,builtin
+swimming,游泳,表情动作,基础动作,6859,builtin
+swing,摆动,表情动作,基础动作,4744,builtin
+tail wagging,摇尾巴,表情动作,基础动作,14282,builtin
+taking picture,拍照|自拍,表情动作,基础动作,11828,builtin
+talking,有台词的,表情动作,基础动作,29536,builtin
+talking on phone,打电话,表情动作,基础动作,4399,builtin
+teasing,戏弄,表情动作,基础动作,4563,builtin
+tickling,挠痒痒,表情动作,基础动作,4274,builtin
+toilet use,上厕所,表情动作,基础动作,4905,builtin
+tossing,投掷,表情动作,基础动作,565,builtin
+tripping,被绊倒,表情动作,基础动作,3685,builtin
+trolling,恶搞行为,表情动作,基础动作,761,builtin
+tying,打结(动作),表情动作,基础动作,1151,builtin
+unsheathing,拔出鞘的,表情动作,基础动作,8657,builtin
+untying,解开的,表情动作,基础动作,2052,builtin
+unzipping,拉开拉链(动作),表情动作,基础动作,1975,builtin
+wading,涉水,表情动作,基础动作,55372,builtin
+waking up,醒来,表情动作,基础动作,9462,builtin
+walking,走路,表情动作,基础动作,54739,builtin
+walking on liquid,在液体上行走,表情动作,基础动作,1201,builtin
+washing,洗涤,表情动作,基础动作,1879,builtin
+whispering,讲悄悄话,表情动作,基础动作,3363,builtin
+wrestling,摔角(运动),表情动作,基础动作,6692,builtin
+writing,写作,表情动作,基础动作,6607,builtin
+yawning,打哈欠,表情动作,基础动作,14371,builtin
+hiding,躲藏,表情动作,基础动作,5924,builtin
+arms behind back,手放在身后,表情动作,手部动作,154904,builtin
+arm above head,手在头上,表情动作,手部动作,3251,builtin
+arm behind head,手放头后,表情动作,手部动作,51985,builtin
+arms crossed,手交叉于胸前,表情动作,手部动作,0,builtin
+arm support,用手支撑住,表情动作,手部动作,119408,builtin
+arms up,抬手,表情动作,手部动作,263987,builtin
+hands on hips,双手叉腰,表情动作,手部动作,0,builtin
+arm around waist,单手搂腰,表情动作,手部动作,0,builtin
+caramelldansen,某著名伸手扭腰动作,表情动作,手部动作,0,builtin
+waving,招手,表情动作,手部动作,40753,builtin
+crossed arms,交叉双臂,表情动作,手部动作,122914,builtin
+outstretched arms,伸出双臂,表情动作,手部动作,93432,builtin
+v arms,双臂摆出V,表情动作,手部动作,33202,builtin
+w arms,双臂摆出W,表情动作,手部动作,0,builtin
+salute,敬礼,表情动作,手部动作,20861,builtin
+reaching,(有目的地)伸手,表情动作,手部动作,49903,builtin
+reaching out,朝画外伸手,表情动作,手部动作,0,builtin
+stretch,伸懒腰,表情动作,手部动作,0,builtin
+hugging own legs,拥抱自己的腿,表情动作,手部动作,19706,builtin
+arm blade,手臂刀刃,表情动作,手部动作,3873,builtin
+arm grab,抓住手臂,表情动作,手部动作,0,builtin
+arm held back,手臂往后拉,表情动作,手部动作,5698,builtin
+arm ribbon,手臂丝带,表情动作,手部动作,12837,builtin
+bandaid on arm,手臂上贴着创可贴,表情动作,手部动作,5961,builtin
+bound arms,手臂被束缚,表情动作,手部动作,22860,builtin
+convenient arm,遮住关键部位的手臂,表情动作,手部动作,3334,builtin
+extra arms,多只手臂,表情动作,手部动作,15891,builtin
+locked arms,互挽手臂,表情动作,手部动作,8284,builtin
+outstretched arm,伸出手臂,表情动作,手部动作,94622,builtin
+waving arms,挥舞着手臂,表情动作,手部动作,1224,builtin
+arm at side,单手垂放,表情动作,手部动作,65991,builtin
+arm behind back,单手背到身后,表情动作,手部动作,54804,builtin
+shou,单手托在脑后,表情动作,手部动作,0,builtin
+arm cannon,手炮,表情动作,手部动作,14686,builtin
+arm hug,挽手,表情动作,手部动作,7907,builtin
+arm up,举着手,表情动作,手部动作,306458,builtin
+arms at sides,双手垂放,表情动作,手部动作,39226,builtin
+arms behind head,双手抱头,表情动作,手部动作,72926,builtin
+hand to mouth,手放在嘴边,表情动作,手部动作,0,builtin
+shushing,嘘手势,表情动作,手部动作,11972,builtin
+cat pose,猫爪手势,表情动作,手部动作,0,builtin
+claw pose,爪手势,表情动作,手部动作,28440,builtin
+paw pose,招财猫手势(下弯手腕),表情动作,手部动作,36353,builtin
+fox shadow puppet,狐狸手势,表情动作,手部动作,12268,builtin
+double fox shadow puppet,b,表情动作,手部动作,2840,builtin
+finger gun,手指枪手势,表情动作,手部动作,7900,builtin
+v,胜利手势,表情动作,手部动作,238320,builtin
+double v,双_v,表情动作,手部动作,43308,builtin
+thumbs up,翘大拇指,表情动作,手部动作,20293,builtin
+index finger raised,食指抬起,表情动作,手部动作,75259,builtin
+middle finger,国际友好手势,表情动作,手部动作,8409,builtin
+grimace,做鬼脸,表情动作,手部动作,4980,builtin
+eyelid pull,做鬼脸,表情动作,手部动作,2833,builtin
+fingersmile,用手指做出笑脸,表情动作,手部动作,1201,builtin
+finger on trigger,准备扣扳机的手势,表情动作,手部动作,6508,builtin
+pointing at self,指着自己,表情动作,手部动作,10437,builtin
+pointing at viewer,指向看图的人,表情动作,手部动作,17818,builtin
+pointing up,向上指,表情动作,手部动作,9049,builtin
+poking,戳,表情动作,手部动作,8171,builtin
+hand gesture,做手势,表情动作,手部动作,0,builtin
+ok sign,OK手势,表情动作,手部动作,6119,builtin
+finger biting,咬手指,表情动作,手部动作,0,builtin
+finger in mouth,吮吸手指,表情动作,手部动作,0,builtin
+fingering through clothes,手指,表情动作,手部动作,3117,builtin
+fingers together,手指并拢,表情动作,手部动作,0,builtin
+hair twirling,手指卷着头发,表情动作,手部动作,0,builtin
+hands clasped,双手手指交叉|双手紧握,表情动作,手部动作,0,builtin
+holding hair,握着头发|手指绕着头发,表情动作,手部动作,0,builtin
+pointing,用手指着,表情动作,手部动作,94144,builtin
+sharp fingernails,锐利的手指甲,表情动作,手部动作,34666,builtin
+spread fingers,张开手指,表情动作,手部动作,5624,builtin
+trigger discipline,手指没放在扳机上,表情动作,手部动作,12694,builtin
+w,手指比W,表情动作,手部动作,29783,builtin
+balancing,(保持)平衡的姿势,表情动作,手部动作,2159,builtin
+multiple views,多角度|多姿势,表情动作,手部动作,272073,builtin
+pose,姿势,表情动作,手部动作,0,builtin
+ready to draw,准备拔刀的姿势,表情动作,手部动作,1901,builtin
+trefoil,一种女性展示臀部的姿势,表情动作,手部动作,4316,builtin
+zombie pose,僵尸姿势,表情动作,手部动作,4176,builtin
+beckoning,招手,表情动作,手部动作,3600,builtin
+bunching hair,手持辫子,表情动作,手部动作,1659,builtin
+carrying,抱起,表情动作,手部动作,65608,builtin
+carrying over shoulder,肩扛,表情动作,手部动作,4413,builtin
+carrying under arm,夹在腋下,表情动作,手部动作,2912,builtin
+cheering,助威,表情动作,手部动作,3417,builtin
+finger to mouth,手抵在嘴唇边,表情动作,手部动作,52430,builtin
+cheek pinching,捏脸颊,表情动作,手部动作,4245,builtin
+cheek poking,戳脸颊,表情动作,手部动作,4300,builtin
+chin stroking,摸下巴,表情动作,手部动作,0,builtin
+hair pull,拉头发,表情动作,手部动作,0,builtin
+covering mouth,遮盖嘴,表情动作,手部动作,0,builtin
+covering xx,遮盖xx,表情动作,手部动作,0,builtin
+self fondle,自我抚摸,表情动作,手部动作,0,builtin
+adjusting thighhigh,调整过膝袜,表情动作,手部动作,0,builtin
+chin rest,托脸颊,表情动作,手部动作,0,builtin
+take,拿着,表情动作,手部动作,0,builtin
+sheet grab,抓床单,表情动作,手部动作,16491,builtin
+groping,摸索,表情动作,手部动作,133369,builtin
+crotch grab,手抓裆部,表情动作,手部动作,1349,builtin
+covering chest by hand,用手遮住胸部,表情动作,手部动作,0,builtin
+bangs pinned back,掀起的刘海,表情动作,手部动作,7778,builtin
+clothes lift,掀起衣物,表情动作,手部动作,287774,builtin
+dress lift,掀起裙子,表情动作,手部动作,43191,builtin
+kimono lift,掀起和服,表情动作,手部动作,1540,builtin
+lifted by another,被对方掀起衣物,表情动作,手部动作,0,builtin
+skirt basket,指掀起裙子时形成的篮子形状,表情动作,手部动作,1302,builtin
+skirt flip,被掀起裙子(含突发情况意义),表情动作,手部动作,1447,builtin
+bikini lift,往上剥开的比基尼,表情动作,手部动作,0,builtin
+leg lift,单腿抬高,表情动作,手部动作,21485,builtin
+lifting person,将人抱起,表情动作,手部动作,10402,builtin
+strap lift,往上掰衣物的吊带,表情动作,手部动作,2131,builtin
+wind lift,起风效果|上升气流,表情动作,手部动作,19092,builtin
+bikini pull,扯着比基尼,表情动作,手部动作,11462,builtin
+cheek pull,扯脸颊,表情动作,手部动作,2094,builtin
+clothes pull,拉开衣物,表情动作,手部动作,108867,builtin
+dress pull,剥下裙子胸口的部分,表情动作,手部动作,7721,builtin
+hair pulled back,头发往后扎,表情动作,手部动作,11727,builtin
+kimono pull,剥开和服,表情动作,手部动作,2206,builtin
+leotard pull,剥开连衣裤,表情动作,手部动作,4153,builtin
+mask pull,拉着口罩,表情动作,手部动作,8822,builtin
+pants pull,拉着裤子,表情动作,手部动作,16106,builtin
+pulled by another,被另一个人拉(或拉衣物),表情动作,手部动作,0,builtin
+pulled by self,拉下自己的衣物,表情动作,手部动作,0,builtin
+pulling,拉,表情动作,手部动作,3532,builtin
+shorts pull,褪下短裤,表情动作,手部动作,10166,builtin
+skirt pull,拉开裙子,表情动作,手部动作,11357,builtin
+swimsuit pull,扯下泳衣,表情动作,手部动作,0,builtin
+zipper pull tab,拉链的拉片,表情动作,手部动作,30660,builtin
+adjusting clothes,拨弄衣服,表情动作,手部动作,36257,builtin
+adjusting eyewear,扶眼镜,表情动作,手部动作,31761,builtin
+adjusting gloves,拨弄手套,表情动作,手部动作,4764,builtin
+adjusting hair,理头发,表情动作,手部动作,27575,builtin
+adjusting hat,整理帽子,表情动作,手部动作,0,builtin
+adjusting swimsuit,拨弄泳衣,表情动作,手部动作,5586,builtin
+holding,拿着某物,表情动作,手部动作(拿着某物),2208424,builtin
+holding animal,抱着动物,表情动作,手部动作(拿着某物),25589,builtin
+holding arrow,拉着弓,表情动作,手部动作(拿着某物),6621,builtin
+holding axe,握着斧头,表情动作,手部动作(拿着某物),11041,builtin
+holding bag,提着包,表情动作,手部动作(拿着某物),38624,builtin
+holding ball,抱着球,表情动作,手部动作(拿着某物),14141,builtin
+holding basket,提着篮子,表情动作,手部动作(拿着某物),7775,builtin
+holding book,捧着书,表情动作,手部动作(拿着某物),73850,builtin
+holding bottle,拿着瓶子,表情动作,手部动作(拿着某物),32805,builtin
+holding bouquet,手捧花束,表情动作,手部动作(拿着某物),26936,builtin
+holding bow (weapon),拿着弓(武器),表情动作,手部动作(拿着某物),16871,builtin
+holding bowl,端着碗,表情动作,手部动作(拿着某物),11742,builtin
+holding box,端着箱子,表情动作,手部动作(拿着某物),11524,builtin
+holding breath,憋气,表情动作,手部动作(拿着某物),1264,builtin
+holding broom,手持扫帚,表情动作,手部动作(拿着某物),11938,builtin
+holding camera,手持摄像机,表情动作,手部动作(拿着某物),15383,builtin
+holding can,拿着易拉罐,表情动作,手部动作(拿着某物),18100,builtin
+holding candy,手持糖果,表情动作,手部动作(拿着某物),17657,builtin
+holding card,手持卡片,表情动作,手部动作(拿着某物),15641,builtin
+holding cat,抱着猫,表情动作,手部动作(拿着某物),7419,builtin
+holding chopsticks,拿着筷子,表情动作,手部动作(拿着某物),17929,builtin
+holding cigarette,手叼香烟,表情动作,手部动作(拿着某物),18420,builtin
+holding clothes,拿着衣服,表情动作,手部动作(拿着某物),0,builtin
+holding condom,拿着避孕套,表情动作,手部动作(拿着某物),5943,builtin
+holding cup,手持杯子,表情动作,手部动作(拿着某物),111722,builtin
+holding dagger,手持匕首,表情动作,手部动作(拿着某物),8972,builtin
+holding doll,抱着玩偶,表情动作,手部动作(拿着某物),8783,builtin
+holding eyewear,拿着眼镜|正在摘眼镜,表情动作,手部动作(拿着某物),0,builtin
+holding fan,拿着扇子,表情动作,手部动作(拿着某物),32635,builtin
+holding flag,手持旗帜,表情动作,手部动作(拿着某物),7772,builtin
+holding flower,拿着花,表情动作,手部动作(拿着某物),0,builtin
+holding food,拿着食物,表情动作,手部动作(拿着某物),155356,builtin
+holding fork,拿着餐叉,表情动作,手部动作(拿着某物),18628,builtin
+holding fruit,拿着水果,表情动作,手部动作(拿着某物),21491,builtin
+holding gift,拿着礼物,表情动作,手部动作(拿着某物),18405,builtin
+holding gun,拿着枪,表情动作,手部动作(拿着某物),102725,builtin
+holding hands,牵手,表情动作,手部动作(拿着某物),146431,builtin
+holding hat,拿着帽子,表情动作,手部动作(拿着某物),0,builtin
+holding head,手里捧着头,表情动作,手部动作(拿着某物),0,builtin
+holding helmet,拿着头盔,表情动作,手部动作(拿着某物),0,builtin
+holding innertube,拿着泳圈,表情动作,手部动作(拿着某物),0,builtin
+holding instrument,拿着乐器,表情动作,手部动作(拿着某物),30243,builtin
+holding knife,拿着刀,表情动作,手部动作(拿着某物),41681,builtin
+holding leaf,拿着叶子,表情动作,手部动作(拿着某物),3946,builtin
+holding lollipop,拿着棒棒糖,表情动作,手部动作(拿着某物),14179,builtin
+holding mask,拿着面具,表情动作,手部动作(拿着某物),10190,builtin
+holding microphone,拿着麦克风,表情动作,手部动作(拿着某物),32251,builtin
+holding needle,拿着缝衣针,表情动作,手部动作(拿着某物),2602,builtin
+holding own foot,握着自己的脚,表情动作,手部动作(拿着某物),1065,builtin
+holding paintbrush,手握画笔,表情动作,手部动作(拿着某物),8111,builtin
+holding paper,拿着纸,表情动作,手部动作(拿着某物),16246,builtin
+holding pen,握笔,表情动作,手部动作(拿着某物),15022,builtin
+holding pencil,手持铅笔,表情动作,手部动作(拿着某物),5537,builtin
+holding phone,拿着手机,表情动作,手部动作(拿着某物),102790,builtin
+holding pillow,抱着枕头,表情动作,手部动作(拿着某物),4808,builtin
+holding pipe,拿着烟斗,表情动作,手部动作(拿着某物),0,builtin
+holding pizza,拿着披萨,表情动作,手部动作(拿着某物),2675,builtin
+holding plate,端着碟子,表情动作,手部动作(拿着某物),23976,builtin
+holding poke ball,拿着精灵球,表情动作,手部动作(拿着某物),24222,builtin
+holding pokemon,抱着宝可梦,表情动作,手部动作(拿着某物),7215,builtin
+holding polearm,手持长柄武器,表情动作,手部动作(拿着某物),34269,builtin
+holding sack,拎着包袱,表情动作,手部动作(拿着某物),6261,builtin
+holding scythe,手持镰刀,表情动作,手部动作(拿着某物),10688,builtin
+holding sheath,握着刀鞘,表情动作,手部动作(拿着某物),6539,builtin
+holding shield,手持盾牌,表情动作,手部动作(拿着某物),12104,builtin
+holding shoes,拿着鞋子,表情动作,手部动作(拿着某物),0,builtin
+holding sign,手持招牌,表情动作,手部动作(拿着某物),6299,builtin
+holding spear,手持长矛,表情动作,手部动作(拿着某物),0,builtin
+holding spoon,拿着汤勺,表情动作,手部动作(拿着某物),18142,builtin
+holding staff,手持法杖,表情动作,手部动作(拿着某物),51094,builtin
+holding strap,手拉着吊带,表情动作,手部动作(拿着某物),9609,builtin
+holding stuffed animal,抱着毛绒玩具,表情动作,手部动作(拿着某物),0,builtin
+holding stylus,手持手写笔,表情动作,手部动作(拿着某物),3271,builtin
+holding sword,手持剑,表情动作,手部动作(拿着某物),181065,builtin
+holding syringe,手持注射器,表情动作,手部动作(拿着某物),6636,builtin
+holding towel,拿着毛巾,表情动作,手部动作(拿着某物),10146,builtin
+holding tray,托着盘子,表情动作,手部动作(拿着某物),30928,builtin
+holding umbrella,撑伞,表情动作,手部动作(拿着某物),52759,builtin
+holding wand,握着棒子,表情动作,手部动作(拿着某物),16785,builtin
+holding whip,握着鞭子,表情动作,手部动作(拿着某物),4655,builtin
+arm around neck,单手搂着脖子,表情动作,手部动作(拿着某物),7669,builtin
+arms around neck,双手搂着脖子,表情动作,手部动作(拿着某物),11884,builtin
+covering,遮盖的动作,表情动作,手部动作(放在某地),0,builtin
+covering face,挡住脸,表情动作,手部动作(放在某地),10398,builtin
+covering ass,遮着臀部,表情动作,手部动作(放在某地),1504,builtin
+covering crotch,遮着裆部,表情动作,手部动作(放在某地),18248,builtin
+covering nipples,挡住乳头,表情动作,手部动作(放在某地),3973,builtin
+hands on another's,双手放在别人的脸上,表情动作,手部动作(放在某地),0,builtin
+hands on another's cheeks,双手放在对方的脸颊上,表情动作,手部动作(放在某地),4124,builtin
+hands on ass,双手放在屁股上,表情动作,手部动作(放在某地),0,builtin
+hands on feet,双手放在脚上,表情动作,手部动作(放在某地),1973,builtin
+hands on headwear,双手碰到头上的饰物,表情动作,手部动作(放在某地),3352,builtin
+hands on hilt,双手搭在刀柄上,表情动作,手部动作(放在某地),1417,builtin
+hands on lap,双手放在两腿之间,表情动作,手部动作(放在某地),4420,builtin
+hands on own face,双手放在自己的脸上,表情动作,手部动作(放在某地),26194,builtin
+hands on own cheeks,双手放在自己的脸颊上,表情动作,手部动作(放在某地),14128,builtin
+hands on own chest,双手放在自己的胸口,表情动作,手部动作(放在某地),21025,builtin
+hands on own head,双手放在自己的头上,表情动作,手部动作(放在某地),5952,builtin
+hands on own knees,双手放在自己的膝盖上,表情动作,手部动作(放在某地),10117,builtin
+hands on own stomach,双手放在自己的肚子上,表情动作,手部动作(放在某地),2792,builtin
+hands on own thighs,双手放在自己的大腿上,表情动作,手部动作(放在某地),5074,builtin
+hands on another's shoulders,双手放在别人的肩膀上,表情动作,手部动作(放在某地),8908,builtin
+hand on another's,手接触到对方的脸,表情动作,手部动作(放在某地),0,builtin
+hand on another's cheek,手摸着对方的脸颊,表情动作,手部动作(放在某地),13440,builtin
+hand on another's chest,手放在对方的胸前,表情动作,手部动作(放在某地),9024,builtin
+hand on another's chin,手托着对方的下巴,表情动作,手部动作(放在某地),12281,builtin
+hand on another's head,手放在对方的头上,表情动作,手部动作(放在某地),53218,builtin
+hand on another's shoulder,手放在对方的肩上,表情动作,手部动作(放在某地),43657,builtin
+hand on another's stomach,手放在对方的肚子上,表情动作,手部动作(放在某地),4932,builtin
+hand on ass,手放在屁股上,表情动作,手部动作(放在某地),0,builtin
+hand on head,手放在头上,表情动作,手部动作(放在某地),0,builtin
+hand on headwear,手触碰帽子,表情动作,手部动作(放在某地),25340,builtin
+hand on hilt,手搁在刀柄上,表情动作,手部动作(放在某地),4382,builtin
+hand on hip,手叉着腰|手搁在腰上,表情动作,手部动作(放在某地),0,builtin
+hand on own,把手放在自己脸上,表情动作,手部动作(放在某地),0,builtin
+hand on own cheek,把手放在自己的脸颊上,表情动作,手部动作(放在某地),37702,builtin
+hand on own chest,把手放在自己的胸口,表情动作,手部动作(放在某地),89831,builtin
+hand on own chin,手碰着自己的下巴,表情动作,手部动作(放在某地),29658,builtin
+hand on own stomach,把手放在自己的肚子上,表情动作,手部动作(放在某地),12887,builtin
+hand on shoulder,手放在肩上,表情动作,手部动作(放在某地),0,builtin
+hand in another's hair,手放在对方的头发上,表情动作,手部动作(放在某地),9771,builtin
+hand in hair,手埋在头发里,表情动作,手部动作(放在某地),0,builtin
+hand in pocket,手插在口袋里,表情动作,手部动作(放在某地),53152,builtin
+ass grab,抓着屁股,表情动作,手部动作(抓着某物),0,builtin
+flat chest grab,抓着贫乳,表情动作,手部动作(抓着某物),907,builtin
+grabbing,抓住|抓着,表情动作,手部动作(抓着某物),0,builtin
+grabbing another's ass,抓着对方屁股,表情动作,手部动作(抓着某物),30936,builtin
+grabbing another's hair,抓着对方的头发,表情动作,手部动作(抓着某物),12466,builtin
+grabbing from behind,从背后揉胸|从背后抓住胸部,表情动作,手部动作(抓着某物),32361,builtin
+grabbing own ass,抓着自己的屁股,表情动作,手部动作(抓着某物),15939,builtin
+guided penetration,抓住男性器插入自己,表情动作,手部动作(抓着某物),1837,builtin
+hair grab,抓着头发,表情动作,手部动作(抓着某物),0,builtin
+leg grab,抓着腿,表情动作,手部动作(抓着某物),0,builtin
+necktie grab,抓着领带,表情动作,手部动作(抓着某物),3471,builtin
+neckwear grab,抓着颈部的衣服,表情动作,手部动作(抓着某物),5217,builtin
+penis grab,抓着阴茎,表情动作,手部动作(抓着某物),0,builtin
+pillow grab,抓着枕头,表情动作,手部动作(抓着某物),4782,builtin
+tail grab,抓着尾巴,表情动作,手部动作(抓着某物),2435,builtin
+thigh grab,抓着大腿,表情动作,手部动作(抓着某物),0,builtin
+torso grab,抓着躯干,表情动作,手部动作(抓着某物),13772,builtin
+wrist grab,抓着手腕,表情动作,手部动作(抓着某物),0,builtin
+legs up,抬一只腿,表情动作,腿部动作,47619,builtin
+spread legs,张腿,表情动作,腿部动作,351976,builtin
+legs together,两腿并拢,表情动作,腿部动作,37504,builtin
+crossed legs,二郎腿,表情动作,腿部动作,106876,builtin
+m legs,M字摆腿,表情动作,腿部动作,17676,builtin
+"standing split, leg up",M字摆腿,表情动作,腿部动作,0,builtin
+curtsy,屈膝礼（女仆行礼）,表情动作,腿部动作,0,builtin
+hand between legs,双腿之间的手,表情动作,腿部动作,0,builtin
+open stance,稍息,表情动作,腿部动作,0,builtin
+convenient leg,挡住关键部位的腿,表情动作,腿部动作,9678,builtin
+leg lock,用双腿夹住,表情动作,腿部动作,6335,builtin
+legs,双腿,表情动作,腿部动作,183812,builtin
+legs over head,双腿抬过头,表情动作,腿部动作,1969,builtin
+"squatting, open legs",蹲下分开双腿,表情动作,腿部动作,0,builtin
+knees together feet apart,膝盖合并，两脚分开,表情动作,腿部动作,42108,builtin
+animal on lap,膝盖上有动物,表情动作,腿部动作,2639,builtin
+hand on own knee,手放在自己的膝盖上,表情动作,腿部动作,18282,builtin
+knee up,顶起膝盖,表情动作,腿部动作,58940,builtin
+knees,膝盖,表情动作,腿部动作,15060,builtin
+knees to chest,膝盖顶到胸部,表情动作,腿部动作,7449,builtin
+on lap,在膝盖上,表情动作,腿部动作,5628,builtin
+sitting,坐,表情动作,腿部动作,1314908,builtin
+wariza,鸭子坐,表情动作,腿部动作,0,builtin
+straddling,跨坐,表情动作,腿部动作,97506,builtin
+yokozuwari,侧身坐,表情动作,腿部动作,26168,builtin
+sitting backwards,向后坐,表情动作,腿部动作,1566,builtin
+sitting in tree,坐在树上,表情动作,腿部动作,3057,builtin
+sitting on xx,坐在物体上,表情动作,腿部动作,0,builtin
+butterfly sitting,蝴蝶坐,表情动作,腿部动作,1577,builtin
+lotus position,坐在桌子上,表情动作,腿部动作,180,builtin
+sitting on railing,坐在栏杆上,表情动作,腿部动作,0,builtin
+sitting on rock,坐在石头,表情动作,腿部动作,0,builtin
+sitting on stairs,坐在楼梯上,表情动作,腿部动作,3878,builtin
+sitting on table,坐在桌子上,表情动作,腿部动作,1779,builtin
+sitting on water,坐在水上,表情动作,腿部动作,889,builtin
+cushion,坐垫,表情动作,腿部动作,11479,builtin
+sitting on chair,坐在椅子上,表情动作,腿部动作,0,builtin
+sidesaddle,侧坐在鞍上,表情动作,腿部动作,2282,builtin
+sitting on bed,坐在床上,表情动作,腿部动作,0,builtin
+sitting on desk,坐在课桌上,表情动作,腿部动作,0,builtin
+sitting on lap,坐在大腿上,表情动作,腿部动作,18371,builtin
+sitting on person,坐在人身上,表情动作,腿部动作,34451,builtin
+upright straddle,对坐体位,表情动作,腿部动作,7890,builtin
+squatting,蹲下,表情动作,腿部动作,137979,builtin
+one knee,一只膝盖,表情动作,腿部动作,0,builtin
+all fours,四肢着地,表情动作,腿部动作,80920,builtin
+gravure pose,凹版姿势,表情动作,腿部动作,0,builtin
+high kick,高踢,表情动作,腿部动作,0,builtin
+between legs,(强调)两腿之间,表情动作,腿部动作,50332,builtin
+cropped legs,只画了一部分腿,表情动作,腿部动作,72094,builtin
+k/da (league of legends),KDA组合(英雄联盟),表情动作,腿部动作,1915,builtin
+leg belt,腿部系着带子,表情动作,腿部动作,3935,builtin
+leg hair,腿毛,表情动作,腿部动作,7383,builtin
+leg up,抬起腿,表情动作,腿部动作,112360,builtin
+legs apart,两腿分开,表情动作,腿部动作,46996,builtin
+lowleg,M字摆腿,表情动作,腿部动作,19468,builtin
+mechanical legs,机械义足,表情动作,腿部动作,7591,builtin
+multiple legs,多足角色,表情动作,腿部动作,1952,builtin
+no legs,没画出腿,表情动作,腿部动作,0,builtin
+no legwear,裆胯以下裸着,表情动作,腿部动作,0,builtin
+tail between legs,尾巴蜷到两腿之间,表情动作,腿部动作,2255,builtin
+foot out of frame,单脚不在图内,表情动作,腿部动作,42276,builtin
+footprints,脚印,表情动作,腿部动作,4519,builtin
+dirty feet,脚的画法错误,表情动作,腿部动作,1614,builtin
+feet,脚,表情动作,腿部动作,274128,builtin
+feet out of frame,双脚不在图内,表情动作,腿部动作,240003,builtin
+feet up,翘起脚,表情动作,腿部动作,12734,builtin
+wrong feet,脚部作画错误,表情动作,腿部动作,0,builtin
+cameltoe,骆驼趾,表情动作,腿部动作,126887,builtin
+pigeon-toed,萌向的内八腿,表情动作,腿部动作,14954,builtin
+tiptoes,踮起脚尖,表情动作,腿部动作,18510,builtin
+toe-point,趾尖|脚尖,表情动作,腿部动作,0,builtin
+ankle strap,脚踝丝环,表情动作,腿部动作,3825,builtin
+ankle wrap,脚踝套,表情动作,腿部动作,1160,builtin
+crossed ankles,交叉脚踝,表情动作,腿部动作,8293,builtin
+pince-nez,夹鼻眼镜|无脚眼镜,表情动作,腿部动作,7171,builtin
+folded,抬腿露阴,表情动作,腿部动作,18124,builtin
+thick thighs,肉腿,表情动作,腿部动作,161148,builtin
+asymmetrical docking,胸部互碰|胸顶着胸,表情动作,其他动作,15407,builtin
+back-to-back,背对背,表情动作,其他动作,22880,builtin
+cunnilingus,舔阴,表情动作,其他动作,16439,builtin
+facing another,面对另一个,表情动作,其他动作,21623,builtin
+facing away,二人面对面(脸贴得很近),表情动作,其他动作,40592,builtin
+feeding,喂食,表情动作,其他动作,12551,builtin
+finger in another's mouth,口内指交,表情动作,其他动作,6778,builtin
+fingering,指交,表情动作,其他动作,46997,builtin
+giving,递|赠送,表情动作,其他动作,4618,builtin
+grinding,素股|臀推,表情动作,其他动作,0,builtin
+hug,拥抱,表情动作,其他动作,174770,builtin
+imminent kiss,即将接吻,表情动作,其他动作,18701,builtin
+incoming food,递食物,表情动作,其他动作,3055,builtin
+incoming gift,递礼物,表情动作,其他动作,4054,builtin
+interlocked fingers,紧扣的双手,表情动作,其他动作,68754,builtin
+Kabedon,壁咚,表情动作,其他动作,5247,builtin
+lap pillow,膝枕,表情动作,其他动作,11932,builtin
+licking penis,舔阴茎,表情动作,其他动作,18123,builtin
+mimikaki,掏耳勺,表情动作,其他动作,0,builtin
+princess carry,公主抱,表情动作,其他动作,19572,builtin
+shared bathing,共浴|鸳鸯浴,表情动作,其他动作,23929,builtin
+shared food,共享食物|用嘴递食物,表情动作,其他动作,3538,builtin
+sitting on head,坐在头上,表情动作,其他动作,621,builtin
+sitting on shoulder,坐在肩膀上,表情动作,其他动作,1373,builtin
+slapping,掌掴,表情动作,其他动作,2492,builtin
+spanking,打屁股,表情动作,其他动作,7915,builtin
+special feeling (meme),雪中打伞的恋人梗,表情动作,其他动作,700,builtin
+symmetrical docking,胸挤胸,表情动作,其他动作,13961,builtin
+ear biting,咬耳朵,表情动作,其他动作,0,builtin
+mixed bathing,混浴,表情动作,其他动作,0,builtin
+lowres,低分辨率,画面,画质,112898,builtin
+highres,高分辨率,画面,画质,8165012,builtin
+absurdres,超高分辨率,画面,画质,2999809,builtin
+incredibly absurdres,极高分辨率,画面,画质,6644,builtin
+huge filesize,超级高分辨率/大文件,画面,画质,0,builtin
+wallpaper,壁纸,画面,画质,0,builtin
+pixel art,点阵图,画面,画质,31797,builtin
+monochrome,单色图片,画面,画质,855054,builtin
+colorful,色彩斑斓的,画面,画质,7846,builtin
+artbook,原画,画面,艺术风格,4834,builtin
+game cg,游戏CG,画面,艺术风格,302148,builtin
+comic,漫画,画面,艺术风格,732339,builtin
+4koma,四格,画面,艺术风格,118032,builtin
+animated gif,GIF格式图片,画面,艺术风格,26670,builtin
+dakimakura,抱枕,画面,艺术风格,0,builtin
+cosplay,角色扮演,画面,艺术风格,188308,builtin
+crossover,穿越,画面,艺术风格,99902,builtin
+dark,暗的,画面,艺术风格,19792,builtin
+light,亮的,画面,艺术风格,0,builtin
+guro,猎奇,画面,艺术风格,7489,builtin
+realistic,写实,画面,艺术风格,32699,builtin
+photo,照片,画面,艺术风格,0,builtin
+real,真实,画面,艺术风格,0,builtin
+landscape/scenery,风景,画面,艺术风格,0,builtin
+cityscape,城市风景,画面,艺术风格,24113,builtin
+science fiction,科技幻想,画面,艺术风格,59544,builtin
+original,原创,画面,艺术风格,1582397,builtin
+personification,拟人,画面,艺术风格,46773,builtin
+optical illusion,视觉错误,画面,艺术风格,538,builtin
+fine art parody,名画模仿,画面,艺术风格,4154,builtin
+sketch,素描,画面,艺术风格,196067,builtin
+traditional media,传统媒体（手绘稿）,画面,艺术风格,126972,builtin
+watercolor (medium),透明水彩绘,画面,艺术风格,22565,builtin
+silhouette,剪影,画面,艺术风格,23057,builtin
+cover,封面,画面,艺术风格,93236,builtin
+album,专辑,画面,艺术风格,0,builtin
+sample,图上有字样,画面,艺术风格,0,builtin
+back,背影像,画面,艺术风格,121084,builtin
+bust,半身像,画面,艺术风格,0,builtin
+profile,侧面绘,画面,艺术风格,182317,builtin
+everyone,一部作品中的主要人物集齐,画面,艺术风格,18551,builtin
+column lineup,一列列小图组成大图,画面,艺术风格,3527,builtin
+transparent background,透明的背景,画面,艺术风格,179316,builtin
+simple background,简单的背景,画面,艺术风格,2873433,builtin
+gradient background,渐变的背景,画面,艺术风格,264210,builtin
+zoom layer,背景是前景的放大版,画面,艺术风格,40041,builtin
+8 Bit Game,8bit游戏,画面,艺术风格,0,builtin
+1980s anime,80动画,画面,艺术风格,0,builtin
+disney movie,迪士尼电影,画面,艺术风格,0,builtin
+goth,哥特摇滚,画面,艺术风格,0,builtin
+80s movie,80电影,画面,艺术风格,0,builtin
+bubble bobble,泡泡龙,画面,艺术风格,0,builtin
+style of Pixar,皮克斯动画,画面,艺术风格,0,builtin
+Polaroid art,宝丽来艺术,画面,艺术风格,0,builtin
+Kaleidoscope Photography,万花筒摄影,画面,艺术风格,0,builtin
+opal render,欧泊渲染,画面,艺术风格,0,builtin
+chemigram,色谱图,画面,艺术风格,0,builtin
+Studio Ghibli,吉卜力风格,画面,艺术风格,1281,builtin
+dreamlike,梦幻,画面,艺术风格,0,builtin
+(faux traditional media),签绘风格,画面,艺术风格,0,builtin
+genshin impact,原神冲击,画面,艺术风格,315089,builtin
+azur lane,碧蓝航线,画面,艺术风格,157544,builtin
+kantai collection,舰队收藏,画面,艺术风格,0,builtin
+rebecca (cyberpunk),边缘行者,画面,艺术风格,2524,builtin
+chainsaw man,电锯人,画面,艺术风格,46048,builtin
+Magic Vortex,魔法旋涡,画面,艺术风格,0,builtin
+((dieselpunk)),柴油朋克,画面,艺术风格,0,builtin
+magazine scan,杂志扫描,画面,艺术风格,7209,builtin
+album cover,专辑封面,画面,艺术风格,10053,builtin
+(lineart),线条变粗,画面,艺术风格,0,builtin
+synthwave,蒸汽波,画面,艺术风格,67,builtin
+"(illustration),(paper figure),(lococo),((impasto)),(shiny skin)",洛可可,画面,艺术风格,0,builtin
+Collage,拼贴艺术,画面,艺术类型,5809,builtin
+Dalle de verre,彩色玻璃,画面,艺术类型,0,builtin
+Encaustic painting,瓷画,画面,艺术类型,0,builtin
+Ink wash painting,水墨画,画面,艺术类型,797,builtin
+Mezzotint,铜版雕刻,画面,艺术类型,0,builtin
+illustration,插画,画面,艺术类型,0,builtin
+"(((ink))), ((watercolor))",水彩画,画面,艺术类型,0,builtin
+"illustration,(((ukiyoe))),((sketch)),((japanese art))",浮世绘,画面,艺术类型,0,builtin
+"((wash painting)),((ink s...))",中国风,画面,艺术类型,0,builtin
+"((dyeing)),((oil painting)),((impasto))",油画,画面,艺术类型,0,builtin
+"(posing sketch), (monochrome)",黑白草图,画面,艺术类型,0,builtin
+"(monochrome), (gray scale), (pencil sketch lines",铅笔速写,画面,艺术类型,0,builtin
+(watercolor pencil),彩铅画,画面,艺术类型,0,builtin
+((art nouveau)),新艺术主义,画面,艺术派系,0,builtin
+((classicism)),古典主义,画面,艺术派系,0,builtin
+((futurism)),未来主义,画面,艺术派系,0,builtin
+((Dadaism)),达达主义,画面,艺术派系,0,builtin
+((abstract art)),抽象艺术,画面,艺术派系,0,builtin
+((ASCII art)),ASCII艺术,画面,艺术派系,0,builtin
+((alphonse mucha)),穆夏风格,画面,艺术家风格,0,builtin
+((Monet style)),莫奈风格,画面,艺术家风格,0,builtin
+rim light,轮廓光,画面,光照,0,builtin
+Volumetric Lighting,体积光,画面,光照,0,builtin
+glowing neon lights,霓虹灯,画面,光照,0,builtin
+Cinematic Lighting,电影级光照,画面,光照,0,builtin
+lens flare,透镜光晕,画面,光照,50680,builtin
+metallic luster,金属光泽,画面,光照,0,builtin
+moody lighting,氛围光照,画面,光照,0,builtin
+Tyndall effect,丁达尔效应,画面,光照,0,builtin
+light leaks,漏光光效,画面,光照,0,builtin
+background light,背景光,画面,光照,0,builtin
+available light,自然光,画面,光照,0,builtin
+photo (medium),照片（风格）,画面,写实,26885,builtin
+oil painting,油画,画面,写实,0,builtin
+reality,真实,画面,写实,0,builtin
+polaroid,照片(拍立得),画面,写实,0,builtin
+flat color,色块,画面,素描,13809,builtin
+spot color,纯色,画面,素描,63179,builtin
+halftone,半色调,画面,素描,21016,builtin
+greyscale,灰度,画面,素描,692580,builtin
+high contrast,高对比度,画面,素描,4835,builtin
+partially colored,部分着色,画面,素描,22414,builtin
+chromatic aberration,色差、色失焦,画面,素描,38770,builtin
+contour deepening,轮廓加深,画面,素描,0,builtin
+outline,轮廓线,画面,素描,91094,builtin
+faux traditional media,签绘风格,画面,画笔,5129,builtin
+marker (medium),马克笔,画面,画笔,18385,builtin
+copics,马克笔（中性灰色）,画面,画笔,0,builtin
+pencil sketch lines,铅笔速写,画面,画笔,0,builtin
+graphite (medium),石墨铅笔,画面,画笔,13593,builtin
+colored pencil (medium),彩色铅笔,画面,画笔,7544,builtin
+millipen (medium),绘图笔,画面,画笔,2482,builtin
+nib pen (medium),绘图笔,画面,画笔,1558,builtin
+ballpoint pen (medium),圆珠笔,画面,画笔,1071,builtin
+pastel color,柔和的色彩,画面,画笔,0,builtin
+acrylic paint (medium),丙烯漆料画,画面,画笔,2909,builtin
+orange,橙色,画面,颜色,0,builtin
+blue,蓝色,画面,颜色,0,builtin
+red,红色,画面,颜色,0,builtin
+light brown,浅棕色,画面,颜色,0,builtin
+dark pink,深粉色,画面,颜色,0,builtin
+khaki,卡其色,画面,颜色,0,builtin
+blonde,金黄色的,画面,颜色,0,builtin
+brown,棕色,画面,颜色,0,builtin
+black,黑色,画面,颜色,0,builtin
+gray,灰色,画面,颜色,0,builtin
+darkgray,深灰色,画面,颜色,0,builtin
+silver,银色,画面,颜色,0,builtin
+lightgray,浅灰色,画面,颜色,0,builtin
+gainsboro,庚氏灰色,画面,颜色,0,builtin
+whitesmoke,白烟色,画面,颜色,0,builtin
+snow,雪白色,画面,颜色,56124,builtin
+ghostwhite,幽灵白,画面,颜色,0,builtin
+floralwhite,花白色,画面,颜色,0,builtin
+linen,亚麻色,画面,颜色,0,builtin
+antiquewhite,古董白,画面,颜色,0,builtin
+papayawhip,番木瓜色,画面,颜色,0,builtin
+blanchedalmond,漂白杏仁色,画面,颜色,0,builtin
+bisque,饼干色,画面,颜色,0,builtin
+moccasin,鹿皮鞋色,画面,颜色,0,builtin
+navajowhite,纳瓦霍白,画面,颜色,0,builtin
+peachpuff,桃肉色,画面,颜色,0,builtin
+mistyrose,薄雾玫瑰,画面,颜色,0,builtin
+lavenderblush,淡紫红色,画面,颜色,0,builtin
+seashell,贝壳白,画面,颜色,5919,builtin
+oldlace,老花色,画面,颜色,0,builtin
+ivory,象牙色,画面,颜色,0,builtin
+honeydew,蜜色,画面,颜色,0,builtin
+mintcream,薄荷奶油色,画面,颜色,0,builtin
+azure,蔚蓝色,画面,颜色,0,builtin
+aliceblue,艾莉丝蓝,画面,颜色,132,builtin
+lavender,薰衣草色,画面,颜色,0,builtin
+lightsteelblue,淡钢蓝色,画面,颜色,0,builtin
+lightslategray,亮石板灰,画面,颜色,0,builtin
+slategray,灰石色,画面,颜色,0,builtin
+steelblue,钢蓝色,画面,颜色,0,builtin
+royalblue,皇家蓝,画面,颜色,0,builtin
+midnightblue,午夜蓝,画面,颜色,0,builtin
+navy,海军蓝,画面,颜色,0,builtin
+darkblue,深蓝色,画面,颜色,0,builtin
+mediumblue,中蓝色,画面,颜色,0,builtin
+dodgerblue,道奇蓝,画面,颜色,0,builtin
+cornflowerblue,矢车菊蓝,画面,颜色,0,builtin
+skyblue,深天蓝,画面,颜色,0,builtin
+lightblue,淡蓝色,画面,颜色,0,builtin
+powderblue,粉蓝色,画面,颜色,0,builtin
+paleturquoise,淡青色,画面,颜色,0,builtin
+lightcyan,青色,画面,颜色,0,builtin
+cyan,碧绿色,画面,颜色,0,builtin
+aquamarine,绿松石色,画面,颜色,99,builtin
+turquoise,中绿松石色,画面,颜色,0,builtin
+mediumturquoise,深绿松石色,画面,颜色,0,builtin
+darkturquoise,浅海绿色,画面,颜色,0,builtin
+lightseagreen,军服蓝色,画面,颜色,0,builtin
+cadetblue,深青色,画面,颜色,0,builtin
+darkcyan,水鸭色,画面,颜色,0,builtin
+teal,暗灰蓝色,画面,颜色,0,builtin
+darkslategray,深绿色,画面,颜色,0,builtin
+darkgreen,绿色,画面,颜色,0,builtin
+green,森林绿色,画面,颜色,0,builtin
+forestgreen,海绿色,画面,颜色,0,builtin
+seagreen,中海绿色,画面,颜色,0,builtin
+mediumseagreen,中绿宝石色,画面,颜色,0,builtin
+mediumaquamarine,暗海绿色,画面,颜色,0,builtin
+darkseagreen,绿松石色,画面,颜色,0,builtin
+palegreen,淡绿色,画面,颜色,0,builtin
+lightgreen,草绿色,画面,颜色,0,builtin
+springgreen,中春绿色,画面,颜色,0,builtin
+mediumspringgreen,草坪绿,画面,颜色,0,builtin
+lawngreen,查特酒绿色,画面,颜色,0,builtin
+chartreuse,黄绿色,画面,颜色,0,builtin
+greenyellow,酸橙色,画面,颜色,0,builtin
+lime,酸橙绿,画面,颜色,0,builtin
+limegreen,橄榄褐色,画面,颜色,0,builtin
+yellowgreen,橄榄绿色,画面,颜色,0,builtin
+darkolivegreen,橄榄色,画面,颜色,0,builtin
+olivedrab,橄榄褐色,画面,颜色,0,builtin
+olive,橄榄色,画面,颜色,464,builtin
+darkkhaki,暗卡其色,画面,颜色,0,builtin
+palegoldenrod,淡金菊色,画面,颜色,0,builtin
+cornsilk,玉米色,画面,颜色,0,builtin
+beige,米色,画面,颜色,0,builtin
+lightyellow,浅黄色,画面,颜色,0,builtin
+lightgoldenrodyellow,亮金黄色,画面,颜色,0,builtin
+lemonchiffon,柠檬绸色,画面,颜色,0,builtin
+wheat,小麦色,画面,颜色,2506,builtin
+burlywood,琥珀色,画面,颜色,0,builtin
+yellow,黄色,画面,颜色,0,builtin
+gold,金色,画面,颜色,16938,builtin
+sandybrown,橙褐色,画面,颜色,0,builtin
+darkorange,暗橙色,画面,颜色,0,builtin
+goldenrod,金菊色,画面,颜色,0,builtin
+peru,秘鲁色,画面,颜色,75,builtin
+darkgoldenrod,暗金菊色,画面,颜色,0,builtin
+chocolate,巧克力色,画面,颜色,33527,builtin
+sienna,黄土赭色,画面,颜色,0,builtin
+saddlebrown,马鞍棕色,画面,颜色,0,builtin
+maroon,栗色,画面,颜色,0,builtin
+darkred,暗红色,画面,颜色,0,builtin
+firebrick,耐火砖色,画面,颜色,0,builtin
+indianred,印第安红色,画面,颜色,0,builtin
+rosybrown,玫瑰棕色,画面,颜色,0,builtin
+darksalmon,深鲑鱼肉色,画面,颜色,0,builtin
+lightcoral,浅珊瑚色,画面,颜色,0,builtin
+salmon,鲑鱼肉色,画面,颜色,656,builtin
+lightsalmon,亮鲑鱼肉色,画面,颜色,0,builtin
+coral,珊瑚色,画面,颜色,4353,builtin
+tomato,番茄红,画面,颜色,8127,builtin
+orangered,橙红色,画面,颜色,0,builtin
+crimson,深粉红色,画面,颜色,0,builtin
+mediumvioletred,中紫罗兰红色,画面,颜色,0,builtin
+deeppink,深粉色,画面,颜色,0,builtin
+hotpink,热粉红色,画面,颜色,0,builtin
+palevioletred,淡紫罗兰红色,画面,颜色,0,builtin
+pink,粉色,画面,颜色,0,builtin
+lightpink,浅粉色,画面,颜色,0,builtin
+thistle,蓟色,画面,颜色,101,builtin
+magenta,洋红色,画面,颜色,0,builtin
+fuchsia,紫红色,画面,颜色,0,builtin
+violet,紫色,画面,颜色,0,builtin
+plum,洋李色,画面,颜色,198,builtin
+orchid,兰花紫,画面,颜色,962,builtin
+mediumorchid,中兰花紫色,画面,颜色,0,builtin
+darkorchid,暗兰花紫色,画面,颜色,0,builtin
+darkviolet,暗紫罗兰色,画面,颜色,0,builtin
+darkmagenta,暗洋红色,画面,颜色,0,builtin
+purple,紫色,画面,颜色,0,builtin
+indigo,靛蓝色,画面,颜色,0,builtin
+darkslateblue,暗灰蓝色,画面,颜色,0,builtin
+blueviolet,蓝紫色,画面,颜色,0,builtin
+mediumpurple,中紫色,画面,颜色,0,builtin
+slateblue,石蓝色,画面,颜色,0,builtin
+mediumslateblue,中石板蓝色,画面,颜色,0,builtin
+fantasy,幻想风格,画面,背景,20601,builtin
+ban,科技幻想,画面,背景,0,builtin
+cyberpunk,赛博朋克,画面,背景,4446,builtin
+depth of field,景深(画法),画面,背景,125688,builtin
+blurry,背景模糊,画面,背景,311622,builtin
+blurry foreground,前景模糊,画面,背景,41995,builtin
+black background,黑色背景,画面,背景,135042,builtin
+white background,白色背景,画面,背景,2347044,builtin
+beige background,米色背景,画面,背景,0,builtin
+brown background,棕色背景,画面,背景,61474,builtin
+tan background,棕褐色背景,画面,背景,0,builtin
+grey background,灰色背景,画面,背景,383691,builtin
+two-tone background,双色调背景,画面,背景,64998,builtin
+multicolored background,多彩的背景,画面,背景,14684,builtin
+rainbow background,彩虹背景,画面,背景,1058,builtin
+abstract background,抽象背景,画面,背景,10185,builtin
+argyle background,菱形背景,画面,背景,7714,builtin
+checkered background,方格背景,画面,背景,13781,builtin
+floral background,花朵点缀的背景,画面,背景,31537,builtin
+halftone background,网点图背景,画面,背景,8915,builtin
+heart background,桃色背景,画面,背景,9332,builtin
+honeycomb background,蜂窝风格背景,画面,背景,1245,builtin
+plaid background,格子呢背景,画面,背景,4302,builtin
+striped background,圆斑背景,画面,背景,18056,builtin
+scenery,风景,画面,背景,75104,builtin
+landscape,景观,画面,背景,10265,builtin
+foral background,花卉图案装饰的背景,画面,背景,0,builtin
+crop top overhang,作物顶部悬垂,画面,背景,15075,builtin
+starry background,星空背景,画面,背景,0,builtin
+sparkle background,闪着星光的背景,画面,背景,6785,builtin
+city lights,城市灯光背景,画面,背景,6939,builtin
+clock background,时钟背景,画面,背景,0,builtin
+bubble background,气泡背景,画面,背景,1182,builtin
+border,边框,画面,背景,256478,builtin
+pillarboxed,柱状画布背景,画面,背景,9408,builtin
+rounded corners,背景或画框是圆角,画面,背景,1762,builtin
+viewfinder,相机取景框,画面,背景,10774,builtin
+windowboxed,套着画框(背景),画面,背景,0,builtin
+outside border,一部分画到了背景框外,画面,背景,100823,builtin
+flashback,回忆场景,画面,背景,2218,builtin
+wall of text,文字背景,画面,背景,1662,builtin
+background text,背景文字,画面,背景,0,builtin
+in spring,春天,环境,季节,0,builtin
+in summer,夏天,环境,季节,0,builtin
+in autumn,秋天,环境,季节,0,builtin
+in winter,冬天,环境,季节,0,builtin
+"(autumn maple forest:1.3),(very few fallen leaves),(path)",秋景,环境,季节,0,builtin
+day,白天,环境,天气,458383,builtin
+dusk,黄昏,环境,天气,6099,builtin
+night,夜晚,环境,天气,171384,builtin
+rain,下雨,环境,天气,48861,builtin
+rainy days,雨天,环境,天气,0,builtin
+sunset,日落,环境,天气,39434,builtin
+cloudy,多云,环境,天气,0,builtin
+full moon,满月,环境,天气,55887,builtin
+sun,太阳,环境,天气,29959,builtin
+moon,月亮,环境,天气,105365,builtin
+stars,星星,环境,天气,0,builtin
+sky,天空,环境,天气,620992,builtin
+universe,宇宙,环境,天气,185,builtin
+"snow,ice",冰雪,环境,天气,0,builtin
+snowflakes,雪花,环境,天气,18576,builtin
+lighting,闪电,环境,天气,0,builtin
+rainbow,彩虹,环境,天气,13872,builtin
+meteor shower,流星雨,环境,天气,1466,builtin
+cumulonimbus,积雨云,环境,天气,0,builtin
+nature,大自然,环境,大自然,67151,builtin
+sea,大海,环境,大自然,0,builtin
+ocean,海洋,环境,大自然,145391,builtin
+beach,海边,环境,大自然,133107,builtin
+hills,山丘,环境,大自然,0,builtin
+in a meadow,草地,环境,大自然,0,builtin
+on the beach,海滩,环境,大自然,0,builtin
+underwater,水中,环境,大自然,30301,builtin
+over the sea,海边,环境,大自然,0,builtin
+grove,树林,环境,大自然,0,builtin
+on a desert,沙漠,环境,大自然,0,builtin
+plateau,高原,环境,大自然,51,builtin
+cliff,悬崖,环境,大自然,4965,builtin
+canyon,峡谷,环境,大自然,644,builtin
+oasis,绿洲,环境,大自然,157,builtin
+bamboo forest,竹林,环境,大自然,4768,builtin
+glacier,冰川,环境,大自然,250,builtin
+floating island,浮岛,环境,大自然,1762,builtin
+volcano,火山,环境,大自然,1286,builtin
+savanna,大草原,环境,大自然,0,builtin
+waterfall,瀑布,环境,大自然,7727,builtin
+stream,溪流,环境,大自然,2252,builtin
+wasteland,荒地,环境,大自然,233,builtin
+field,田园,环境,大自然,21529,builtin
+rice paddy,稻田,环境,大自然,1189,builtin
+wheat field,麦田,环境,大自然,1923,builtin
+flower field,花田,环境,大自然,13608,builtin
+flower sea,花海,环境,大自然,0,builtin
+space,太空,环境,大自然,24494,builtin
+starry sky,星空,环境,大自然,53285,builtin
+lake,湖泊,环境,大自然,8312,builtin
+river,河流,环境,大自然,10918,builtin
+onsen,温泉,环境,大自然,24885,builtin
+flowers meadows,繁花草甸,环境,大自然,0,builtin
+Alps,阿尔卑斯山脉,环境,大自然,0,builtin
+Dreamy forest,梦幻之森(虚幻感.光粒子幽静),环境,大自然,0,builtin
+mountain,山脉,环境,大自然,32351,builtin
+on a hill,山上,环境,大自然,0,builtin
+the top of the hill,山顶,环境,大自然,0,builtin
+outdoors,室外,环境,大自然,811006,builtin
+dripping,滴水,环境,水,12876,builtin
+ripples,涟漪,环境,水,15475,builtin
+swirl,漩涡,环境,水,1302,builtin
+waves,波浪,环境,水,10624,builtin
+seaweed,海藻,环境,水,2136,builtin
+gradient sky,倾斜的天空,环境,天空,10315,builtin
+night sky,夜空,环境,天空,0,builtin
+hyper galaxy,超级银河,环境,天空,0,builtin
+star (sky),星星(天空中的),环境,天空,86475,builtin
+star trail,星星轨迹,环境,天空,744,builtin
+lunar,"月的,_月球的;",环境,天空,352,builtin
+crescent,月牙,环境,天空,76225,builtin
+crescent moon,新月,环境,天空,16599,builtin
+moonlight,月光,环境,天空,4826,builtin
+scarlet moon,猩红月亮,环境,天空,0,builtin
+planet,星球,环境,天空,14578,builtin
+from space station,空间站,环境,天空,0,builtin
+satellite,卫星,环境,天空,601,builtin
+cirrus,卷云,环境,云,0,builtin
+Cirrocumulus,卷积云,环境,云,0,builtin
+Cirrostratus,卷层云,环境,云,0,builtin
+Altocumulus,高积云,环境,云,0,builtin
+Altostratus,高层云,环境,云,0,builtin
+stratus,层云,环境,云,0,builtin
+Stratocumulus,层积云,环境,云,0,builtin
+cumulus,积云,环境,云,0,builtin
+Nimbostratus,雨层云,环境,云,0,builtin
+cirrus fibratus,毛卷云,环境,云,0,builtin
+cirrus uncinus,钩卷云,环境,云,0,builtin
+cirrus spissatus,密卷云,环境,云,0,builtin
+cirrus floccus,絮卷云,环境,云,0,builtin
+cirrus castellanus,堡卷云,环境,云,0,builtin
+cirrus intortus,乱卷云,环境,云,0,builtin
+cirrocumulus stratiformis,层状卷积云,环境,云,0,builtin
+cirrocumulus floccus,絮状卷积云,环境,云,0,builtin
+cirrocumulus castellanus,堡状卷积云,环境,云,0,builtin
+cirrocumulus lacunosus,网状卷积云,环境,云,0,builtin
+cirrostratus fibratus,毛卷层云,环境,云,0,builtin
+cirrostratus nebulosus,雾卷层云,环境,云,0,builtin
+altocumulus strataformis,层状高积云,环境,云,0,builtin
+altocumulus lenticularis,荚状高积云,环境,云,0,builtin
+altocumulus castellanus,堡状高积云,环境,云,0,builtin
+altocumulus floccus,絮状高积云,环境,云,0,builtin
+altocumulus lacunosus,网状高积云,环境,云,0,builtin
+altostratus undulatus,波状高层云,环境,云,0,builtin
+altostratus duplicates,复合高层云,环境,云,0,builtin
+altostratus pannus,破片高层云,环境,云,0,builtin
+altostratus translucidus,透光高层云,环境,云,0,builtin
+altostratus opacus,蔽光高层云,环境,云,0,builtin
+altostratus radiatus,辐状高层云,环境,云,0,builtin
+altostratus mammatus,乳状高层云,环境,云,0,builtin
+stratus fractus,碎层云,环境,云,0,builtin
+stratus nebulosus,雾层云,环境,云,0,builtin
+stratus undulatus,波层云,环境,云,0,builtin
+stratocumulus stratiformis,层状层积云,环境,云,0,builtin
+stratocumulus cumulogentis,积雨性层积云,环境,云,0,builtin
+stratocumulus castellanus,堡状层积云,环境,云,0,builtin
+stratocumulus lenticularis,荚状层积云,环境,云,0,builtin
+stratocumulus lacunosus,絮状层积云,环境,云,0,builtin
+cumulus humilis,淡积云,环境,云,0,builtin
+cumulus mediocris,中积云,环境,云,0,builtin
+cumulus congestus,浓积云,环境,云,0,builtin
+cumulus fractus,碎积云,环境,云,0,builtin
+cumulonimbus calvus,秃积雨云,环境,云,0,builtin
+cumulonimbus capillatus,鬃积雨云,环境,云,0,builtin
+cumulonimbus incus,砧积雨云,环境,云,0,builtin
+new year,新年,环境,氛围,31247,builtin
+year of the rabbit,兔年,环境,氛围,3729,builtin
+valentine,情人节,环境,氛围,29315,builtin
+lantern festival,元宵节,环境,氛围,538,builtin
+summer festival,夏日祭,环境,氛围,2700,builtin
+tanabata,七夕节,环境,氛围,2899,builtin
+mid-autumn festival,中秋节,环境,氛围,344,builtin
+halloween,万圣节,环境,氛围,44384,builtin
+christmas,圣诞节,环境,氛围,57881,builtin
+explosion,爆炸,环境,氛围,15751,builtin
+water vapor,蒸汽,环境,氛围,0,builtin
+fireworks,焰火,环境,氛围,19573,builtin
+ceiling window,落地窗,环境,氛围,0,builtin
+colourful glass,彩色玻璃,环境,氛围,0,builtin
+stain glass,染色玻璃,环境,氛围,0,builtin
+Graffiti wall,涂鸦墙,环境,氛围,0,builtin
+mosaic background,马赛克背景,环境,氛围,339,builtin
+"liquid background, Sputtered water",液体背景,环境,氛围,0,builtin
+magic circles,魔法环,环境,氛围,0,builtin
+fluorescent mushroom forests background,荧光蘑菇森林,环境,氛围,0,builtin
+(((colorful bubble))),彩色泡泡,环境,氛围,0,builtin
+in the ocean,海边日落,环境,氛围,0,builtin
+against backlight at dusk,傍晚背对阳光,环境,氛围,0,builtin
+golden hour lighting,黄金时段照明,环境,氛围,0,builtin
+strong rim light,强边缘光,环境,氛围,0,builtin
+intense shadows,强阴影,环境,氛围,0,builtin
+castle,城堡,场景,室外,10515,builtin
+city,城市,场景,室外,35215,builtin
+waterpark,水上乐园,场景,室外,334,builtin
+carousel,旋转木马,场景,室外,1611,builtin
+ferris wheel,摩天轮,场景,室外,3029,builtin
+aquarium,水族馆,场景,室外,2168,builtin
+zoo,动物园,场景,室外,332,builtin
+bowling alley,保龄球馆,场景,室外,144,builtin
+art gallery,美术馆,场景,室外,167,builtin
+museum,博物馆,场景,室外,402,builtin
+planetarium,天文馆,场景,室外,132,builtin
+swimming pool,游泳池,场景,室外,0,builtin
+stadium,体育场,场景,室外,3062,builtin
+temple,寺庙,场景,室外,1292,builtin
+bus stop,巴士车站,场景,室外,2051,builtin
+train station,火车站,场景,室外,3252,builtin
+fountain,喷泉,场景,室外,2698,builtin
+playground,游乐场,场景,室外,1226,builtin
+market stall,市场摊位,场景,室外,1244,builtin
+phone booth,电话亭,场景,室外,898,builtin
+railroad tracks,铁轨,场景,室外,3597,builtin
+airport,机场,场景,室外,538,builtin
+tunnel,隧道,场景,室外,868,builtin
+skyscraper,摩天楼,场景,室外,11621,builtin
+ruins,废墟,场景,室外,15036,builtin
+greco-roman architectur,西罗马建筑,场景,室外,0,builtin
+east asian architecture,东亚建物,场景,室外,17127,builtin
+torii,鸟居,场景,室外,16771,builtin
+church,教堂,场景,室外,5225,builtin
+shop,商店,场景,室外,8355,builtin
+street,街道,场景,室外,11659,builtin
+cyberpunk city,赛博朋克城市,场景,室外,0,builtin
+chinese style architecture,古风建筑,场景,室外,0,builtin
+gohei,神社,场景,室外,21920,builtin
+Bustling city,繁华都市,场景,室外,0,builtin
+laboratory,实验室,场景,室外,953,builtin
+coffee house,咖啡馆,场景,室外,0,builtin
+gym,健身房,场景,室外,0,builtin
+library,图书馆,场景,室外,7169,builtin
+prison,监狱,场景,室外,2393,builtin
+engine room,轮机舱,场景,室外,0,builtin
+handrail,栏杆,场景,室外,859,builtin
+neon lights,霓虹灯,场景,室外,3572,builtin
+street lamp,路灯,场景,室外,0,builtin
+road,道路,场景,室外,24219,builtin
+shanty town/slum,贫民窟,场景,室外,0,builtin
+warehouse,仓库,场景,室外,302,builtin
+gothic architecture,哥特式建筑,场景,室外,571,builtin
+restaurant,饭店,场景,室外,5399,builtin
+treehouse,树屋,场景,室外,349,builtin
+"modern,Europe",法兰西,场景,室外,0,builtin
+"Industrial wind, Chinese architecture",工业化古建筑,场景,室外,0,builtin
+building ruins,建筑废墟,场景,室外,0,builtin
+bar,酒吧,场景,室外,0,builtin
+izakaya,居酒屋,场景,室外,430,builtin
+cafe,咖啡馆,场景,室外,4634,builtin
+bakery,面包店,场景,室外,816,builtin
+convenience store,便利店,场景,室外,2102,builtin
+supermarket,超市,场景,室外,721,builtin
+pharmacy,药店,场景,室外,0,builtin
+theater,剧院,场景,室外,410,builtin
+movie theater,电影院,场景,室外,1329,builtin
+workshop,工作坊,场景,室外,186,builtin
+courtroom,法庭,场景,室外,339,builtin
+park,公园,场景,室外,3059,builtin
+Trapeze,吊架；秋千,场景,室外,67,builtin
+classroom,教室,场景,室外,26227,builtin
+botanical garden,植物园,场景,室外,0,builtin
+amusement park,游乐园,场景,室外,1406,builtin
+Disney land,迪士尼乐园,场景,室外,0,builtin
+arena,竞技场,场景,室外,327,builtin
+wrestling ring,摔角场,场景,室外,4702,builtin
+Auditorium,礼堂,场景,室外,83,builtin
+concert,音乐会,场景,室外,3508,builtin
+Japanese hotel,日本旅馆,场景,室外,0,builtin
+jail bars,监狱酒吧,场景,室外,0,builtin
+in the movie theatre,在电影院里,场景,室外,0,builtin
+stage,舞台,场景,室外,9463,builtin
+harbor,港口,场景,室外,615,builtin
+casino,赌场,场景,室外,1572,builtin
+billiard,台球桌,场景,室外,0,builtin
+dungeon,地牢,场景,室外,1334,builtin
+grave,坟墓,场景,室外,1557,builtin
+graveyard,墓地,场景,室外,2839,builtin
+tombstone,墓碑,场景,室外,5038,builtin
+monolith,巨大的石头物体,场景,室外,0,builtin
+rappelling,拉平（悬挂）,场景,室外,152,builtin
+building,建筑,场景,室外,85263,builtin
+architecture,建筑,场景,室外,21635,builtin
+magnificent architecture,建筑,场景,室外,0,builtin
+cathedral,大教堂,场景,室外,721,builtin
+chinese style loft,中式阁楼,场景,室外,0,builtin
+traditional chinese room,传统中式客房,场景,室外,0,builtin
+turret,塔楼,场景,室外,1766,builtin
+tower,塔,场景,室外,8242,builtin
+mosque,清真寺,场景,室外,0,builtin
+reservoir,水库,场景,室外,0,builtin
+railroad,铁路,场景,室外,0,builtin
+railway,铁路,场景,室外,0,builtin
+bridge,桥,场景,室外,13529,builtin
+under bridge,桥下,场景,室外,186,builtin
+remains,废墟,场景,室外,0,builtin
+rubble ruins,废墟,场景,室外,0,builtin
+downtown,市中心,场景,城市,0,builtin
+crowd,人群,场景,城市,8792,builtin
+alley,小巷,场景,城市,4462,builtin
+in main street,大道,场景,城市,0,builtin
+Intersection,路口,场景,城市,116,builtin
+avenue,大街,场景,城市,0,builtin
+lawn,草坪,场景,城市,82,builtin
+path,路径,场景,城市,5664,builtin
+pavement,路面,场景,城市,3140,builtin
+road sign,路标,场景,城市,9211,builtin
+traffic cone,路障,场景,城市,2576,builtin
+lamppost,路灯,场景,城市,14417,builtin
+power lines,电线杆和电线,场景,城市,14322,builtin
+fence,栅栏,场景,城市,32219,builtin
+bench,长凳,场景,城市,21922,builtin
+vending machine,自动贩卖机,场景,城市,4698,builtin
+indoor,室内,场景,室内,0,builtin
+bathroom,浴室,场景,室内,16267,builtin
+toilet stall,厕所隔间,场景,室内,1853,builtin
+otaku room,宅男房间,场景,室内,543,builtin
+cafeteria,自助餐厅,场景,室内,257,builtin
+clubroom,俱乐部,场景,室内,408,builtin
+bedroom,卧室,场景,室内,33139,builtin
+kitchen,厨房,场景,室内,9796,builtin
+dormitory,宿舍,场景,室内,0,builtin
+infirmary,医务室,场景,室内,1757,builtin
+electrical room,配电房,场景,室内,0,builtin
+server room,服务器机房,场景,室内,0,builtin
+basement,地下室,场景,室内,118,builtin
+art room,美术室,场景,室内,88,builtin
+stairs,楼梯,场景,室内,36795,builtin
+greenhouse,温室,场景,室内,881,builtin
+floor,地板,场景,地板,6877,builtin
+tile floor,木质地板,场景,地板,24032,builtin
+tatami,榻榻米,场景,家具,21153,builtin
+bed,床,场景,家具,137775,builtin
+couch,沙发,场景,家具,77168,builtin
+kotatsu,被炉,场景,家具,8930,builtin
+fireplace,壁炉,场景,家具,2885,builtin
+window,窗,场景,家具,180762,builtin
+curtains,窗帘,场景,家具,92704,builtin
+door,门,场景,家具,31201,builtin
+sliding doors,推拉门,场景,家具,15404,builtin
+clothes rack,衣架,场景,家具,586,builtin
+air conditioner,空调,场景,家具,3179,builtin
+table,桌子,场景,家具,119988,builtin
+school desk,课桌,场景,家具,25363,builtin
+chair,椅子,场景,家具,147995,builtin
+armchair,扶手椅,场景,家具,8702,builtin
+lounge chair,躺椅,场景,家具,5124,builtin
+beach chair,沙滩椅,场景,家具,3444,builtin
+folding chair,折叠椅,场景,家具,3646,builtin
+invisible chair,隐形椅子,场景,家具,25295,builtin
+office chair,办公椅,场景,家具,8445,builtin
+wheelchair,轮椅,场景,家具,3590,builtin
+bed sheet,床单,场景,床上用品,124345,builtin
+mattress,床垫；褥子,场景,床上用品,585,builtin
+futon,日本床垫,场景,床上用品,11698,builtin
+carpet,地毯,场景,床上用品,5253,builtin
+dumpling Hug Pillow,团子抱枕,场景,床上用品,0,builtin
+pillow hug,抱枕,场景,床上用品,11498,builtin
+yes-no pillow,Yes/No枕头,场景,床上用品,2837,builtin
+stuffed animal,毛绒玩偶,场景,床上用品,95336,builtin
+stuffed bunny,毛绒兔子,场景,床上用品,0,builtin
+koakuma,小熊,场景,床上用品,16199,builtin
+"bathtub,",浴缸,场景,浴室,0,builtin
+rubber duck,橡皮鸭,场景,浴室,7494,builtin
+shower head,淋浴喷头,场景,浴室,5053,builtin
+toilet,马桶,场景,浴室,8051,builtin
+squat toilet,蹲便器,场景,浴室,863,builtin
+soap,肥皂,场景,浴室,2891,builtin
+tiles,瓷砖,场景,浴室,37187,builtin
+notebook,笔记本,物品,学习用品,10869,builtin
+paintbrush,画笔,物品,学习用品,19611,builtin
+pencil,铅笔,物品,学习用品,16177,builtin
+book,书,物品,学习用品,191224,builtin
+open book,翻开的书,物品,学习用品,40947,builtin
+book stack,书摞,物品,学习用品,12650,builtin
+bookshelf,书架,物品,学习用品,28138,builtin
+school bag,上学包(手提包,物品,学习用品,43642,builtin
+backpack,背包,物品,学习用品,100705,builtin
+computer,电脑,物品,数码设备,20420,builtin
+mouse,鼠标,物品,数码设备,0,builtin
+cellphone,手机,物品,数码设备,135872,builtin
+Smartphones,智能手机,物品,数码设备,0,builtin
+handheld game console,掌上游戏机,物品,数码设备,15645,builtin
+nintendo 3ds,任天堂3ds,物品,数码设备,1168,builtin
+nintendo ds,任天堂ds,物品,数码设备,1597,builtin
+nintendo switch,任天堂switch,物品,数码设备,9182,builtin
+buttons,按钮,物品,数码设备,218223,builtin
+cable,电缆,物品,数码设备,29045,builtin
+pot,锅,物品,餐具,4774,builtin
+teapot,茶壶,物品,餐具,20398,builtin
+ladle,长柄勺,物品,餐具,8399,builtin
+can,罐子,物品,餐具,39454,builtin
+soda can,罐装饮料,物品,餐具,6297,builtin
+cup,杯子,物品,餐具,265905,builtin
+plate,盘子,物品,餐具,67795,builtin
+tray,托盘,物品,餐具,51909,builtin
+bowl,碗,物品,餐具,43681,builtin
+fork,叉子,物品,餐具,35614,builtin
+chopsticks,筷子,物品,餐具,33852,builtin
+spoon,勺子,物品,餐具,35814,builtin
+drinking glass,水杯,物品,餐具,58401,builtin
+tumbler,普通玻璃杯,物品,餐具,83,builtin
+beer mug,啤酒杯,物品,餐具,10326,builtin
+gift box,礼物盒,物品,餐具,30121,builtin
+heart-shaped box,心形状的礼盒,物品,餐具,10604,builtin
+candle,蜡烛,物品,餐具,27724,builtin
+music,音乐,物品,乐器,0,builtin
+guitar,吉他,物品,乐器,29465,builtin
+piano,钢琴,物品,乐器,6296,builtin
+cello,大提琴,物品,乐器,1139,builtin
+wind chime,风铃,物品,乐器,3653,builtin
+wristwatch,手表,物品,其它物品,29076,builtin
+folding fan,折扇,物品,其它物品,28051,builtin
+paper fan,纸扇,物品,其它物品,8994,builtin
+uchiwa,团扇,物品,其它物品,5441,builtin
+umbrella,雨伞,物品,其它物品,120806,builtin
+transparent umbrella,透明雨伞,物品,其它物品,4915,builtin
+closed umbrella,封闭伞,物品,其它物品,8196,builtin
+oil-paper umbrella,油纸伞,物品,其它物品,18923,builtin
+Parasol,遮阳伞,物品,其它物品,15858,builtin
+basket,篮子,物品,其它物品,26337,builtin
+bouquet,花束,物品,其它物品,42676,builtin
+bucket,桶,物品,其它物品,20713,builtin
+pail,桶,物品,其它物品,0,builtin
+camera,相机,物品,其它物品,32162,builtin
+lantern/lamp,灯笼,物品,其它物品,0,builtin
+whip,鞭,物品,其它物品,10020,builtin
+riding crop,马鞭,物品,其它物品,5520,builtin
+ofuda,札符,物品,其它物品,32926,builtin
+cane,手杖,物品,其它物品,11123,builtin
+wand,魔杖,物品,其它物品,0,builtin
+magic,魔术,物品,其它物品,23466,builtin
+trading card,交易卡,物品,其它物品,9851,builtin
+Cassette,磁带盒,物品,其它物品,0,builtin
+chess piece,棋子,物品,其它物品,9545,builtin
+coin,硬币,物品,其它物品,18542,builtin
+copper,n.铜币,物品,其它物品,0,builtin
+hammer,锤子,物品,其它物品,15274,builtin
+microphone,麦克风,物品,其它物品,72993,builtin
+sack,麻袋,物品,其它物品,17093,builtin
+scales,秤,物品,其它物品,29117,builtin
+chibi inset,赤壁插图,物品,其它物品,33108,builtin
+damaged,损坏,物品,其它物品,8514,builtin
+diamond (shape),钻石（形状）,物品,其它物品,27164,builtin
+gourd,葫芦,物品,其它物品,7490,builtin
+inlet,入口,物品,其它物品,0,builtin
+key,钥匙,物品,其它物品,21684,builtin
+Lever,"杠杆,操作杆",物品,其它物品,236,builtin
+molecule,分子,物品,其它物品,0,builtin
+money,钱,物品,其它物品,9417,builtin
+Painting (Object),画作(物品,物品,其它物品,9581,builtin
+photo (object),照片（物体）,物品,其它物品,19537,builtin
+sand,沙子,物品,其它物品,42413,builtin
+stubble,茬,物品,其它物品,43366,builtin
+trophy,奖杯,物品,其它物品,1614,builtin
+tube top,管顶,物品,其它物品,0,builtin
+water bottle,水瓶,物品,其它物品,15594,builtin
+lotion,防晒霜|身体乳,物品,其它物品,5415,builtin
+lotion bottle,乳液瓶子,物品,其它物品,3038,builtin
+weapon,武器,物品,武器,815100,builtin
+weapon on back,背上的武器,物品,武器,17243,builtin
+weapon over shoulder,肩上的武器,物品,武器,12618,builtin
+huge weapon,大尺寸武器,物品,武器,14123,builtin
+planted weapon,往地上插的武器,物品,武器,0,builtin
+broken weapon,破碎的武器,物品,武器,2019,builtin
+planted sword,立剑(planted立,物品,武器,8832,builtin
+sword,刀,物品,武器,373999,builtin
+scabbard,刀鞘,物品,武器,18564,builtin
+katana,武士刀,物品,武器,83458,builtin
+saber (weapon),军刀(武器),物品,武器,1628,builtin
+scythe,镰刀,物品,武器,21205,builtin
+nose hatchet,柴刀,物品,武器,0,builtin
+dagger,匕首,物品,武器,21073,builtin
+scissors,剪刀,物品,武器,14147,builtin
+hatchet,短斧,物品,武器,0,builtin
+stake,棍子,物品,武器,563,builtin
+lance,长矛,物品,武器,6481,builtin
+trident,三叉戟,物品,武器,7381,builtin
+bow (weapon),弓,物品,武器,31206,builtin
+arrow,箭,物品,武器,0,builtin
+claw (weapon),爪(武器),物品,武器,4257,builtin
+"rifle,",步枪,物品,武器,0,builtin
+gun,枪,物品,武器,196805,builtin
+handgun,手枪,物品,武器,54004,builtin
+thompson submachine gun,汤普森冲锋枪,物品,武器,597,builtin
+magazine (weapon),弹匣(武器),物品,武器,6786,builtin
+dynamite,甘油炸药,物品,武器,986,builtin
+bomb,炸弹,物品,武器,3721,builtin
+track missiles,跟踪导弹,物品,武器,0,builtin
+complex Trajectory,轨迹拖尾,物品,武器,0,builtin
+tank,坦克,物品,武器,10614,builtin
+cannon,大炮,物品,武器,19491,builtin
+military vehicle,军用载具,物品,武器,22892,builtin
+motorcycle,摩托车,物品,武器,12789,builtin
+ship,船舶,物品,武器,8383,builtin
+watercraft,船舶,物品,武器,18490,builtin
+car,汽车,物品,武器,29765,builtin
+machine,机械,物品,武器,2452,builtin
+machinery,机械武装,物品,武器,8507,builtin
+mechanical arms,机械臂,物品,武器,24944,builtin
+mechanization,机械化,物品,武器,2331,builtin
+robot joints,机械关节,物品,武器,13916,builtin
+variable fighter,超时空要塞机体,物品,武器,982,builtin
+sorcerer's sutra scroll,魔人经卷,物品,武器,1859,builtin
+A sushi roll,寿司卷,物品,食物,0,builtin
+apple,苹果,物品,食物,32328,builtin
+aubergine,茄子,物品,食物,0,builtin
+burger,汉堡,物品,食物,15832,builtin
+cake,蛋糕,物品,食物,58414,builtin
+candy,糖果,物品,食物,75240,builtin
+candy apple,苹果糖,物品,食物,6792,builtin
+candy cane,棒棒糖,物品,食物,5524,builtin
+carrot,胡萝卜,物品,食物,18822,builtin
+cigarette,香烟,物品,食物,50305,builtin
+coffee,咖啡,物品,食物,13598,builtin
+cookie,饼干,物品,食物,15453,builtin
+cotton candy,棉花糖,物品,食物,2977,builtin
+cream,奶油,物品,食物,6400,builtin
+dango,团子,物品,食物,10547,builtin
+doughnut,甜甜圈,物品,食物,0,builtin
+drink,饮料,物品,食物,35274,builtin
+egg,鸡蛋,物品,食物,12628,builtin
+fruit,水果,物品,食物,151953,builtin
+Gelatin,明胶、布丁,物品,食物,774,builtin
+ice cream,冰激凌,物品,食物,35322,builtin
+kafuu chino,卡夫奇诺,物品,食物,8235,builtin
+makizushi,海苔卷寿司,物品,食物,2183,builtin
+meat,肉,物品,食物,11129,builtin
+noodles,面条,物品,食物,10998,builtin
+obento,便当,物品,食物,0,builtin
+onigiri,饭团,物品,食物,9783,builtin
+pancake,鬆餅,物品,食物,7199,builtin
+pasties,馅饼,物品,食物,35189,builtin
+peach,桃子,物品,食物,13130,builtin
+ramen,拉面,物品,食物,6011,builtin
+sake,日本清酒,物品,食物,8774,builtin
+taiyaki,鲷鱼烧,物品,食物,3572,builtin
+tea,茶,物品,食物,16362,builtin
+teacup,茶杯,物品,食物,44475,builtin
+wagashi,和果子,物品,食物,17074,builtin
+wine,葡萄酒,物品,食物,12158,builtin
+jam,果酱,物品,食物,1340,builtin
+pocky,百奇,物品,食物,20922,builtin
+bottled water,瓶裝水,物品,食物,0,builtin
+sweet potato,甘薯,物品,食物,3514,builtin
+sweets,糖果,物品,食物,4458,builtin
+food,食物,物品,食物,624331,builtin
+food in mouth,嘴里有食物,物品,食物,36543,builtin
+food on,脸上有食物,物品,食物,0,builtin
+food on body,身体上有食物,物品,食物,7656,builtin
+food print,食物印花,物品,食物,10974,builtin
+food stand,食品摊,物品,食物,2289,builtin
+in food,(角色)在食物里,物品,食物,2884,builtin
+chips,薯片,物品,食物,0,builtin
+potato chips,薯片,物品,食物,4409,builtin
+telstar,泰事达牌足球,物品,食物,1003,builtin
+sundae,圣代,物品,食物,2306,builtin
+tempura,天妇罗,物品,食物,2780,builtin
+reptile,爬行动物,物品,动物,0,builtin
+crow,乌鸦,物品,动物,9613,builtin
+bird,鸟,物品,动物,151132,builtin
+penguin,企鹅,物品,动物,9768,builtin
+chick,小鸡,物品,动物,8458,builtin
+manjuu (azur lane),蛮啾,物品,动物,11235,builtin
+shell,贝壳,物品,动物,16960,builtin
+wriggle nightbug,蠕动夜虫,物品,动物,10384,builtin
+dragonfly,蜻蜓,物品,动物,1450,builtin
+mammal,哺乳动物,物品,动物,0,builtin
+wolf,狼,物品,动物,10809,builtin
+扶桑花,马,物品,动物,0,builtin
+whale,鲸,物品,动物,3786,builtin
+cat,猫,物品,动物,118989,builtin
+cat teaser,逗猫,物品,动物,2956,builtin
+dog,狗,物品,动物,43471,builtin
+dog tags,狗牌,物品,动物,11932,builtin
+fox,狐狸,物品,动物,11485,builtin
+bunny,兔子,物品,动物,0,builtin
+snow bunny,雪兔,物品,动物,0,builtin
+horse,马,物品,动物,15132,builtin
+cow,牛,物品,动物,2406,builtin
+dragon,龙,物品,动物,37870,builtin
+loong,中国龙,物品,动物,0,builtin
+eastern dragon,东方龙,物品,动物,6760,builtin
+snake,蛇,物品,动物,31574,builtin
+slime,史莱姆,物品,动物,0,builtin
+bear,熊,物品,动物,8043,builtin
+panda,熊猫,物品,动物,4847,builtin
+tiger,老虎,物品,动物,6674,builtin
+bat,蝙蝠,物品,动物,0,builtin
+hamster,仓鼠,物品,动物,4319,builtin
+squirrel,松鼠,物品,动物,4186,builtin
+plant,植物,物品,植物,102857,builtin
+flower,花,物品,植物,887713,builtin
+vase,花瓶,物品,植物,11782,builtin
+flower bloom,花盛开,物品,植物,0,builtin
+plum blossom,梅花,物品,植物,0,builtin
+cherry blossoms,樱花,物品,植物,73046,builtin
+wisteria,紫藤,物品,植物,3504,builtin
+hibiscus,芙蓉花,物品,植物,15867,builtin
+hydrangea,绣球花,物品,植物,8231,builtin
+rose,玫瑰,物品,植物,150629,builtin
+spider lily,彼岸花,物品,植物,8807,builtin
+lily,百合花,物品,植物,0,builtin
+lotus,莲花,物品,植物,6184,builtin
+bamboo,竹,物品,植物,13939,builtin
+entangled plants,缠结型植物,物品,植物,0,builtin
+chrysanthemum,菊花,物品,植物,1471,builtin
+narcissu,水仙,物品,植物,0,builtin
+tree,树,物品,植物,233678,builtin
+branch,树枝,物品,植物,33081,builtin
+forest,森林,物品,植物,49351,builtin
+pine tree,松树,物品,植物,3279,builtin
+palm tree,棕榈树,物品,植物,32595,builtin
+maple tree,枫树,物品,植物,442,builtin
+"bush/shrub,",灌木,物品,植物,0,builtin
+christmas tree,圣诞树,物品,植物,16024,builtin
+maple leaf,枫叶,物品,植物,14336,builtin
+pumpkin,南瓜,物品,植物,16402,builtin
+jack-o'-lantern,南瓜灯,物品,植物,21997,builtin
+spring onion,大葱,物品,植物,8677,builtin
+panorama,全景,镜头,镜头,145,builtin
+wide shot,全景镜头(广角镜头),镜头,镜头,23868,builtin
+medium shot,中景镜头,镜头,镜头,0,builtin
+mid shot,中景镜头,镜头,镜头,0,builtin
+full shot,全身像,镜头,镜头,0,builtin
+upper body,上半身,镜头,镜头,1196771,builtin
+lower body,下半身,镜头,镜头,8192,builtin
+cowboy shot,上半身+上半大腿(牛仔镜头),镜头,镜头,854461,builtin
+portrait,肖像画(脸+肩+偶尔再加胸),镜头,镜头,143967,builtin
+close-up,特写镜头,镜头,特写镜头,63766,builtin
+macro shot,微距镜头,镜头,特写镜头,0,builtin
+inset,插入其他镜头或图片,镜头,特写镜头,0,builtin
+cross-section,剖面图,镜头,特写镜头,25058,builtin
+x-ray,X射线,镜头,特写镜头,17522,builtin
+solo focus,聚焦在单个人物(适合复杂场景),镜头,特写镜头,504368,builtin
+xx focus,聚焦在xx上,镜头,特写镜头,0,builtin
+face focus,聚焦在面部,镜头,特写镜头,0,builtin
+eyes focus,聚焦在眼睛,镜头,特写镜头,0,builtin
+foot focus,聚焦在脚上,镜头,特写镜头,37764,builtin
+hip focus,聚焦在臀部,镜头,特写镜头,16242,builtin
+ass focus,聚焦在屁股上,镜头,特写镜头,46259,builtin
+vehicle focus,聚焦在载具上,镜头,特写镜头,15372,builtin
+between fingers,(突出)指间,镜头,特写镜头,12657,builtin
+peeking,偷窥,镜头,特写镜头,4616,builtin
+peeking out,偷窥(的姿态),镜头,特写镜头,8488,builtin
+peeping,偷窥(强调视角),镜头,特写镜头,0,builtin
+midriff peek,肚脐偷看,镜头,特写镜头,31645,builtin
+armpit peek,腋窝偷看,镜头,特写镜头,8049,builtin
+pussy peek,浦西偷看,镜头,特写镜头,8843,builtin
+panty peek,内裤偷看,镜头,特写镜头,10705,builtin
+pantyshot,内裤走光,镜头,特写镜头,79163,builtin
+caught,被抓现行,镜头,特写镜头,5338,builtin
+aerial,空中,镜头,其他构图,0,builtin
+turn one's back,转身,镜头,其他构图,0,builtin
+upskirt,裙底视角,镜头,其他构图,39677,builtin
+phone screen,手机屏幕,镜头,其他构图,0,builtin
+mirror selfie,对镜自拍,镜头,其他构图,4581,builtin
+three-quarter view,3/4视角,镜头,其他构图,0,builtin
+front view,正面视角,镜头,镜头角度,0,builtin
+from side,侧面视角,镜头,镜头角度,338152,builtin
+from above,从上方↘,镜头,镜头角度,146357,builtin
+from below,从下方↗,镜头,镜头角度,119988,builtin
+from outside,由室外向室内,镜头,镜头角度,2412,builtin
+from back,后背视角,镜头,镜头角度,0,builtin
+from behind,后背视角,镜头,镜头角度,330391,builtin
+dynamic angle,动态角度,镜头,镜头角度,0,builtin
+cinematic angle,电影角度,镜头,镜头角度,0,builtin
+dutch angle,倾斜角度,镜头,镜头角度,163429,builtin
+foreshortening,透视法,镜头,镜头角度,69931,builtin
+motion blur,运动导致的模糊,镜头,效果,35044,builtin
+motion lines,体现运动的线,镜头,效果,123195,builtin
+speed lines,速度线,镜头,效果,14372,builtin
+bokeh,焦散,镜头,效果,10737,builtin
+overexposure,过曝,镜头,效果,748,builtin
+looking at viewer,看向观众,镜头,主角动作,4921642,builtin
+eye-contact,眼神接触,镜头,主角动作,0,builtin
+stare,凝视,镜头,主角动作,0,builtin
+looking back,回眸,镜头,主角动作,365569,builtin
+gradient,人物倾斜,镜头,主角动作,0,builtin
+looking down,人物视角向下看↘,镜头,主角动作,139520,builtin
+looking up,人物视角抬头看↗,镜头,主角动作,100668,builtin
+looking to the side,看向侧面,镜头,主角动作,281934,builtin
+looking away,看着别处,镜头,主角动作,0,builtin
+looking ahead,展望未来,镜头,主角动作,59092,builtin
+looking afar,遥望,镜头,主角动作,26126,builtin
+looking outside,向外看,镜头,主角动作,2561,builtin
+sideways glance,轻轻向侧面瞥,镜头,主角动作,49811,builtin
+upshirt,从衬衫下方瞥,镜头,主角动作,1663,builtin
+upshorts,从裙底瞥,镜头,主角动作,0,builtin
+looking at another,看着另一个,镜头,主角动作,438130,builtin
+looking at phone,看手机,镜头,主角动作,9075,builtin
+looking at animal,看着动物,镜头,主角动作,9756,builtin
+looking at mirror,照镜子,镜头,主角动作,5587,builtin
+looking at hand,看着手,镜头,主角动作,1784,builtin
+looking at hands,看着双手,镜头,主角动作,497,builtin
+looking at food,看食物,镜头,主角动作,4296,builtin
+looking at screen,看着屏幕,镜头,主角动作,769,builtin
+"hanfu, tang style outfits,<lora:hanfuTang v32:0.7>",唐风,汉服,唐风:,0,builtin
+orange upper shan,橙色上杉,汉服,上杉,0,builtin
+red upper shan,红色上杉,汉服,上杉,0,builtin
+green upper shan,绿色上杉,汉服,上杉,0,builtin
+blue upper shan,蓝色上杉,汉服,上杉,0,builtin
+pink upper shan,粉色上杉,汉服,上杉,0,builtin
+yellow upper shan,黄色上杉,汉服,上杉,0,builtin
+white upper shan,白色上杉,汉服,上杉,0,builtin
+light blue upper shan,淡蓝上杉,汉服,上杉,0,builtin
+light green upper shan,浅绿上杉,汉服,上杉,0,builtin
+light red upper shan,浅红上杉,汉服,上杉,0,builtin
+cyan blue upper shan,青蓝上杉,汉服,上杉,0,builtin
+light purple upper shan,浅紫上杉,汉服,上杉,0,builtin
+black with blue upper shan,黑蓝上杉,汉服,上杉,0,builtin
+white with orange upper shan,橙白上杉,汉服,上杉,0,builtin
+pink with black upper shan,粉黑上杉,汉服,上杉,0,builtin
+orange long upper shan,橙色,汉服,长上杉,0,builtin
+red long upper shan,红色,汉服,长上杉,0,builtin
+green long upper shan,绿色,汉服,长上杉,0,builtin
+blue long upper shan,蓝色,汉服,长上杉,0,builtin
+pink long upper shan,粉色,汉服,长上杉,0,builtin
+yellow long upper shan,黄色,汉服,长上杉,0,builtin
+white long upper shan,白色,汉服,长上杉,0,builtin
+light blue long upper shan,淡蓝,汉服,长上杉,0,builtin
+light green long upper shan,浅绿,汉服,长上杉,0,builtin
+light red long upper shan,浅红,汉服,长上杉,0,builtin
+cyan blue long upper shan,青蓝,汉服,长上杉,0,builtin
+light purple long upper shan,浅紫,汉服,长上杉,0,builtin
+black with blue long upper shan,黑蓝,汉服,长上杉,0,builtin
+white with orange long upper shan,橙白,汉服,长上杉,0,builtin
+pink with black long upper shan,粉黑,汉服,长上杉,0,builtin
+white chest po skirt,白色破裙,汉服,齐胸破裙,0,builtin
+red chest po skirt,红色破裙,汉服,齐胸破裙,0,builtin
+green chest po skirt,绿色破裙,汉服,齐胸破裙,0,builtin
+blue chest po skirt,蓝色破裙,汉服,齐胸破裙,0,builtin
+pink chest po skirt,粉色破裙,汉服,齐胸破裙,0,builtin
+purple chest po skirt,紫色破裙,汉服,齐胸破裙,0,builtin
+multicolour chest po skirt,彩色破裙,汉服,齐胸破裙,0,builtin
+purple with white chest po skirt,紫白破裙,汉服,齐胸破裙,0,builtin
+white with yellow chest po skirt,黄白破裙,汉服,齐胸破裙,0,builtin
+blue with white chest po skirt,天蓝破裙,汉服,齐胸破裙,0,builtin
+orange with white chest po skirt,橙白破裙,汉服,齐胸破裙,0,builtin
+green with white chest po skirt,灰豆绿破裙,汉服,齐胸破裙,0,builtin
+light orange with white chest po skirt,淡黄白破裙,汉服,齐胸破裙,0,builtin
+pink with white chest po skirt,粉白破裙,汉服,齐胸破裙,0,builtin
+white with pink chest po skirt,白偏粉破裙,汉服,齐胸破裙,0,builtin
+white chest pleated skirt,白色褶裙,汉服,齐胸褶裙,0,builtin
+red chest pleated skirt,红色褶裙,汉服,齐胸褶裙,0,builtin
+green chest pleated skirt,绿色褶裙,汉服,齐胸褶裙,0,builtin
+blue chest pleated skirt,蓝色褶裙,汉服,齐胸褶裙,0,builtin
+pink chest pleated skirt,粉色褶裙,汉服,齐胸褶裙,0,builtin
+purple chest pleated skirt,紫色褶裙,汉服,齐胸褶裙,0,builtin
+multicolour chest pleated skirt,彩色褶裙,汉服,齐胸褶裙,0,builtin
+purple with white chest pleated skirt,紫白褶裙,汉服,齐胸褶裙,0,builtin
+white with yellow chest pleated skirt,黄白褶裙,汉服,齐胸褶裙,0,builtin
+blue with white chest pleated skirt,天蓝褶裙,汉服,齐胸褶裙,0,builtin
+orange with white chest pleated skirt,橙白褶裙,汉服,齐胸褶裙,0,builtin
+green with white chest pleated skirt,灰豆绿褶裙,汉服,齐胸褶裙,0,builtin
+light orange with white chest pleated skirt,淡黄白褶裙,汉服,齐胸褶裙,0,builtin
+pink with white chest pleated skirt,粉白褶裙,汉服,齐胸褶裙,0,builtin
+white with pink chest pleated skirt,白偏粉褶裙,汉服,齐胸褶裙,0,builtin
+green waistband,绿色系带,汉服,系带,0,builtin
+yellow waistband,黄色系带,汉服,系带,0,builtin
+red waistband,红色系带,汉服,系带,0,builtin
+pink waistband,粉色系带,汉服,系带,0,builtin
+orange waistband,橙色系带,汉服,系带,0,builtin
+light blue waistband,淡蓝系带,汉服,系带,0,builtin
+light green waistband,绿白系带,汉服,系带,0,builtin
+green with yellow waistband,黄绿系带,汉服,系带,0,builtin
+purple with white waistband,紫白系带,汉服,系带,0,builtin
+red with white waistband,红白系带,汉服,系带,0,builtin
+red with black waistband,红黑系带,汉服,系带,0,builtin
+yellow with white waistband,黄白系带,汉服,系带,0,builtin
+white pibo,白色披帛,汉服,披帛,0,builtin
+orange pibo,橙色披帛,汉服,披帛,0,builtin
+black pibo,黑色披帛,汉服,披帛,0,builtin
+pink pibo,粉色披帛,汉服,披帛,0,builtin
+red pibo,红色披帛,汉服,披帛,0,builtin
+purple pibo,紫色披帛,汉服,披帛,0,builtin
+light green pibo,浅绿披帛,汉服,披帛,0,builtin
+white with yellow pibo,黄白披帛,汉服,披帛,0,builtin
+"hanfu, song style outfits,<lora:hanfuSong v31:0.7>",宋风,汉服,宋风:,0,builtin
+purple short shan,紫色短杉,汉服,短衫,0,builtin
+red short shan,红色短杉,汉服,短衫,0,builtin
+green short shan,绿色短杉,汉服,短衫,0,builtin
+blue short shan,蓝色短杉,汉服,短衫,0,builtin
+pink short shan,粉色短杉,汉服,短衫,0,builtin
+yellow short shan,黄色短杉,汉服,短衫,0,builtin
+white short shan,白色短杉,汉服,短衫,0,builtin
+light blue short shan,淡蓝短杉,汉服,短衫,0,builtin
+light green short shan,浅绿短杉,汉服,短衫,0,builtin
+light red short shan,浅红短杉,汉服,短衫,0,builtin
+cyan blue short shan,青蓝短杉,汉服,短衫,0,builtin
+light purple short shan,浅紫短杉,汉服,短衫,0,builtin
+black with blue short shan,黑蓝短杉,汉服,短衫,0,builtin
+white with yellow short shan,黄白短杉,汉服,短衫,0,builtin
+light yellow with green with white short shan,浅黄白绿短,汉服,短衫,0,builtin
+purple long shan,紫色长杉,汉服,长衫,0,builtin
+red long shan,红色长杉,汉服,长衫,0,builtin
+green long shan,绿色长杉,汉服,长衫,0,builtin
+blue long shan,蓝色长杉,汉服,长衫,0,builtin
+pink long shan,粉色长杉,汉服,长衫,0,builtin
+yellow long shan,黄色长杉,汉服,长衫,0,builtin
+white long shan,白色长杉,汉服,长衫,0,builtin
+light blue long shan,淡蓝长杉,汉服,长衫,0,builtin
+light green long shan,浅绿长杉,汉服,长衫,0,builtin
+light red long shan,浅红长杉,汉服,长衫,0,builtin
+cyan blue long shan,青蓝长杉,汉服,长衫,0,builtin
+light purple long shan,浅紫长杉,汉服,长衫,0,builtin
+black with blue long shan,黑蓝长杉,汉服,长衫,0,builtin
+white with yellow long shan,黄白长杉,汉服,长衫,0,builtin
+light yellow with green with white long shan,浅黄白绿长,汉服,长衫,0,builtin
+white pleated skirt,白裙,汉服,百褶裙,0,builtin
+red pleated skirt,红裙,汉服,百褶裙,0,builtin
+green pleated skirt,绿裙,汉服,百褶裙,0,builtin
+blue pleated skirt,蓝裙,汉服,百褶裙,0,builtin
+pink pleated skirt,粉裙,汉服,百褶裙,0,builtin
+light blue pleated skirt,浅蓝裙,汉服,百褶裙,0,builtin
+white golden pleated skirt,白金裙,汉服,百褶裙,0,builtin
+gradient green pleated skirt,渐变绿裙,汉服,百褶裙,0,builtin
+translucent white pleated skirt,半透白裙,汉服,百褶裙,0,builtin
+red cyan gradient pleated skirt,红青渐变,汉服,百褶裙,0,builtin
+red green gradient pleated skirt,红绿渐变,汉服,百褶裙,0,builtin
+green with white pleated skirt,白绿相间,汉服,百褶裙,0,builtin
+light yellow with green with white pleated skirt,浅黄绿相间,汉服,百褶裙,0,builtin
+orange songmo,橙色宋抹,汉服,宋抹,0,builtin
+red songmo,红色宋抹,汉服,宋抹,0,builtin
+green songmo,绿色宋抹,汉服,宋抹,0,builtin
+blue songmo,蓝色宋抹,汉服,宋抹,0,builtin
+pink songmo,粉色宋抹,汉服,宋抹,0,builtin
+yellow songmo,黄色宋抹,汉服,宋抹,0,builtin
+white songmo,白色宋抹,汉服,宋抹,0,builtin
+purple songmo,紫色宋抹,汉服,宋抹,0,builtin
+green floral songmo,绿碎花宋抹,汉服,宋抹,0,builtin
+purple floral songmo,紫碎花宋抹,汉服,宋抹,0,builtin
+cyan floral songmo,青碎花宋抹,汉服,宋抹,0,builtin
+"hanfu, ming style outfits,<lora:hanfuMing v31:0.7>",明风,汉服,明风:,0,builtin
+short coat,短袄,汉服,上衣,0,builtin
+mamian skirt,马面裙,汉服,裙子,0,builtin
+overlapping collar,交领,汉服,领子,0,builtin
+round collar,圆领,汉服,领子,528,builtin
+standing collar,立领,汉服,领子,0,builtin
+square collar,方领,汉服,领子,0,builtin
+embroidery,刺绣,汉服,装饰,2097,builtin
+woven gold,织金,汉服,装饰,0,builtin
+makeup flower,妆花,汉服,装饰,0,builtin
+bufu,补服,汉服,装饰,0,builtin
+"((water drops)),wet clothes,((beautiful detailed water)),((floating)),dynamic angle",水魔法,魔法系,魔法1.0,0,builtin
+"beautiful detailed glow, (detailed ice), beautiful detailed water",冰魔法,魔法系,魔法1.0,0,builtin
+"beautiful detailed glow,detailed ice,beautiful detailed water,(floating palaces:1.2),(ice crystal texture wings),（Iridescence and rainbow hair:2.5）",冰系改,魔法系,魔法1.0,0,builtin
+"beautiful detailed glow,detailed ice,beautiful detailed water, (floating palaces:1.3),(((ice crystal texture wings)))",星冰乐,魔法系,魔法1.0,0,builtin
+"((detailed beautiful snow forest with trees)), ((snowflakes)), floating",森林冰,魔法系,魔法1.0,0,builtin
+"(((crystals texture Hair))),((beautiful detailed glass hair)),((glass shaped texture hand)),((crystallize texture body)),gem body,hands as clear as jewels,crystallization of clothes,((crystals texture skin)),sparkle, lens flare, light leaks,broken glass,detailed glass shaped clothes,beautiful detailed gemstone sky, gemstone sea, crystals texture flowers,((detailed crystallized clothing))",结晶法,魔法系,魔法1.0,0,builtin
+"beautiful detailed glow,((flames of war)),(((nuclear explosion behide)))",核爆法,魔法系,魔法1.0,0,builtin
+"((breeze)), flying splashes, flying petals, wind",风魔法,魔法系,魔法1.0,0,builtin
+"((surrounded by heavy floating sand flow and floating sharp stones)),((((ink)))),((illustration)),((watercolor))",流沙法,魔法系,魔法1.0,0,builtin
+"(detailed light), ((lightning in hand)),lightning surrounds,(((lightning chain)))",雷电法,魔法系,魔法1.0,0,builtin
+"(sunlight),(angel),dynamic angle, floating, wing, halo, floating white silk,(Holy Light),silver stars",圣光法,魔法系,魔法1.0,0,builtin
+"beautiful detailed pampas grass field, open hakama, surrounded by floating sakura, yellow full moon, beautiful detailed dark midnight sky, messy white long hair",苇名法,魔法系,魔法1.0,0,builtin
+"beautiful and delicate water, the finest grass, very delicate light, nature, painting, water spray, breeze, flowers and grass meadow, near the water edge, (sunset, starry sky in a circle), randomly distributed clouds, river, splashing water, falling petals",自然法,魔法系,魔法1.0,0,builtin
+"(detailed light) , feather, leaves, nature, (sunlight), river, (forest),(bloom)",森林法,魔法系,魔法1.0,0,builtin
+"floating and rainbow long hair,Iridescence and rainbow, beautiful detailed starry sky",虹彩法,魔法系,魔法1.0,0,builtin
+"chain ring, chain storm, dark chain,((wholeblack bloomer)), darkside, night, deep dark, darkness, ((dark clouds)),((ruins)),shadow, death garden",暗锁法,魔法系,魔法1.0,0,builtin
+"beautiful detailed glow, floating ashes, beautiful and detailed explosion, red moon, fire, fire cloud, wings on fire, a cloudy sky, smoke of gunpowder, burning, black dress, dove of peace, (floating cloud:1.2)",火烧云,魔法系,魔法1.0,0,builtin
+"beautiful detailed glow, detailed ice, beautiful detailed water, (magic circle:1.2), (floating palaces:1.3)",城堡法,魔法系,魔法1.0,0,builtin
+"(water bloom), (delicate glow), (breeze), long Flowers meadow,(((sunset)), (less stars form a circle), randomly distributed clouds, (rivers), (willows with branches falling into the water)",黄昏法,魔法系,魔法1.0,0,builtin
+"((colorful bubble)),(floating),detailed light",泡泡法,魔法系,魔法1.0,0,builtin
+"((rose)), (vine), cage, bandage, red rope, (detail light), falling rose petals",蔷薇法,魔法系,魔法1.0,0,builtin
+"(starry tornado:1.4), starry Nebula, beautiful detailed sky",星空法,魔法系,魔法1.0,0,builtin
+"((moon)), starry sky, (lighting particle), fog, snow,(bloom)",月亮法,魔法系,魔法1.0,0,builtin
+"beautiful detailed glow, detailed ice, beautiful detailed water, (cold full moon), snowflake, (floating cloud:1.2)",雪月法,魔法系,魔法1.0,0,builtin
+"((burning forest)), spark, light leaks, burning sky, flame, flames burning around, (flying sparks)",森火法,魔法系,魔法1.0,0,builtin
+"((destroyed)),explosion, buildings in disarray, The residual eaves DuanBi, cumulus, mouldy, floating, wind, Dead end machine,(broken robot),(Mechanical robot girl), in the rubble of a devastated city",废土法,魔法系,魔法1.0,0,builtin
+"mecha clothes, robot girl, sliver bodysuit,((sliver)) and (broken) body",战甲法,魔法系,魔法1.0,0,builtin
+"Extremely gorgeous metal style, Metal crown with ornate stripes, Various metals background, Sputtered molten iron, floating hair, Hair like melted metal, Clothes made of silver, Clothes with gold lace, flowing gold and silver, everything flowing and melt, flowing iron, flowing silver, lace flowing and melt",黄金法,魔法系,魔法1.0,0,builtin
+"mecha clothes, robot girl",机娘法,魔法系,魔法1.0,0,builtin
+"ink,(((bone))), (((ribs))), rose, black hair, blue eyes, greyscale, no shadow, simple background, bright skin",死灵法,魔法系,魔法1.0,0,builtin
+"(((gorgeous crystal armor))),(((crystal wings))),((altocumulus)),(clear sky),(snow mountain),((flowery flowers)),(flowery bubbles),cloud map plane, crystal, crystal poppies,Brilliant light, thick coating, glass tint,(watercolor)",水晶法,魔法系,魔法1.0,0,builtin
+"((an extremely delicate and beautiful)),floating, (detailed wet clothes), (detailed light),feather, nature, (sunlight), river, floating palace, beautiful and delicate water,(bloom),(shine)",水森法,魔法系,魔法1.0,0,builtin
+"(blue spark),(red and blue hair),blue eyes, burning sky,flame,Rainbow in the sky,((Flames burning ice)),(((fire butterflies))),(((ice crystal texture wings))),(Flying sparks),(detailed ice),((a lot of luminous ice crystals)),((burning feathers)),(feathers made of ice),(frozen feathers),(((ice and fire together)))",冰火法,魔法系,魔法1.0,0,builtin
+"(anger), dragon horns, (silver armor), metal, complex pattern, cape, indifference",龙骑士,魔法系,魔法1.0,0,builtin
+"((full body)),(helpless),tear, crying,(((((falling from the sky))))),((Weathering With You)),((falling)),((face towards the sky))，(hair flows upwards),((disheveled hair)),(1 girl), floating, beautiful detailed sky",坠落法,魔法系,魔法1.0,0,builtin
+"((underwater)),(beautiful detailed water),((coral)),dynamic angle, floating,(detailed light),floating hair,(splash),((fishes)),leaves dress, feather, nature,(sunlight),(underwater forest),(bloom),(detailed glow),drenched, seaweed, fish,(((Tyndall effect)))",水下法,魔法系,魔法1.0,0,builtin
+"(extremely detailed CG unity 8k wallpaper),(((masterpiece))), (((best quality))), ((ultra-detailed)), (best illustration),(best shadow), ((an extremely delicate and beautiful)),dynamic angle,floating, fairyland,dynamic angle,sea of flowers,beautiful detailed garden,wind,classic,spring, (detailed light),feather, nature, (sunlight), river, forest,(((floating palace))),((the best building)),beautiful and delicate water,(painting),(sketch),(bloom),(shine)",秘境法,魔法系,魔法1.0,0,builtin
+"(((masterpiece))), ((the best quality, super fine illustrations, beautiful and delicate water)), ((very delicate light)), ((nature, painting)), ((fine lighting, more transparent stars, high-quality snowflakes, high-quality mountains, very fine 8KCG wallpapers)), (plateau), (((snow mountain))), sunrise, randomly distributed clouds, (snow field), cliff, ((rotating star sky)), ((lake in mountain stream)), luminous particles",摄影法,魔法系,魔法1.0,0,builtin
+"1980s (style),simple background, retro artstyle",摩登法,魔法系,魔法1.0,0,builtin
+"(white hair), red long hair, red eyes, (full body), (((with sword))), angry face, (beautiful detailed eyes), Blood drop,Blood fog, floating hair, disheveled hair, Splashing blood,(Bloodstain)",血魔法,魔法系,魔法1.0,0,builtin
+"((dragon)), ((dragon background))",唤龙术,魔法系,魔法1.0,0,builtin
+"hair fluttering in the wind,((mechanical arm armor)),((mechanical body armor)),riding motor, bodysuit,((ruins of city in war, fire, burning cars, burning buildings)),air force fleet in the sky",战姬法,魔法系,魔法1.0,0,builtin
+"mecha clothes, robot girl, sliver bodysuit, dragon wings, ((a dragon stands behind the girl)), beautiful detailed sliver dragon armor",龙机法,魔法系,魔法1.0,0,builtin
+"((Beautiful butterflies in detail)),((Beautiful stars in detail)),(((halter dress ))),particle,(Starry sky in beautiful detail),(Hazy fog),(Ruins of beautiful details),(((Standing on the surface of the sea)))",星蝶术,魔法系,魔法1.0,0,builtin
+"blonde wavy hair, (shiny long hair), ((Gothic Lolita)), blue white skirt, ((short skirt)), black Headdress, bowknot, (((hair ornament))), (hair flower), Lace, cross-laced footwear, ribbon-trimmed sleeves, building architecture, ((gothic architecture)), starry sky, outdoors, church, (castle)",学院法,魔法系,魔法1.0,0,builtin
+"walking, waves, wind,(((glistening light of waves))),(detailed sunset glow),(floating flow),((coral)),(Luminous),coast,(floating colorful bubbles),beautiful detailed sky,(fluorescence),detailed shadow,(conch),beautiful detailed water, starfish, meteor, rainbow,(seabirds),(glinting stars), (glowworm),(splash),detailed cloud, shell,(fireworks)",星霞海,魔法系,魔法1.0,0,builtin
+"beautiful detailed sky, night, stars, (red plum blossom),((winter)),(((snowflakes))), ((red and white flowers))，(starry sky),(sitting),((colorful)),scenery, lantern,(starfall)",冬雪法,魔法系,魔法1.0,0,builtin
+"((((melt)))),(((((black and white melt))))),(((wear Black and white Taoist robes))),((((gold and silver lace)))),(((gold and silver lace lace))),(((flowing ((black)) and white background))),extremely detailed gorgeous tiara",万物熔炉,魔法系,魔法1.5,0,builtin
+"Floating black ashes, Beautiful and detailed black, red moon, ((The black clouds)), (black Wings) , a black cloudy sky, burning, black dress, ((Black fog)), Red eyes, (black smoke), ((Black feathers floating in the air)),bat, (floating black cloud:1.5),",暗鸦法,魔法系,魔法1.5,0,builtin
+"dynamic angle, finely detail, (bloom), (shine), glinting stars, ((((best detailed fireworks)))), ((((depth of field)))), (((hanabi))),(((backlight))),",花火基础,魔法系,魔法1.5,0,builtin
+"stars in the eyes, messy floating hair, colored inner hair, Starry sky adorns hair, (lots of big colorful Bubble), (pearl), (Galaxy), depth of field",星之彩,魔法系,魔法1.5,0,builtin
+"stars in the eyes, messy floating hair, colored inner hair, Starry sky adorns hair, depth of field",沉入星海,魔法系,魔法1.5,0,builtin
+"dynamic angle, detailed wet clothes, blank stare, overexplosure, floating, black long straight, red eyes, aqua eyes, gradient eyes, ((blood)), white dress, frills, ((expressionless)), extremely beautiful detailed water, ((lying on the lake)), (bloodred water:1.5), (red background:1.3)",百溺法,魔法系,魔法1.5,0,builtin
+"((messy hair)),(grassland),(yellow eyes),incredibly absurdres,(gold hair),floating hair,Large number of environments,the medieval ,grace,prospect,water eyes,wind,breeze,god ray,lawn,Mountains and lakes in the distance,The sun shines through the trees,A vast expanse of grassland",辉煌阳光法,魔法系,魔法1.5,0,builtin
+"Starry sky adorns hair, sparkling anime eyes,beautiful detailed stars,blighting stars,emerging dark purple across with white hair,multicolored hair,beautiful detailed sky, beautiful detailed water, cinematic lighting, dramatic angle,",星鬓法,魔法系,魔法1.5,0,builtin
+"There are many scattered luminous petals,Hidden in the light yellow flowers,Depth of field,Many flying drops of water,Many scattered leaves,branch ,angle ,contour deepening,cinematic angle",森罗法,魔法系,魔法1.5,0,builtin
+"sunlight, extremely light, extremely clothes, Holy Light, dynamic angle, Light particle, very long hair, white hair, yellow eyes, glowing eyes, expressionless, ((light smile)), ((((white Tulle skirt)))), white silk, looking at viewer, angel wings, large wings, multiple wings, angel halo, (((starry sky))), dusk sky, Floating light spot, Lots of feathers",星天使,魔法系,魔法1.5,0,builtin
+"blonde hair, yellow eyes, white skin, mature female, sunrise, golden sky, magnificent architecture, beautiful detailed sky, overexposure, delicate gold metal decorations",黄金律,魔法系,魔法1.5,0,builtin
+"mechanical prosthesis,mecha coverage,emerging dark purple across with white hair,fluorescent purple,cool movement,rose red eyes,beatiful detailed cyberpunk city, hd semirealistic anime cg concept art digital painting",机械姬,魔法系,魔法1.5,0,builtin
+"(incredibly absurdres), (highly detailed beautiful fishtail:1.6), (((human hands))), (the lower body is a fish:1.9)AND(no human thigh:1.2), seaweed, (full body), (white seashell), (curved and slender fish tail), (the lower body is bare:1.1), {beautiful tailfin}, ((underwater)), (illustration), detailed water, ((fishes)), (floating), watercolor (medium), (small whirlpool), ((The sensation of water flowing)), (detailed scales on a mermaid)",人鱼法,魔法系,魔法1.5,0,builtin
+"Blood Mist, background Urban rooftop,despair,Blood Cherry Blossom,torn clothes,crying with eyes open,solo,Blood Rain,bandages,Gunpowder smoke,beautiful deatailed shadow, Splashing blood,dust,tyndall effect",末日,魔法系,魔法1.5,0,builtin
+"Space opera,Space port,robot arm,elbow gloves,night,glisten,stare,cyberpunk,((((citylight)))),science fiction,bodysuit,Mechanical armor headdress,(bare shoulders)",碎梦,魔法系,魔法1.5,0,builtin
+"dynamic angle,rainbow hair,detailed cute anime face,((loli)),flower,cry,water,corrugated,flowers tire,broken glass,(broken screen),atlantis,transparent glass",幻碎梦,魔法系,魔法1.5,0,builtin
+"(white hair),(((red streaked hair))), red eyes, (((full body))),(red hair), (((((Hold a red sword))))), (angry face),((Blood drop)),((Blood fog)),light shafts, soft focus, ((Splashing blood))),Long hair,((Bloodstain)),Fighting stance,{{{{{watercolor (medium)}}}},(((masterpiece))),((white clock)),((ultradetailed)),((Covered in blood)),flowing hair,Exquisite Flame,dynamic angle, floating, (shine), extremely delicate and beautiful girls, bright skin, lying red petals,Holy lighting",血改法,魔法系,魔法1.5,0,builtin
+"dramatic shadows,black and white,monochrome,{{comic}},cross necklace,Cassock",留影术,魔法系,魔法1.5,0,builtin
+"((ink)),(water color),bloom effect,detailed beautiful grassland with petal,flower,butterfly,necklace,smile,petal,(((surrounded by heavy floating petal flow)))",飘花法,魔法系,魔法1.5,0,builtin
+tentacle,触手,NSFW（WeiLin专属）,R18词,0,builtin
+hairjob,发交,NSFW（WeiLin专属）,R18词,1751,builtin
+oral/fellatio,口交,NSFW（WeiLin专属）,R18词,0,builtin
+deepthroat,深喉,NSFW（WeiLin专属）,R18词,8063,builtin
+gokkun,吃精,NSFW（WeiLin专属）,R18词,1580,builtin
+ballgag,球塞,NSFW（WeiLin专属）,R18词,0,builtin
+bitgag,棍塞,NSFW（WeiLin专属）,R18词,0,builtin
+ring gag,扩口器,NSFW（WeiLin专属）,R18词,1831,builtin
+panty gag,用内裤塞口,NSFW（WeiLin专属）,R18词,200,builtin
+tapegag,胶带封口,NSFW（WeiLin专属）,R18词,0,builtin
+facial,颜射,NSFW（WeiLin专属）,R18词,61639,builtin
+handjob,用手做,NSFW（WeiLin专属）,R18词,52719,builtin
+areolae,乳晕,NSFW（WeiLin专属）,R18词,0,builtin
+puffy nipples,大乳头,NSFW（WeiLin专属）,R18词,48693,builtin
+small nipples,小乳头,NSFW（WeiLin专属）,R18词,9916,builtin
+nipple pull,啦乳头,NSFW（WeiLin专属）,R18词,1704,builtin
+nipple torture,虐乳头,NSFW（WeiLin专属）,R18词,413,builtin
+nipple tweak,捏乳头,NSFW（WeiLin专属）,R18词,24103,builtin
+nipple piercing,乳头穿孔,NSFW（WeiLin专属）,R18词,24132,builtin
+breast grab,摸乳,NSFW（WeiLin专属）,R18词,0,builtin
+lactation,哺乳（大范围）,NSFW（WeiLin专属）,R18词,28074,builtin
+breast sucking/nipple suck,吸乳（中）,NSFW（WeiLin专属）,R18词,0,builtin
+breast feeding,喂奶(小),NSFW（WeiLin专属）,R18词,0,builtin
+paizuri,乳交,NSFW（WeiLin专属）,R18词,59556,builtin
+multiple paizuri,多P乳交,NSFW（WeiLin专属）,R18词,0,builtin
+breast smother,把头塞入胸,NSFW（WeiLin专属）,R18词,5566,builtin
+piercing,穿孔,NSFW（WeiLin专属）,R18词,176834,builtin
+navel piercing,肚脐穿孔,NSFW（WeiLin专属）,R18词,19467,builtin
+thigh sex,腿交,NSFW（WeiLin专属）,R18词,5542,builtin
+footjob,足交,NSFW（WeiLin专属）,R18词,11518,builtin
+mound of venus,腹部三角带,NSFW（WeiLin专属）,R18词,0,builtin
+wide hips,宽盆骨,NSFW（WeiLin专属）,R18词,58630,builtin
+masturbation,自慰,NSFW（WeiLin专属）,R18词,51067,builtin
+clothed masturbation,隔着衣服自慰,NSFW（WeiLin专属）,R18词,2118,builtin
+penis,阳具/屌,NSFW（WeiLin专属）,R18词,597765,builtin
+testicles,睾丸/蛋蛋,NSFW（WeiLin专属）,R18词,141083,builtin
+ejaculation,射出,NSFW（WeiLin专属）,R18词,153582,builtin
+cum,射精,NSFW（WeiLin专属）,R18词,344510,builtin
+cum inside,内射,NSFW（WeiLin专属）,R18词,0,builtin
+cum on breast,射在胸上,NSFW（WeiLin专属）,R18词,0,builtin
+cum on hair,射在头发上,NSFW（WeiLin专属）,R18词,29861,builtin
+cum on food,射在食物上,NSFW（WeiLin专属）,R18词,398,builtin
+tamakeri,蛋疼,NSFW（WeiLin专属）,R18词,0,builtin
+pussy/vaginal,阴户（前者图片远大于后者）,NSFW（WeiLin专属）,R18词,0,builtin
+pubic hair,阴毛,NSFW（WeiLin专属）,R18词,189415,builtin
+shaved pussy,剃过阴毛的（无毛B）,NSFW（WeiLin专属）,R18词,0,builtin
+no pussy,没逼的,NSFW（WeiLin专属）,R18词,10055,builtin
+clitoris,阴蒂,NSFW（WeiLin专属）,R18词,31490,builtin
+fat mons,肥逼,NSFW（WeiLin专属）,R18词,7739,builtin
+pussy juice,爱液,NSFW（WeiLin专属）,R18词,154274,builtin
+female ejaculation,潮吹,NSFW（WeiLin专属）,R18词,16208,builtin
+crotch rub,胯部摩擦,NSFW（WeiLin专属）,R18词,5221,builtin
+facesitting,坐在脸上,NSFW（WeiLin专属）,R18词,0,builtin
+cervix,子宫口,NSFW（WeiLin专属）,R18词,4684,builtin
+insertion,插入物,NSFW（WeiLin专属）,R18词,0,builtin
+anal insertion,菊花插入物,NSFW（WeiLin专属）,R18词,0,builtin
+fruit insertion,用水果蔬菜,NSFW（WeiLin专属）,R18词,0,builtin
+large insertion,巨大插入,NSFW（WeiLin专属）,R18词,3206,builtin
+penetration,异物插入,NSFW（WeiLin专属）,R18词,0,builtin
+fisting,拳头插入,NSFW（WeiLin专属）,R18词,608,builtin
+multiple insertions,一穴多插,NSFW（WeiLin专属）,R18词,423,builtin
+double penetration,双穴同插,NSFW（WeiLin专属）,R18词,14586,builtin
+triple penetration,三穴同插,NSFW（WeiLin专属）,R18词,1880,builtin
+double vaginal,双重入穴,NSFW（WeiLin专属）,R18词,386,builtin
+peeing,尿尿,NSFW（WeiLin专属）,R18词,15106,builtin
+have to pee,憋尿,NSFW（WeiLin专属）,R18词,3691,builtin
+ass,屁股,NSFW（WeiLin专属）,R18词,794048,builtin
+huge ass,大屁股,NSFW（WeiLin专属）,R18词,36973,builtin
+spread ass,用手张开屁股,NSFW（WeiLin专属）,R18词,13498,builtin
+buttjob,臀交,NSFW（WeiLin专属）,R18词,3247,builtin
+spanked,打屁股,NSFW（WeiLin专属）,R18词,6872,builtin
+anus,菊花,NSFW（WeiLin专属）,R18词,168833,builtin
+anal,爆菊,NSFW（WeiLin专属）,R18词,177936,builtin
+double anal,双重爆菊,NSFW（WeiLin专属）,R18词,706,builtin
+anal fingering,手爆菊,NSFW（WeiLin专属）,R18词,4403,builtin
+anal fisting,拳爆菊,NSFW（WeiLin专属）,R18词,347,builtin
+anilingus,肛吻,NSFW（WeiLin专属）,R18词,3436,builtin
+enema,灌肠,NSFW（WeiLin专属）,R18词,2312,builtin
+stomach bulge,肚子胀,NSFW（WeiLin专属）,R18词,16942,builtin
+x-ray/cross-section/internal cumshot,透视人体内部,NSFW（WeiLin专属）,R18词,0,builtin
+wakamezake,酒倒在阴部,NSFW（WeiLin专属）,R18词,970,builtin
+public,公共场所,NSFW（WeiLin专属）,R18词,0,builtin
+humiliation,羞耻,NSFW（WeiLin专属）,R18词,11823,builtin
+playbra lift,胸罩拉到胸上方,NSFW（WeiLin专属）,R18词,0,builtin
+panties around one leg,内裤挂在一条腿上,NSFW（WeiLin专属）,R18词,27359,builtin
+walk-in,进门被发现,NSFW（WeiLin专属）,R18词,4503,builtin
+body writing,身上有字,NSFW（WeiLin专属）,R18词,15535,builtin
+tally,在身上计数,NSFW（WeiLin专属）,R18词,0,builtin
+futanari,双性,NSFW（WeiLin专属）,R18词,51887,builtin
+incest,乱伦,NSFW（WeiLin专属）,R18词,47380,builtin
+twincest,兄弟/姐妹/姐弟/兄妹,NSFW（WeiLin专属）,R18词,3499,builtin
+pegging,女性使用假屌,NSFW（WeiLin专属）,R18词,719,builtin
+femdom,女奸男（逆推）,NSFW（WeiLin专属）,R18词,46017,builtin
+ganguro,日本黑妹,NSFW（WeiLin专属）,R18词,1479,builtin
+bestiality,人兽,NSFW（WeiLin专属）,R18词,12977,builtin
+gangbang,轮奸,NSFW（WeiLin专属）,R18词,24982,builtin
+hreesome3Pgroup sex/orgy/teamwork,群P（多男x一女/性交派队/多女x1男）,NSFW（WeiLin专属）,R18词,0,builtin
+tribadism,磨豆腐,NSFW（WeiLin专属）,R18词,4903,builtin
+molestation,性骚扰,NSFW（WeiLin专属）,R18词,3724,builtin
+voyeurism,窥阴癖,NSFW（WeiLin专属）,R18词,3088,builtin
+exhibitionism,裸露癖,NSFW（WeiLin专属）,R18词,11116,builtin
+rape,强暴,NSFW（WeiLin专属）,R18词,117084,builtin
+about to be raped,将要被强暴,NSFW（WeiLin专属）,R18词,0,builtin
+sex,性爱,NSFW（WeiLin专属）,R18词,395439,builtin
+clothed sex,穿着衣服做爱,NSFW（WeiLin专属）,R18词,54135,builtin
+happy sex,快乐做爱,NSFW（WeiLin专属）,R18词,21790,builtin
+underwater sex,水中做爱,NSFW（WeiLin专属）,R18词,325,builtin
+spitroast,前后夹攻,NSFW（WeiLin专属）,R18词,12884,builtin
+cock in thighhigh,插在过膝袜里,NSFW（WeiLin专属）,R18词,0,builtin
+69,69式,NSFW（WeiLin专属）,R18词,0,builtin
+doggystyle,狗爬式,NSFW（WeiLin专属）,R18词,90140,builtin
+leg lock/upright straddle,跨坐式,NSFW（WeiLin专属）,R18词,0,builtin
+girl on top,女上体位,NSFW（WeiLin专属）,R18词,148578,builtin
+cowgirl position,女上正骑,NSFW（WeiLin专属）,R18词,56077,builtin
+reverse cowgirl,女上反骑,NSFW（WeiLin专属）,R18词,0,builtin
+virgin,处女/破瓜,NSFW（WeiLin专属）,R18词,702,builtin
+slave,奴隶,NSFW（WeiLin专属）,R18词,5621,builtin
+shibari,捆绑,NSFW（WeiLin专属）,R18词,24389,builtin
+bondage,捆绑/奴役,NSFW（WeiLin专属）,R18词,74377,builtin
+bdsm,绑缚与调教/支配与臣服/施虐与受虐,NSFW（WeiLin专属）,R18词,198128,builtin
+pillory/stocks,枷锁,NSFW（WeiLin专属）,R18词,0,builtin
+rope,绳子,NSFW（WeiLin专属）,R18词,70604,builtin
+crotch rope,胯下捆绑,NSFW（WeiLin专属）,R18词,5751,builtin
+hogtie,曲膝捆绑,NSFW（WeiLin专属）,R18词,1468,builtin
+frogtie,青蛙捆绑,NSFW（WeiLin专属）,R18词,5517,builtin
+suspension,悬空捆绑,NSFW（WeiLin专属）,R18词,5919,builtin
+spreader bar,分腿捆绑,NSFW（WeiLin专属）,R18词,1722,builtin
+wooden horse,木马,NSFW（WeiLin专属）,R18词,911,builtin
+anal beads,肛珠,NSFW（WeiLin专属）,R18词,9706,builtin
+cock ring,屌环,NSFW（WeiLin专属）,R18词,1270,builtin
+egg vibrator,跳蛋,NSFW（WeiLin专属）,R18词,8247,builtin
+artificial vagina,人工阴道,NSFW（WeiLin专属）,R18词,0,builtin
+hitachi magic wand,按摩棒,NSFW（WeiLin专属）,R18词,4869,builtin
+dildo,人造阴茎,NSFW（WeiLin专属）,R18词,31810,builtin
+vibrator,带振动的自慰器,NSFW（WeiLin专属）,R18词,32018,builtin
+vibrator in thighhighs,震动开关在过膝袜里,NSFW（WeiLin专属）,R18词,2076,builtin
+nyotaimori,女体盛,NSFW（WeiLin专属）,R18词,400,builtin
+vore,吃人,NSFW（WeiLin专属）,R18词,0,builtin
+transformation,肉体变形,NSFW（WeiLin专属）,R18词,8068,builtin
+mind control,思想操控,NSFW（WeiLin专属）,R18词,14924,builtin
+censored,审核过的/有码,NSFW（WeiLin专属）,R18词,662644,builtin
+uncensored,未审核的/无码,NSFW（WeiLin专属）,R18词,453174,builtin
+asian,亚洲,NSFW（WeiLin专属）,R18词,3760,builtin
+faceless male,无脸男,NSFW（WeiLin专属）,R18词,51839,builtin
+blood,血,NSFW（WeiLin专属）,R18词,191417,builtin

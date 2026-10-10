@@ -25,7 +25,15 @@ export { maskPromptSyntax, tagKey } from './prompt.js';
 export { PROVIDERS } from './providers.js';
 export { sanitizeSettings, sanitizeUsage } from './settings.js';
 export { escapeLike, machineCategory, mergeTag, sanitizeTags, tagSearchBlob } from './tags.js';
-export { BUNDLED_CSV, looksLikeLfsPointer, parseTagCsv } from './tagcsv.js';
+export {
+  BUNDLED_BUILTIN,
+  BUNDLED_COOC,
+  BUNDLED_CSV,
+  foldUnderscore,
+  looksLikeLfsPointer,
+  parseCooccurTsv,
+  parseTagCsv,
+} from './tagcsv.js';
 export { registerBlockCategoryRoutes } from './routes-block-categories.js';
 export { registerBlockPresetRoutes } from './routes-block-presets.js';
 export {

@@ -41,7 +41,7 @@ export function useTagLibrary(props: {
   const editing = ref('');
   const busy = ref('');
   const form = ref({ zh: '', categories: '', aliases: '' });
-  /** 产物里那份内置机翻表；`null` = 还没问过，`available:false` = 产物里没有 */
+  /** 产物里那两份内置词库表；`null` = 还没问过，`available:false` = 产物里没有 */
   const bundled = ref<BundledTags | null>(null);
   const importing = ref(false);
   /**
@@ -71,7 +71,7 @@ export function useTagLibrary(props: {
     }
   }
 
-  /** 问一下产物里有没有内置机翻表。失败就当没有（按钮不画），不打扰人 */
+  /** 问一下产物里有没有内置词库表。失败就当没有（按钮不画），不打扰人 */
   async function loadBundled(): Promise<void> {
     try {
       bundled.value = await fetchBundledTags();
@@ -81,8 +81,11 @@ export function useTagLibrary(props: {
   }
 
   /**
-   * 导入内置机翻表。**只有点了才写**：14 万行、几十 MB，不在打开面板时偷偷干。
+   * 导入内置词库。**只有点了才写**：32 万行、十几 MB，不在打开面板时偷偷干。
    * 解析与写库都在服务端（读的是产物自带的 CSV），这里只等结果。
+   *
+   * 服务端一次导两层（机翻 → 人工），所以提示里要把两层的条数分开说 ——
+   * 只说一个总数的话，人会以为"人工那 4 千条是不是没进去"。
    */
   async function importBundled(): Promise<void> {
     importing.value = true;
@@ -92,7 +95,8 @@ export function useTagLibrary(props: {
       const result = await importBundledTags();
       hint.value =
         `入库 ${result.written} 条` +
-        (result.skipped > 0 ? `（${result.skipped} 条是你改过的，没动）` : '') +
+        (result.layers.length > 1 ? `（${result.layers.map((one) => `${one.name} ${one.written}`).join(' + ')}）` : '') +
+        (result.skipped > 0 ? ` · ${result.skipped} 条被守卫挡下，没动` : '') +
         ` · 库内共 ${result.after} 条 · ${(result.elapsedMs / 1000).toFixed(1)}s`;
       await load();
     } catch (err) {

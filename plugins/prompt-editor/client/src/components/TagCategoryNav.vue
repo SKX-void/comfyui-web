@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 /**
- * 词库面板左边的分类树：全部 / 未分类 / 已有分类。
+ * 词库面板左边的分类树：全部 / 未分类 / 已有分类（两级）。
  *
  * 分类不是装饰 —— 它是"写作时怎么找词"的维度（见 server.js 的 queryTags 按 categories 分组）。
+ * 词库里那批人工分类是**大类 → 小类**两层（`画面全局 → 构图`），所以这里也排两层：小类缩进挂在
+ * 它的大类下面。`parent` 是分类自己的属性，见 `tagdb.ts` 的 `categories.parent`。
  *
  * 它同时是**拖拽的落点**：把右边某一行拖到某个分类上 = 那条改成这个分类。所以这批按钮
  * 要同时当"筛选用"（点）和"落点"（拖上去），两件事互不打扰。
@@ -13,7 +15,7 @@ import { ref, watch } from 'vue';
  * 想去掉分类拖「未分类」——那是个真状态。
  */
 const props = defineProps<{
-  categories: { name: string; count: number }[];
+  categories: { name: string; count: number; parent: string | null }[];
   total: number;
   uncategorized: number;
   /** 当前选中的分类名（`''` = 全部，`__none__` = 未分类） */
@@ -65,6 +67,36 @@ const emit = defineEmits<{
 const dragName = ref('');
 const dropAt = ref(-1);
 
+/**
+ * 两级分类树：`parent` 指向某个大类的小类排到它下面。父名不在列表里（大类被删了、手工 SQL 造出来
+ * 的名字）当顶级 —— 渲染不该依赖数据完整。
+ *
+ * **只有顶级那层可拖排序**：小类的位置由它的 parent 决定（渲染时按 parent 分组），拖它没有任何
+ * 视觉结果，所以子行不给手柄、也不进 `reorder-categories` 的名单。
+ */
+const tree = computed(() => {
+  const names = new Set(props.categories.map((one) => one.name));
+  // 「父不在树上」和「父就是自己」都当顶级：前者是孤儿（分类被删 / 手工 SQL 造出来的），
+  // 后者是"自己当自己的父"（老库里可能有）—— 两种都既不是顶级也展开不出来，整支会消失
+  const tops = props.categories.filter((one) => one.parent === null || one.parent === one.name || !names.has(one.parent));
+  // 子行要排掉"父就是自己"那一份，否则它会在自己底下再出现一次
+  return tops.map((top) => ({
+    top,
+    children: props.categories.filter((one) => one.parent === top.name && one.name !== top.name),
+  }));
+});
+
+/**
+ * 两级拉平成一串（大类后面紧跟它的小类）：模板里"一行长什么样"就只有一份。
+ * 子行的 `index` 是 -1（不参与排序，`overRow` 也只会被顶级行调到）。
+ */
+const rows = computed(() =>
+  tree.value.flatMap((node, index) => [
+    { cat: node.top, depth: 0, index },
+    ...node.children.map((cat) => ({ cat, depth: 1, index: -1 })),
+  ]),
+);
+
 function startDrag(name: string): void {
   dragName.value = name;
   dropAt.value = -1;
@@ -84,7 +116,7 @@ function dropRow(): void {
   dragName.value = '';
   dropAt.value = -1;
   if (dragged === '' || to < 0) return;
-  const names = props.categories.map((one) => one.name);
+  const names = tree.value.map((node) => node.top.name);
   const from = names.indexOf(dragged);
   if (from < 0) return;
   const at = to > from ? to - 1 : to;
@@ -182,19 +214,21 @@ watch(() => props.renaming, (name) => { if (name !== '') grab(renameInput); }, {
     >
       未分类 <em>{{ uncategorized }}</em>
     </button>
-    <!-- 一行 = 一个分类：可点的那个是「选它」（也当落点），改名/删除挂在它旁边（button 里不能再套 button） -->
+    <!-- 一行 = 一个分类：可点的那个是「选它」（也当落点），改名/删除挂在它旁边（button 里不能再套 button）。
+         两级拉平成一串渲染（`depth` 只决定缩进和能不能拖），这样"行长什么样"只有一份 -->
     <div
-      v-for="(one, index) in categories"
-      :key="one.name"
+      v-for="row in rows"
+      :key="row.cat.name"
       class="pe-lib-cat-row"
       :class="{
-        'pe-lib-cat-row-editing': renaming === one.name,
-        'pe-lib-cat-row-dragging': dragName === one.name,
-        'pe-lib-cat-row-over-before': dragName !== '' && dropAt === index,
-        'pe-lib-cat-row-over-after': dragName !== '' && dropAt === index + 1,
+        'pe-lib-cat-row-child': row.depth > 0,
+        'pe-lib-cat-row-editing': renaming === row.cat.name,
+        'pe-lib-cat-row-dragging': dragName === row.cat.name,
+        'pe-lib-cat-row-over-before': row.depth === 0 && dragName !== '' && dropAt === row.index,
+        'pe-lib-cat-row-over-after': row.depth === 0 && dragName !== '' && dropAt === row.index + 1,
       }"
-      :draggable="true"
-      @dragstart="startDrag(one.name)"
+      :draggable="row.depth === 0"
+      @dragstart="startDrag(row.cat.name)"
       @dragend="
         () => {
           dragName = '';
@@ -202,13 +236,18 @@ watch(() => props.renaming, (name) => { if (name !== '') grab(renameInput); }, {
         }
       "
       @dragover.prevent="
-        dragging ? emit('drag-over', one.name) : dragName !== '' ? overRow(index, $event) : undefined
+        dragging
+          ? emit('drag-over', row.cat.name)
+          : row.depth === 0 && dragName !== ''
+            ? overRow(row.index, $event)
+            : undefined
       "
       @dragleave="emit('drag-leave')"
-      @drop.prevent="dragName !== '' ? dropRow() : emit('drop', one.name)"
+      @drop.prevent="row.depth === 0 && dragName !== '' ? dropRow() : emit('drop', row.cat.name)"
     >
-      <!-- 跟 tag 行同一个六点手柄（内联 SVG）：告诉人"这行能拖"。分类行同样整行可拖 -->
-      <span class="pe-lib-grip" title="拖动调整分类顺序" aria-hidden="true">
+      <!-- 跟 tag 行同一个六点手柄（内联 SVG）：告诉人"这行能拖"。**只有顶级有** —— 小类的位置
+           由它的大类决定，拖它没有任何视觉结果 -->
+      <span v-if="row.depth === 0" class="pe-lib-grip" title="拖动调整分类顺序" aria-hidden="true">
         <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
           <circle cx="2" cy="3" r="1.4" />
           <circle cx="8" cy="3" r="1.4" />
@@ -220,23 +259,25 @@ watch(() => props.renaming, (name) => { if (name !== '') grab(renameInput); }, {
       </span>
       <button
         class="pe-lib-cat-pick"
-        :class="{ on: active === one.name, 'pe-lib-drop-on': dragging && dropTarget === one.name }"
+        :class="{ on: active === row.cat.name, 'pe-lib-drop-on': dragging && dropTarget === row.cat.name }"
         :data-drop="dragging ? 'ok' : ''"
-        :title="one.name"
-        @click="emit('pick', one.name)"
+        :title="row.cat.name"
+        @click="emit('pick', row.cat.name)"
       >
-        <span class="pe-lib-cat-name">{{ one.name }}</span> <em>{{ one.count }}</em>
+        <span class="pe-lib-cat-name">{{ row.cat.name }}</span> <em>{{ row.cat.count }}</em>
       </button>
       <span v-if="editMode" class="pe-lib-cat-tools">
-        <button class="pe-lib-cat-tool" title="改名" @click="emit('start-rename', one.name)">改</button>
+        <button class="pe-lib-cat-tool" title="改名" @click="emit('start-rename', row.cat.name)">改</button>
         <button
           class="pe-lib-cat-tool"
           title="批量删掉这个分类下的词条（分类留着）"
-          @click="emit('ask-delete-entries', one.name, one.count)"
+          @click="emit('ask-delete-entries', row.cat.name, row.cat.count)"
         >
           清
         </button>
-        <button class="pe-lib-cat-tool" title="删掉这个分类" @click="emit('ask-remove', one.name, one.count)">删</button>
+        <button class="pe-lib-cat-tool" title="删掉这个分类" @click="emit('ask-remove', row.cat.name, row.cat.count)">
+          删
+        </button>
       </span>
     </div>
     <p v-if="categories.length === 0" class="pe-lib-tip">

@@ -93,6 +93,10 @@ const {
     exportPicked,
     onFilePicked,
   },
+  bundled,
+  importingBundled,
+  loadBundled,
+  importBundled,
 } = useBlockLibrary({
   insert: (preset) => emit('insert', preset),
   consumePending: () => emit('cancel-pending'),
@@ -133,6 +137,8 @@ watch(
     error.value = '';
     hint.value = '';
     void refresh();
+    // 产物里有没有内置区块库（空库那张卡 / 页脚的重导按钮靠它决定画不画）：跟列表一起问一次
+    void loadBundled();
     if (pending === null) return;
     name.value = pending.title.trim();
     nameBox.value?.focus();
@@ -170,6 +176,18 @@ watch(
       </header>
 
       <input ref="fileBox" class="pe-file" type="file" accept=".json,application/json" @change="onFilePicked" />
+
+      <!-- 空库：给一条"不用自己攒"的路（产物里那份 WeiLin 存档转好的区块库）。
+           导入是写动作、手动点，不在这里自动跑；库里已经有块时这张卡就不画了 -->
+      <div v-if="presets.length === 0 && bundled !== null && bundled.available" class="pe-blk-empty">
+        <span class="pe-blk-tip">
+          也可以先导入内置区块库（{{ bundled.count }} 块，{{ (bundled.bytes / 1024).toFixed(0) }}KB，按用途分好 12 个分类）——
+          插进来就是一整块，条目译文按当前词库现查。
+        </span>
+        <button class="pe-btn" :disabled="importingBundled" @click="importBundled">
+          {{ importingBundled ? '导入中…' : '导入内置区块库' }}
+        </button>
+      </div>
 
       <div class="pe-blk-bar">
         <!-- 多选时这一栏换成选择条：这会儿不是在存块，是在挑要导出的块 -->
@@ -269,6 +287,16 @@ watch(
         <span v-if="error !== ''" class="pe-error">{{ error }}</span>
         <span v-else-if="hint !== ''" class="pe-hint">{{ hint }}</span>
         <span v-else class="pe-blk-note">插入 = 新增一块、追加到最后；条目按当前词库重新查译文，库里不存译文。</span>
+        <!-- 库里有块时上面那张空态卡就不画了；留个小口子给"想把内置那套再导一遍"（同名的照收不覆盖） -->
+        <button
+          v-if="presets.length > 0 && bundled !== null && bundled.available"
+          class="pe-btn pe-btn-quiet"
+          :disabled="importingBundled"
+          :title="`把产物自带的内置区块库（${bundled.count} 块）再导一遍：同名的照收不覆盖，等于把删掉的补回来`"
+          @click="importBundled"
+        >
+          {{ importingBundled ? '导入中…' : '重导内置区块库' }}
+        </button>
       </footer>
     </div>
   </div>

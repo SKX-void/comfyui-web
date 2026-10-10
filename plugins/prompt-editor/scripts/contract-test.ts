@@ -80,7 +80,9 @@ const {
   machineCategory,
   maskPromptSyntax,
   openTagDb,
+  parseCooccurTsv,
   parseTagCsv,
+  foldUnderscore,
   rawFromStored,
   sanitizeDoc,
   sanitizeSettings,
@@ -126,6 +128,9 @@ const plugin = (await import(artifact('client.js').href)).default as {
 
   const expected = [
     'GET /block-presets',
+    // 内置区块库这两条**必须在 `/block-presets/:id` 之前**（宿主按注册顺序逐段匹配，`:id` 会把 bundled 吃掉）
+    'GET /block-presets/bundled',
+    'POST /block-presets/bundled',
     'GET /block-presets/:id',
     'POST /block-presets',
     'PUT /block-presets/:id',
@@ -158,6 +163,12 @@ const plugin = (await import(artifact('client.js').href)).default as {
   check(
     `宿主留下的路由表里 ${expected.length} 条全在`,
     expected.every((r) => registered.includes(r)),
+    registered.join(' '),
+  );
+  // 顺序也是契约：`/block-presets/bundled` 排在 `:id` 后面就等于没注册（会被当成 id 吃掉）
+  check(
+    '内置区块库路由排在 /block-presets/:id 之前',
+    registered.indexOf('GET /block-presets/bundled') < registered.indexOf('GET /block-presets/:id'),
     registered.join(' '),
   );
   check('apply 注册了收尾（ctx.effect）', effects === 1, effects);
@@ -587,6 +598,18 @@ let dbSeq = 0;
 const newTags = () =>
   openTagDb({ db: path.join(tmpDir, `tags-${(dbSeq += 1)}.db`), tagsJson, legacyDictJson: dictJson });
 
+/** 导入用的一行（导入只认这一组字段；`hot` / `updatedAt` 给了就按给的走） */
+const tagRow = (en: string, zh: string, categories: string[], source: string, hot = 100) => ({
+  key: tagKey(en),
+  en,
+  zh,
+  categories,
+  aliases: [] as string[],
+  source,
+  updatedAt: 0,
+  hot,
+});
+
 check('坏输入退化成空库', sanitizeTags(null).length === 0 && sanitizeTags('nope').length === 0);
 
 {
@@ -766,6 +789,95 @@ check('坏输入退化成空库', sanitizeTags(null).length === 0 && sanitizeTag
   );
   second.close();
 }
+
+// 老库的 `categories` 没有 `parent` 列（两级分类是后加的）：开库时探列 + ALTER 补上，跟 `sort` 同一套
+{
+  const file = path.join(tmpDir, 'categories-parent.db');
+  const raw = new DatabaseSync(file);
+  raw.exec('CREATE TABLE categories (name TEXT PRIMARY KEY, sort REAL)');
+  raw.exec("INSERT INTO categories (name, sort) VALUES ('老分类', 1000)");
+  raw.close();
+  const db = openTagDb({ db: file, tagsJson, legacyDictJson: dictJson });
+  check(
+    '老库的 categories 没有 parent 列时开库补上（老分类都是平级）',
+    db.query().categories.find((one) => one.name === '老分类')?.parent === null,
+    JSON.stringify(db.query().categories),
+  );
+  db.close();
+}
+
+// 两级分类：父子关系挂在分类上（`categories.parent`），不在词条上 —— 导入时由 `parents` 映射带进来
+{
+  const file = path.join(tmpDir, 'category-parent.db');
+  const db = openTagDb({ db: file, tagsJson, legacyDictJson: dictJson });
+  const entry = (key: string, categories: string[]): Parameters<typeof db.importEntries>[0][number] => ({
+    key,
+    en: key,
+    zh: `${key}译`,
+    categories,
+    aliases: [],
+    source: 'import',
+    hot: 1,
+    updatedAt: 0,
+  });
+  db.importEntries(
+    [entry('long hair', ['头部神态', '发型']), entry('hair ornament', [])],
+    new Map([['发型', '头部神态']]),
+  );
+  const cats = db.query().categories;
+  check(
+    '分类父子关系落库：小类带 parent、大类自己不带（词条上只有两个名字）',
+    cats.find((one) => one.name === '发型')?.parent === '头部神态' &&
+      cats.find((one) => one.name === '头部神态')?.parent === null,
+    JSON.stringify(cats),
+  );
+  check(
+    '自己当自己的父写不进库（`parent === name` 那一支既不是顶级也展开不出来，整支会消失）',
+    (() => {
+      db.importEntries([entry('close-up', ['镜头', '镜头'])], new Map([['镜头', '镜头']]));
+      return db.query().categories.find((one) => one.name === '镜头')?.parent === null;
+    })(),
+    JSON.stringify(db.query().categories.filter((one) => one.name === '镜头')),
+  );
+  check(
+    '大类改名：小类的 parent 跟着改（不然它们在新名字下没有归属）',
+    (() => {
+      db.renameCategory('头部神态', '头部');
+      return db.query().categories.find((one) => one.name === '发型')?.parent === '头部';
+    })(),
+    JSON.stringify(db.query().categories),
+  );
+  check(
+    '大类被删：小类升成顶级（parent 指着一个不存在的名字，两级树里就渲染不出它了）',
+    (() => {
+      db.removeCategory('头部');
+      return db.query().categories.find((one) => one.name === '发型')?.parent === null;
+    })(),
+    JSON.stringify(db.query().categories),
+  );
+  // 共现邻居只存键，查询 INNER JOIN `tags`：词库里没有的邻居自然不出现
+  db.importCooccur([
+    ['long hair', 'hair ornament', 1],
+    ['long hair', 'ghost tag', 2],
+  ]);
+  check(
+    '共现邻居：按强弱序回词库里真有的那些（死邻居被 JOIN 挡掉）· 词键大小写不敏感',
+    db.cooccur('long hair').map((one) => one.en).join() === 'hair ornament' &&
+      db.cooccur('LONG HAIR').length === 1 &&
+      db.cooccur('nope').length === 0,
+    JSON.stringify(db.cooccur('long hair').map((one) => one.en)),
+  );
+  check(
+    '共现邻居是整表替换：重导一份只有别的词的表，旧行不留',
+    (() => {
+      db.importCooccur([['hair ornament', 'long hair', 1]]);
+      return db.cooccur('long hair').length === 0 && db.cooccur('hair ornament').length === 1;
+    })(),
+    JSON.stringify(db.cooccur('hair ornament').map((one) => one.en)),
+  );
+  db.close();
+}
+
 check(
   '机翻分类映射：数字 → 机翻-中文名（认不出的数字归"其他"，空值给 null = 未分类）',
   machineCategory('0') === '机翻-通用' &&
@@ -781,7 +893,7 @@ check(
 // 机翻表的解析规则（server/tagcsv.ts）：CLI 与面板那条「导入内置机翻表」走的是同一份，
 // 所以这里断言的是**两边共同**的语义 —— 引号里的逗号、没翻出来的占位、同键去重。
 check(
-  'CSV 解析：表头认列名 · 引号里的逗号不断列 · 译文同正名的占位行跳过 · 同键留热度高的',
+  'CSV 解析：表头认列名 · 引号里的逗号不断列 · 下划线折成空格 · 占位行跳过 · 同键留热度高的',
   (() => {
     const { rows, stats } = parseTagCsv(
       [
@@ -805,8 +917,9 @@ check(
       stats.duplicates === 1 &&
       rows.length === 3 &&
       // 引号里的逗号：tag 自己带逗号、译文里带逗号，都不能被切成两列
-      byKey.get('my_hero_academia,')?.zh === '我的英雄学院' &&
-      byKey.get('otu_(o2h2_oh4)')?.zh === 'otu (O2H2, Oh4)' &&
+      byKey.get('my hero academia,')?.zh === '我的英雄学院' &&
+      // 下划线：`otu_(o2h2_oh4)` → `otu (o2h2 oh4)`（源是 booru 写法，折了才跟机翻表同一个键）
+      byKey.get('otu (o2h2 oh4)')?.zh === 'otu (O2H2, Oh4)' &&
       // 同键留热度高的那条（重复行是热度 5 的那份）
       girl?.hot === 8419190 &&
       girl?.categories.join() === '机翻-通用' &&
@@ -825,13 +938,137 @@ check(
   })(),
 );
 check(
+  'CSV 解析：group/sub 两列 → 大类 + 小类两个分类 · 父子关系回 parents · 有分类就不挂机翻桶',
+  (() => {
+    const { rows, stats, parents } = parseTagCsv(
+      [
+        'tag,category,count,zh,group,sub',
+        'long hair,0,6214525,长发,头部神态,发型',
+        '1girl,0,50,1女,头部神态,发型',
+        // 小类留空 = 只挂大类（源表里"还没细分类"的那些词，`build-dict.ts` 就是这么写出来的）
+        'solo,0,100,单人,画面全局,',
+        'hatsune miku,4,10,初音未来,,',
+      ].join('\n'),
+    );
+    const byKey = new Map(rows.map((row) => [row.key, row]));
+    return (
+      stats.grouped === 3 &&
+      byKey.get('long hair')?.categories.join() === '头部神态,发型' &&
+      byKey.get('solo')?.categories.join() === '画面全局' &&
+      // 没有 group 的行照旧走机翻桶
+      byKey.get('hatsune miku')?.categories.join() === '机翻-角色' &&
+      parents.get('发型') === '头部神态' &&
+      parents.size === 1
+    );
+  })(),
+);
+check(
+  'CSV 解析：keepPlaceholders 开着时占位行也入库（译文就用正名，专有名词命中即原文）',
+  (() => {
+    const text = 'tag,category,count,zh,group,sub\nhololive,3,1000,hololive,,';
+    const off = parseTagCsv(text);
+    const on = parseTagCsv(text, { keepPlaceholders: true });
+    return (
+      off.rows.length === 0 &&
+      off.stats.placeholder === 1 &&
+      on.rows.length === 1 &&
+      on.rows[0]?.zh === 'hololive' &&
+      on.rows[0]?.categories.join() === '机翻-作品'
+    );
+  })(),
+);
+check(
+  '小类跟大类同名 = 没细分：小类丢掉（留着就是"自己是自己的父"，两级树里那一支整个消失）',
+  (() => {
+    const { rows, parents } = parseTagCsv('tag,zh,group,sub\nclose-up,特写,镜头,镜头\nwide shot,远景,镜头,镜头角度\n');
+    return (
+      rows.length === 2 &&
+      rows[0]?.categories.join() === '镜头' &&
+      rows[1]?.categories.join() === '镜头,镜头角度' &&
+      parents.has('镜头') === false &&
+      parents.get('镜头角度') === '镜头'
+    );
+  })(),
+);
+check(
+  '共现邻居 TSV 解析：切分 + 归一（自己配自己、空邻居丢掉，序号从 1 开始）',
+  (() => {
+    const { rows, stats } = parseCooccurTsv('Long Hair\thair ornament|hair ornament|Long Hair|\n\nsolo\t\n');
+    return (
+      stats.lines === 2 &&
+      rows.length === 1 &&
+      rows[0]?.[0] === 'long hair' &&
+      rows[0]?.[1] === 'hair ornament' &&
+      rows[0]?.[2] === 1
+    );
+  })(),
+);
+check(
   'git-lfs 指针认得出来（认不出来的话导入会"成功但入库 0 条"，比报错难查）',
   looksLikeLfsPointer('version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 5448620\n') &&
     !looksLikeLfsPointer('tag,category,count,alias\n1girl,0,8419190,1女\n'),
 );
+// 两份内置词库资产（构建期预处理的产物，见 scripts/build-weilin.ts）：面板与 CLI 都按同一份
+// 解析读它们，所以这里验的是"产物本身守规矩"—— 折过下划线、来源标对、两级分类都在
+console.log('内置词库资产（assets/*.csv）');
+{
+  const assets = fileURLToPath(new URL('../assets/', import.meta.url));
+  const big = path.join(assets, 'danbooru-zh.csv');
+  const head = (() => {
+    if (!fs.existsSync(big)) return '';
+    const fd = fs.openSync(big, 'r');
+    const buf = Buffer.alloc(200);
+    const read = fs.readSync(fd, buf, 0, 200, 0);
+    fs.closeSync(fd);
+    return buf.subarray(0, read).toString('utf8');
+  })();
+  check(
+    '机翻表在，且不是 lfs 指针（没拉 lfs 时是个 130 字节的指针，导入会"成功但 0 条"）',
+    fs.existsSync(big) && fs.statSync(big).size > 1_000_000 && !looksLikeLfsPointer(head),
+    head.slice(0, 40),
+  );
+
+  const weilin = path.join(assets, 'weilin-zh.csv');
+  const text = fs.existsSync(weilin) ? fs.readFileSync(weilin, 'utf8') : '';
+  const parsed = text === '' ? null : parseTagCsv(text, { keepPlaceholders: true });
+  check('人工表（weilin-zh.csv，WeiLin 那份）在', parsed !== null, weilin);
+  if (parsed !== null) {
+    const groups = new Set(parsed.rows.map((one) => one.categories[0] ?? ''));
+    // 小类：只有真细分过的行才有（小类跟大类同名的那 77 条只有大类）
+    const subs = new Set(parsed.rows.map((one) => one.categories[1]).filter((one): one is string => one !== undefined && one !== ''));
+    const hot = parsed.rows.filter((one) => one.hot > 0).length;
+    check(
+      '人工表：每条都标 builtin（导入守卫靠它压住机翻那层）',
+      parsed.rows.every((one) => one.source === 'builtin') && parsed.stats.sources.builtin === parsed.rows.length,
+      JSON.stringify(parsed.stats.sources),
+    );
+    check(
+      '人工表：每条都有大类，九成以上还有小类（两级分类就是这份表的价值）',
+      parsed.rows.every((one) => one.categories.length >= 1) &&
+        parsed.rows.filter((one) => one.categories.length === 2).length > parsed.rows.length * 0.9,
+      `${parsed.rows.length} 条 / 带分类 ${parsed.stats.grouped} / 两级 ${parsed.rows.filter((one) => one.categories.length === 2).length}`,
+    );
+    check(
+      '人工表：下划线已经折掉（源是 booru 写法，折了才跟机翻表落在同一个键上）',
+      parsed.rows.every((one) => !one.en.includes('_')),
+      parsed.rows.filter((one) => one.en.includes('_')).slice(0, 3).map((one) => one.en).join(' / '),
+    );
+    check(
+      '人工表：大类 11 个、小类上百个，父子关系一一对上',
+      groups.size === 11 && subs.size > 100 && parsed.parents.size === subs.size,
+      `${groups.size} 大类 / ${subs.size} 小类 / ${parsed.parents.size} 对父子`,
+    );
+    check('人工表：`未分类` 没被当成分类名（面板里那个是伪分类）', !parsed.parents.has('未分类') && !groups.has('未分类'), [...groups].join(' '));
+    check(
+      '人工表：多数条目有热度（热度从机翻表借 —— 不然这 4 千条会沉在 32 万条最底下）',
+      hot > parsed.rows.length / 2,
+      `${hot} / ${parsed.rows.length}`,
+    );
+  }
+}
+
 const fresh = newTags();
-check('空库查得到 null', fresh.lookup('nope') === null && fresh.count() === 0);
-check(
+check('空库查得到 null', fresh.lookup('nope') === null && fresh.count() === 0);check(
   '记一条再查得到（键大小写不敏感）',
   fresh.upsert({ en: '1Girl', zh: '一个女孩', source: 'import' }) !== null && fresh.lookup('1girl')?.zh === '一个女孩',
 );
@@ -877,6 +1114,56 @@ check(
       entry.categories.join() === '人物' &&
       entry.aliases.join() === 'miku' &&
       entry.hot === 0
+    );
+  })(),
+);
+check(
+  '人工那层（builtin）压过机翻：先导人工再重导机翻，人工那条一条字段都不动',
+  (() => {
+    const t = newTags();
+    // 人工表先写（守卫 `user`：只不许盖手改的），再导机翻（守卫 `import`：只许盖机翻）
+    t.importEntries([tagRow('long hair', '长发', ['人物', '头发'], 'builtin')], new Map([['头发', '人物']]), 'user');
+    const written = t.importEntries([tagRow('long hair', '长头发（机翻）', ['机翻-通用'], 'import')], undefined, 'import');
+    const entry = t.lookup('long hair');
+    return (
+      written === 0 &&
+      entry?.zh === '长发' &&
+      entry?.source === 'builtin' &&
+      entry.categories.join() === '人物,头发' &&
+      entry.hot === 100
+    );
+  })(),
+);
+check(
+  '机翻那层还是能被机翻盖（`import` 守卫不是"谁都不许盖"，换了新版 CSV 得能更新）',
+  (() => {
+    const t = newTags();
+    t.importEntries([tagRow('1girl', '一个女孩', ['机翻-通用'], 'import', 10)], undefined, 'import');
+    const written = t.importEntries([tagRow('1girl', '一个女孩', ['机翻-通用'], 'import', 999)], undefined, 'import');
+    return written === 1 && t.lookup('1girl')?.hot === 999;
+  })(),
+);
+check(
+  '下划线归一：一律折成空格（`xxx_(yyy)` / 尾部下划线也算），顺带收空白',
+  foldUnderscore('long_hair') === 'long hair' &&
+    foldUnderscore('hanten_(clothes)') === 'hanten (clothes)' &&
+    foldUnderscore('robot_') === 'robot' &&
+    foldUnderscore('  a__b  ') === 'a b' &&
+    foldUnderscore('1girl') === '1girl',
+);
+check(
+  'CSV 的 source 列认出来（没这列时用 defaultSource）',
+  (() => {
+    const text = 'tag,zh,group,sub,count,source\nlong_hair,长发,人物,头发,100,builtin\nsolo,单人,画面全局,,50,\n';
+    const { rows, stats } = parseTagCsv(text, { defaultSource: 'import' });
+    return (
+      rows.length === 2 &&
+      rows[0]?.source === 'builtin' &&
+      rows[0]?.en === 'long hair' &&
+      rows[0]?.categories.join() === '人物,头发' &&
+      rows[1]?.source === 'import' &&
+      stats.sources.builtin === 1 &&
+      stats.sources.import === 1
     );
   })(),
 );
@@ -1061,9 +1348,10 @@ check(
     );
     const after = openTagDb({ db, tagsJson: path.join(dir, 'tags.json'), legacyDictJson: path.join(dir, 'dict.json') });
     const mine = after.lookup('1girl');
-    const miku = after.lookup('hatsune_miku');
+    // 下划线在**导入**这一层就折成空格了（`hatsune_miku` → `hatsune miku`）：库里只有空格形这一份
+    const miku = after.lookup('hatsune miku');
     // 真表里有引号包着的 tag（tag 自己带逗号）：按逗号裸切会切出一个不存在的 tag
-    const academia = after.lookup('my_hero_academia,');
+    const academia = after.lookup('my hero academia,');
     const ok =
       after.count() === 3 &&
       mine?.zh === '我改过的译文' &&
@@ -1076,6 +1364,8 @@ check(
       miku.updatedAt === 0 &&
       academia?.zh === '我的英雄学院' &&
       academia.categories.join() === '机翻-其他' &&
+      // 折的是导入那一层，查的时候不折（`tagKey` 没动）—— 下划线形查不到，这是已知取舍
+      after.lookup('hatsune_miku') === null &&
       after.lookup('obscure thing') === null &&
       after.lookup('untouched') === null &&
       after.lookup('no translate') === null;
@@ -1522,6 +1812,85 @@ console.log('区块库：预设单块的存储与路由');
     (await call('POST /block-categories', { body: { name: '多出来的' } })).status === 400 && stored().categories.length === server.LIMITS.blockCategories,
   );
 
+  fs.rmSync(spaceDir, { recursive: true, force: true });
+}
+
+// 内置区块库：`assets/block-library.json` 是 WeiLin 存档预处理来的（scripts/build-blocks.ts），
+// 路由按产物读它。产物里没有（还没 build:plugins）时按钮就不该画 —— 两种环境都要说得通。
+console.log('区块库：内置那份（产物自带）');
+{
+  const spaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-blockbundled-'));
+  const handlers: Record<string, (request: unknown, reply: unknown) => unknown> = {};
+  const record =
+    (method: string) =>
+    (routePath: string, handler: (request: unknown, reply: unknown) => unknown): void => {
+      handlers[`${method} ${routePath}`] = handler;
+    };
+  const reply = (): { status: number; body: unknown; code: (n: number) => unknown; send: (b: unknown) => unknown } => ({
+    status: 200,
+    body: null,
+    code(this: { status: number }, n: number) {
+      this.status = n;
+      return this;
+    },
+    send(this: { body: unknown }, body: unknown) {
+      this.body = body;
+      return this;
+    },
+  });
+  const helpers = {
+    routes: { get: record('GET'), post: record('POST'), put: record('PUT'), delete: record('DELETE') },
+    space: { packageName: 'x', root: spaceDir, resolve: (f: string) => path.join(spaceDir, f) },
+    badRequest: (r: { code: (n: number) => { send: (b: unknown) => unknown } }, message: string) =>
+      r.code(400).send({ error: { code: 'BAD_REQUEST', message } }),
+    log: () => {},
+  };
+  server.registerBlockPresetRoutes(helpers as unknown as Parameters<typeof server.registerBlockPresetRoutes>[0]);
+  const call = async (key: string, request: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
+    const r = reply();
+    const returned = await handlers[key]?.({ params: {}, body: null, ...request }, r);
+    return { ...r, body: r.body ?? returned ?? null } as unknown as Record<string, unknown>;
+  };
+  const stored = (): { categories: { name: string }[]; presets: { name: string; items: string[]; categoryId: string; mode: string }[] } =>
+    JSON.parse(fs.readFileSync(path.join(spaceDir, 'block-presets.json'), 'utf8')) as never;
+
+  const info = ((await call('GET /block-presets/bundled')).body as { bundled?: { available?: boolean; count?: number } }).bundled ?? {};
+  check('GET /block-presets/bundled 回 { available, bytes, count }', typeof info.available === 'boolean' && typeof info.count === 'number', JSON.stringify(info));
+  if (info.available === true) {
+    const done = (await call('POST /block-presets/bundled')).body as { imported?: number; categoriesCreated?: number };
+    check('导入内置区块库：块数跟报的一致，分类按 catOrder 现建', done.imported === info.count && done.categoriesCreated === 12, JSON.stringify(done));
+    check(
+      '导入后落盘：160 块、12 个分类、顺序就是 catOrder（要服装在最前，负提示词在最后）',
+      stored().presets.length === info.count &&
+        stored().categories.length === 12 &&
+        stored().categories[0]?.name === '要服装' &&
+        stored().categories.at(-1)?.name === '负提示词',
+      JSON.stringify(stored().categories.map((one) => one.name)),
+    );
+    const sample = stored().presets.find((one) => one.name.includes('负提示词')) ?? stored().presets[0];
+    check('条目是切好的（一条 prompt 变 N 个条目，不是整段一行）', (sample?.items.length ?? 0) > 1 && sample?.mode === 'tag', JSON.stringify(sample?.items.slice(0, 4)));
+    check(
+      '权重括号里的逗号没被切开（`(a, b:2)` 是一个条目）',
+      stored().presets.some((one) => one.items.some((item) => item.startsWith('(') && item.includes(', '))),
+      JSON.stringify(stored().presets[0]?.items.slice(0, 3)),
+    );
+    check('分类都建出来了：没有块落在未分类', stored().presets.every((one) => one.categoryId !== ''));
+    const again = (await call('POST /block-presets/bundled')).body as { imported?: number; error?: { message?: string } };
+    const againStatus = (await call('POST /block-presets/bundled')).status;
+    // 160 + 160 = 320 > 上限 300：第二次该被挡下并说清原因（不是"导到一半"）
+    check(
+      '再导一遍撞上限：400 + 说清超了多少，库一条不动',
+      againStatus === 400 && String(again.error?.message ?? '').includes(String(server.LIMITS.blockPresets)) && stored().presets.length === info.count,
+      `${againStatus} / ${again.error?.message ?? ''}`,
+    );
+  } else {
+    check(
+      '产物里没有内置区块库：POST 回 400 并说清怎么办（不是 500 / 静默成功）',
+      (await call('POST /block-presets/bundled')).status === 400 &&
+        String(((await call('POST /block-presets/bundled')).body as { error?: { message?: string } }).error?.message ?? '').includes('build:plugins'),
+    );
+    check('产物里没有内置区块库：一个文件都不写', fs.readdirSync(spaceDir).length === 0, fs.readdirSync(spaceDir).join(' '));
+  }
   fs.rmSync(spaceDir, { recursive: true, force: true });
 }
 
