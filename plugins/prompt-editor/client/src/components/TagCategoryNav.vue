@@ -87,15 +87,58 @@ const tree = computed(() => {
 });
 
 /**
- * 两级拉平成一串（大类后面紧跟它的小类）：模板里"一行长什么样"就只有一份。
+ * 收起 / 展开的大类（**默认全收起**）：词库那份人工分类是 11 大类 / 128 小类，全铺出来左栏
+ * 一百多行，"找分类"就变成了"翻列表"。收起时只留大类，点三角才铺开它的小类。
+ *
+ * 状态只活在这个组件里（关掉面板就回到全收起）—— 它是"我现在想不想看这一支"的临时视图，
+ * 不是配置，没必要落盘。
+ */
+const expanded = ref<Set<string>>(new Set());
+
+function toggleTop(name: string): void {
+  const next = new Set(expanded.value);
+  if (next.has(name)) next.delete(name);
+  else next.add(name);
+  expanded.value = next;
+}
+
+/**
+ * 两级拉平成一串（大类后面紧跟它的小类，收起时只有大类）：模板里"一行长什么样"就只有一份。
  * 子行的 `index` 是 -1（不参与排序，`overRow` 也只会被顶级行调到）。
+ *
+ * 顶级行额外带 `caret`（有没有小类可展开）/ `kids`（几个）/ `holdsActive`（当前筛的是不是它下面
+ * 的小类 —— 收起后那一行看不见了，三角得染个色告诉人筛选藏在哪儿）。
  */
 const rows = computed(() =>
-  tree.value.flatMap((node, index) => [
-    { cat: node.top, depth: 0, index },
-    ...node.children.map((cat) => ({ cat, depth: 1, index: -1 })),
-  ]),
+  tree.value.flatMap((node, index) => {
+    const open = expanded.value.has(node.top.name);
+    const top = {
+      cat: node.top,
+      depth: 0,
+      index,
+      caret: node.children.length > 0,
+      kids: node.children.length,
+      open,
+      holdsActive: node.children.some((one) => one.name === props.active),
+    };
+    const kids = node.children.map((cat) => ({
+      cat,
+      depth: 1,
+      index: -1,
+      caret: false,
+      kids: 0,
+      open: false,
+      holdsActive: false,
+    }));
+    return open ? [top, ...kids] : [top];
+  }),
 );
+
+/** 三角的提示语：说清"这一下会展开/收起几个"，收起时再说清筛选藏在它下面 */
+function caretTitle(row: { open: boolean; kids: number; holdsActive: boolean }): string {
+  const what = `${row.open ? '收起' : '展开'} ${row.kids} 个小类`;
+  return row.holdsActive && !row.open ? `${what}（当前筛的是它下面的分类）` : what;
+}
 
 function startDrag(name: string): void {
   dragName.value = name;
@@ -245,6 +288,21 @@ watch(() => props.renaming, (name) => { if (name !== '') grab(renameInput); }, {
       @dragleave="emit('drag-leave')"
       @drop.prevent="row.depth === 0 && dragName !== '' ? dropRow() : emit('drop', row.cat.name)"
     >
+      <!-- 收起/展开三角：只有带小类的大类才有（没有的留一个同宽的占位，免得名字左右不齐）。
+          它跟「选这个分类」是两件事，所以是独立按钮、独立点击 -->
+      <span v-if="row.depth === 0" class="pe-lib-cat-caret-slot">
+        <button
+          v-if="row.caret"
+          class="pe-lib-cat-caret"
+          :class="{ 'pe-lib-cat-caret-on': row.holdsActive }"
+          :aria-expanded="row.open ? 'true' : 'false'"
+          :title="caretTitle(row)"
+          @click="toggleTop(row.cat.name)"
+        >
+          {{ row.open ? '▾' : '▸' }}
+        </button>
+        <span v-else class="pe-lib-cat-caret pe-lib-cat-caret-none" aria-hidden="true"></span>
+      </span>
       <!-- 跟 tag 行同一个六点手柄（内联 SVG）：告诉人"这行能拖"。**只有顶级有** —— 小类的位置
            由它的大类决定，拖它没有任何视觉结果 -->
       <span v-if="row.depth === 0" class="pe-lib-grip" title="拖动调整分类顺序" aria-hidden="true">
