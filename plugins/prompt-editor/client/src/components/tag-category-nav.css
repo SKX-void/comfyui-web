@@ -85,14 +85,51 @@
   gap: 2px;
 }
 
-/* 小类：缩进到大类名字下面（让开顶级那个 10px 的六点手柄），名字淡一点 —— 一眼看出是下一级。
-   它没有手柄、也不能拖：位置由 parent 决定（见 TagCategoryNav 的 tree） */
+/* 小类：缩进到大类名字**里面**（不是跟它对齐）—— 让开"三角 14 + 六点手柄 10 + 两道 gap"这 26px，
+   再往里 12px，一眼就是下一级。它没有手柄、也不能拖：位置由 parent 决定（见 TagCategoryNav 的 tree） */
 .pe-lib-cat-row-child {
-  padding-left: 12px;
+  padding-left: 38px;
 }
 
 .pe-lib-cat-row-child .pe-lib-cat-pick {
   opacity: 0.85;
+}
+
+/* 收起/展开的小三角（`▸` / `▾`）。没有小类的大类留一个同宽的占位：不然顶级的名字会左右不齐。
+   默认全收起 —— 人工那份是 11 大类 / 128 小类，全铺出来左栏一百多行 */
+.pe-lib-cat-row .pe-lib-cat-caret-slot {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.pe-lib-cat-row .pe-lib-cat-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted, #9aa3b2);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pe-lib-cat-row .pe-lib-cat-caret:hover {
+  background: var(--panel-2, #22262e);
+  color: var(--accent, #6ea8fe);
+}
+
+.pe-lib-cat-caret-none {
+  cursor: default;
+}
+
+/* 收起了、但当前筛的正是它下面的小类：三角染成强调色 —— 那一行看不见了，得让人找得到自己的筛选 */
+.pe-lib-cat-row .pe-lib-cat-caret-on {
+  color: var(--accent, #6ea8fe);
 }
 
 /* 正在改名的那一行：管理区在上面，这里得看得出改的是哪一个 */

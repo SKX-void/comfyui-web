@@ -1326,24 +1326,43 @@ check(
 check('条目都画出来了', libNames().length === 4, libNames().join('|'));
 check('顶上写明总数与未分类条数', pick('.pe-lib-stat')?.textContent?.includes('共 4 条') === true && pick('.pe-lib-stat')?.textContent?.includes('未分类 1') === true, pick('.pe-lib-stat')?.textContent);
 check('分类树：全部 / 未分类 / 已有分类（计数多的在前）', catLabels().join('|') === '全部|未分类|光照|画质', catLabels().join('|'));
-// 两级分类：词库里那批人工分类是 4 大类 / 22 小类，小类要挂在大类下面（而不是跟大类平铺在一起）
+// 两级分类：词库里那批人工分类是 11 大类 / 128 小类，小类要挂在大类下面（而不是跟大类平铺在一起），
+// 而且**默认收起**（全铺出来左栏一百多行，找分类就变成翻列表）
 {
   const catRows = (): HTMLElement[] => pickAll<HTMLElement>('.pe-lib-cat-row');
   const catRowNames = (): string =>
     catRows()
       .map((row) => row.querySelector('.pe-lib-cat-name')?.textContent?.trim() ?? '')
       .join('|');
+  const caret = (): HTMLButtonElement | null => pick<HTMLButtonElement>('.pe-lib-cat-caret');
   fakeCatParents = { 光照: '画质' };
   // 点一次「全部」触发重拉（`pickCategory` 每次都 load）
   (pickAll<HTMLButtonElement>('.pe-lib-cats > button')[0] as HTMLButtonElement).click();
   await settleLib();
   check(
-    '两级分类：小类排在大类后面（不按计数平铺）· 缩进 · 不给拖动手柄',
-    catRowNames() === '画质|光照' &&
+    '两级分类：默认收起 —— 只画大类，小类不在 DOM 里（人工那份 11 大类 / 128 小类，全铺太长）',
+    catRowNames() === '画质' && pick('.pe-lib-cat-row-child') === null,
+    `${catRowNames()} · 子行 ${pickAll('.pe-lib-cat-row-child').length}`,
+  );
+  check(
+    '收起的大类那行有三角（`aria-expanded=false`，提示语说清这一下会展开几个）',
+    caret() !== null &&
+      caret()?.getAttribute('aria-expanded') === 'false' &&
+      (caret()?.getAttribute('title') ?? '').includes('展开 1 个小类') === true,
+    `${caret()?.getAttribute('title')}`,
+  );
+  const markCaret = calls.length;
+  (caret() as HTMLButtonElement).click();
+  await settleLib();
+  check(
+    '点三角只展开，不改筛选（不发带 category 的查询）· 小类缩进、不给拖动手柄',
+    calls.slice(markCaret).every((call) => !call.url.includes('category=')) === true &&
+      catRowNames() === '画质|光照' &&
+      caret()?.getAttribute('aria-expanded') === 'true' &&
       catRows()[1]?.classList.contains('pe-lib-cat-row-child') === true &&
       catRows()[1]?.querySelector('.pe-lib-grip') === null &&
       catRows()[0]?.querySelector('.pe-lib-grip') !== null,
-    `${catRowNames()} · ${catRows().map((row) => row.className).join(' / ')}`,
+    `${catRowNames()} · ${calls.slice(markCaret).map((call) => call.url).join(' ')}`,
   );
   (catPicks()[3] as HTMLButtonElement).click();
   await settleLib();
@@ -1352,13 +1371,24 @@ check('分类树：全部 / 未分类 / 已有分类（计数多的在前）', c
     catPicks()[3]?.className.includes('on') === true && libNames().length === 2,
     `${catPicks().map((el) => (el.textContent ?? '').trim()).join('|')} → ${libNames().join('|')}`,
   );
+  (caret() as HTMLButtonElement).click();
+  await settleLib();
+  check(
+    '收起时三角染色：当前筛的小类被藏起来了，得让人找得到（筛选本身不动，还是那 2 条）',
+    catRowNames() === '画质' && caret()?.classList.contains('pe-lib-cat-caret-on') === true && libNames().length === 2,
+    `${catRowNames()} · ${caret()?.className} · ${libNames().join('|')}`,
+  );
   // 复原：后面几节按平铺的分类树断言（父名不在列表里时当顶级处理，这里不留状态）
   (pickAll<HTMLButtonElement>('.pe-lib-cats > button')[0] as HTMLButtonElement).click();
   await settleLib();
   fakeCatParents = {};
   (pickAll<HTMLButtonElement>('.pe-lib-cats > button')[0] as HTMLButtonElement).click();
   await settleLib();
-  check('复原：去掉父子关系后又回到平铺（光照 2 条排在画质前面）', catRowNames() === '光照|画质', catRowNames());
+  check(
+    '复原：去掉父子关系后又回到平铺（光照 2 条排在画质前面），没有小类的大类留同宽三角占位（名字左右对齐）',
+    catRowNames() === '光照|画质' && pickAll('.pe-lib-cat-caret-none').length === 2,
+    `${catRowNames()} · 占位 ${pickAll('.pe-lib-cat-caret-none').length}`,
+  );
 }
 check(
   '库里的条目一律标「库」（不按来源分 —— 进库就是库）',
