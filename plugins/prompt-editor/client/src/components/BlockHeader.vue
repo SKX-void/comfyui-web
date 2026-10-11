@@ -221,7 +221,14 @@ function toggleEnabled(): void {
   outline: none;
 }
 
+/* 「N 条」是表头里唯一宽度会变的字：不钉住的话，每块的条数不一样长，标题就被挤得不一样宽，
+   开关 / 风格 / 条数这一簇在块与块之间左右错开（实测 3 条 → 1234 条差 19.7px）。
+   给够放 4 位数的定宽 + 右对齐 + 等宽数字：条数变，右簇的列不变 */
 .pe-block-count {
+  flex: none;
+  min-width: 3.8em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--muted, #9aa3b2);
   white-space: nowrap;
