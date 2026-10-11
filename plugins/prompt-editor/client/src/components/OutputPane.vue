@@ -5,12 +5,17 @@
  */
 import { computed, ref } from 'vue';
 
-const props = defineProps<{ text: string; itemCount: number; blockCount: number }>();
+const props = defineProps<{ text: string; itemCount: number; blockCount: number; unusedCount: number }>();
 
 const copied = ref(false);
 let timer: number | null = null;
 
-const stats = computed(() => `${props.text.length} 字符 · ${props.blockCount} 区块 · ${props.itemCount} 条目`);
+const stats = computed(() => {
+  // 前两个数只算**参与输出**的块（被「不使用」的整块不算），最后那个是"没参与的有几块"——
+  // 不然"工作区里明明有内容、输出却是空的"这件事没有解释
+  const base = `${props.text.length} 字符 · ${props.blockCount} 区块 · ${props.itemCount} 条目`;
+  return props.unusedCount === 0 ? base : `${base} · ${props.unusedCount} 块未使用`;
+});
 
 async function copy(): Promise<void> {
   try {

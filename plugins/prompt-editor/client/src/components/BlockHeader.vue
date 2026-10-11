@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 区块卡片的头部：拖动把手 / 颜色 / 标题 / 风格开关 / 计数 / 整块译 / 删除。
+ * 区块卡片的头部：收起 / 拖动把手 / 颜色 / 标题 / 风格开关 / 不使用 / 计数 / 整块译 / 存 / 删除。
  *
  * 单独成文件只是为了行数：它和 BlockCard 拿到的是**同一个 block 对象**，
  * 所以这里照旧直接改 props.block 上的字段（父级的 doc 本来就是 reactive）。
@@ -21,10 +21,12 @@ const emit = defineEmits<{
   /** 把这一块存进区块库（面板会弹出来问名字） */
   (e: 'save-to-library'): void;
   (e: 'toggle-palette'): void;
-  /** 草稿写事件 1：这个区块的**属性**变了（标题/颜色/风格）——父级只发结构 */
+  /** 草稿写事件 1：这个区块的**属性**变了（标题/颜色/风格/收起/不使用）——父级只发结构 */
   (e: 'structure-changed'): void;
   /** 草稿写事件 2：这个区块**编辑完了**（条目变了）——父级只发这个区块的条目 */
   (e: 'items-committed'): void;
+  /** 重新启用了这一块：它之前不进自动译队列，现在得把没译文的条目补排一次 */
+  (e: 'enabled-changed'): void;
 }>();
 
 /**
@@ -39,6 +41,22 @@ function setBlockMode(mode: Mode): void {
   emit('structure-changed');
   emit('items-committed');
 }
+
+/** 收起 / 展开：只藏块体（条目原样留着），纯显示状态 —— 跟结构一起落盘，刷新后还收着 */
+function toggleCollapse(): void {
+  props.block.collapsed = !props.block.collapsed;
+  emit('structure-changed');
+}
+
+/**
+ * 不使用 / 重新启用：整块不进输出（内容一条不动）。
+ * 除了属性（事件 1），还要单独说一声"启用了" —— 不使用的块不进自动译队列，启用时得补排一次。
+ */
+function toggleEnabled(): void {
+  props.block.enabled = !props.block.enabled;
+  emit('structure-changed');
+  emit('enabled-changed');
+}
 </script>
 
 <template>
@@ -49,6 +67,14 @@ function setBlockMode(mode: Mode): void {
     @drop.prevent="emit('drop')"
     @dragend="emit('drag-end')"
   >
+    <!-- 收起：块体藏起来、表头留着（条目一条不动，再点一下就展开） -->
+    <button
+      class="pe-block-fold"
+      :title="block.collapsed ? '展开这一块' : '收起这一块（内容还在，只是折起来）'"
+      @click.stop="toggleCollapse"
+    >
+      {{ block.collapsed ? '▸' : '▾' }}
+    </button>
     <!-- 拖动只认这个把手：整个头部 draggable 的话，点开关/标题时手一抖就会开始拖区块 -->
     <span class="pe-block-grip" draggable="true" title="拖动排序">⠿</span>
     <!-- 触屏：拖不动，改用两颗按钮换位（只在 hover:none 的设备上显示，见样式） -->
@@ -69,6 +95,19 @@ function setBlockMode(mode: Mode): void {
       placeholder="区块标题"
       @change="emit('structure-changed')"
     />
+    <!-- 不使用：整块进不进输出 —— 和条目双击禁用是同一件事，只是范围是整块。
+         拨动开关（不是文字按钮）：它管的是"这一块参不参与"，比"怎么排版"更外一层，所以放在风格开关左边 -->
+    <button
+      class="pe-block-use"
+      :class="{ on: block.enabled }"
+      role="switch"
+      :aria-checked="block.enabled"
+      aria-label="这一块参与输出"
+      :title="block.enabled ? '这一块参与输出 —— 点一下不用它（内容留着）' : '这一块不参与输出 —— 点一下重新用它'"
+      @click.stop="toggleEnabled"
+    >
+      <span class="pe-block-use-track"><span class="pe-block-use-knob" /></span>
+    </button>
     <!-- 风格开关挂在区块自己身上：每个区块各选 tag 串还是自然语言句子，互不影响 -->
     <div class="pe-block-modes" title="这个区块的风格">
       <button
@@ -95,6 +134,22 @@ function setBlockMode(mode: Mode): void {
   padding: 6px 8px;
   background: var(--panel-2, #22262e);
   border-bottom: 1px solid var(--line, #2e333d);
+}
+
+.pe-block-fold {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--muted, #9aa3b2);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.pe-block-fold:hover {
+  color: var(--accent, #6ea8fe);
 }
 
 .pe-block-grip {
@@ -166,6 +221,56 @@ function setBlockMode(mode: Mode): void {
   line-height: 1.4;
   padding: 0 6px;
   cursor: pointer;
+}
+
+/* 不使用：拨动开关（不是文字按钮）。
+   类名不能叫 `pe-block-off` —— 卡片上"已经不用"那个状态类就是这个名（见 block-card.css），
+   开关/卡片共用一套类名，选择器和调试都会撞车。 */
+.pe-block-use {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.pe-block-use-track {
+  display: block;
+  position: relative;
+  width: 26px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--panel, #1b1e24);
+  border: 1px solid var(--line, #2e333d);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pe-block-use-knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--muted, #9aa3b2);
+  transition: left 0.15s ease, background 0.15s ease;
+}
+
+/* 拨到右边 = 这一块参与输出；拨回左边 = 不用它（卡片同时变虚线 + 变暗，见 block-card.css） */
+.pe-block-use.on .pe-block-use-track {
+  background: var(--accent, #6ea8fe);
+  border-color: var(--accent, #6ea8fe);
+}
+
+.pe-block-use.on .pe-block-use-knob {
+  left: 12px;
+  background: #0b1220;
+}
+
+.pe-block-use:hover .pe-block-use-track {
+  border-color: var(--accent, #6ea8fe);
 }
 
 .pe-block-tr:hover,
@@ -262,6 +367,31 @@ function setBlockMode(mode: Mode): void {
   .pe-block-save {
     font-size: 12px;
     padding: 6px 10px;
+  }
+
+  /* 开关也是每天要拨的：26×15 的轨道手指点不准，撑大一档（滑块的行程跟着轨道走） */
+  .pe-block-use {
+    padding: 4px 6px;
+  }
+
+  .pe-block-use-track {
+    width: 34px;
+    height: 20px;
+  }
+
+  .pe-block-use-knob {
+    width: 14px;
+    height: 14px;
+  }
+
+  .pe-block-use.on .pe-block-use-knob {
+    left: 17px;
+  }
+
+  /* 收起那颗箭头也是入口，跟别的按钮一样撑到指头点得准 */
+  .pe-block-fold {
+    font-size: 15px;
+    padding: 4px 6px;
   }
 
   .pe-block-del {

@@ -27,6 +27,7 @@ import { renderToString } from 'vue/server-renderer';
 
 import {
   canDropItem,
+  countItems,
   moveItem,
   newId,
   reflow,
@@ -283,9 +284,9 @@ console.log('拖拽：块内排序 + 跨块搬家（只认类型相同的块）'
 const dragDoc = (): Doc => ({
   version: 1,
   blocks: [
-    { id: 'b1', title: '质量', color: '#6ea8fe', mode: 'tag', items: [item('a'), item('b'), item('c')] },
-    { id: 'b2', title: '主体', color: '#4ac38a', mode: 'tag', items: [item('x'), item('y')] },
-    { id: 'b3', title: '场景', color: '#f2b84b', mode: 'text', items: [item('A girl.')] },
+    { id: 'b1', title: '质量', color: '#6ea8fe', mode: 'tag', collapsed: false, enabled: true, items: [item('a'), item('b'), item('c')] },
+    { id: 'b2', title: '主体', color: '#4ac38a', mode: 'tag', collapsed: false, enabled: true, items: [item('x'), item('y')] },
+    { id: 'b3', title: '场景', color: '#f2b84b', mode: 'text', collapsed: false, enabled: true, items: [item('A girl.')] },
   ],
 });
 const texts = (d: Doc, id: string) => d.blocks.find((b) => b.id === id)?.items.map((i) => i.text) ?? [];
@@ -358,11 +359,13 @@ const doc: Doc = {
       title: '质量',
       color: '#6ea8fe',
       mode: 'tag',
+      collapsed: false,
+      enabled: true,
       items: [item('masterpiece'), item('best quality', false)],
     },
-    { id: 'b2', title: '主体', color: '#4ac38a', mode: 'tag', items: [item('1girl'), item('solo')] },
-    { id: 'b3', title: '场景', color: '#f2b84b', mode: 'text', items: [item('A girl. She runs.')] },
-    { id: 'b4', title: '空的', color: '#ff7b72', mode: 'tag', items: [item('   ')] },
+    { id: 'b2', title: '主体', color: '#4ac38a', mode: 'tag', collapsed: false, enabled: true, items: [item('1girl'), item('solo')] },
+    { id: 'b3', title: '场景', color: '#f2b84b', mode: 'text', collapsed: false, enabled: true, items: [item('A girl. She runs.')] },
+    { id: 'b4', title: '空的', color: '#ff7b72', mode: 'tag', collapsed: false, enabled: true, items: [item('   ')] },
   ],
 };
 check(
@@ -394,14 +397,35 @@ check(
   '自然语言块：每句话各自一行',
   renderOutput({
     version: 1,
-    blocks: [{ id: 'b', title: '场景', color: '#fff', mode: 'text', items: [item('a cat sits.'), item('a dog runs.')] }],
+    blocks: [{ id: 'b', title: '场景', color: '#fff', mode: 'text', collapsed: false, enabled: true, items: [item('a cat sits.'), item('a dog runs.')] }],
   }) === 'a cat sits.\na dog runs.',
   JSON.stringify(
     renderOutput({
       version: 1,
-      blocks: [{ id: 'b', title: '场景', color: '#fff', mode: 'text', items: [item('a cat sits.'), item('a dog runs.')] }],
+      blocks: [{ id: 'b', title: '场景', color: '#fff', mode: 'text', collapsed: false, enabled: true, items: [item('a cat sits.'), item('a dog runs.')] }],
     }),
   ),
+);
+
+console.log('整块「不使用」：内容原样留着，整块不进输出');
+const withoutSecond = { ...doc, blocks: [doc.blocks[0]!, { ...doc.blocks[1]!, enabled: false }, doc.blocks[2]!] };
+check(
+  '不使用的块整个跳过（连它的末尾逗号也不补）',
+  renderOutput(withoutSecond) === 'masterpiece,\nA girl. She runs.',
+  JSON.stringify(renderOutput(withoutSecond)),
+);
+check(
+  '全都不使用 = 空输出（不留一堆空行）',
+  renderOutput({ ...doc, blocks: doc.blocks.map((block) => ({ ...block, enabled: false })) }) === '',
+);
+check(
+  '统计把「不使用」的整块排除掉（块内禁用的条目照旧算）',
+  countItems(withoutSecond) === 3,
+  String(countItems(withoutSecond)),
+);
+check(
+  '「收起」跟输出无关（纯显示状态）',
+  renderOutput({ ...doc, blocks: doc.blocks.map((block) => ({ ...block, collapsed: true })) }) === renderOutput(doc),
 );
 
 // ── 跨域调用：输出 → anima-plus 的描述提示词（组包是纯函数，提交才是 HTTP）──────
@@ -462,6 +486,13 @@ const filled = sanitizeDoc({ blocks: [{ items: [{ text: 'a' }] }] })?.blocks[0];
 check('缺字段给默认值', filled?.items[0]?.text === 'a' && filled?.items[0]?.enabled === true && filled?.items[0]?.translation === '');
 check('区块缺 mode 时回落 tag', filled?.mode === 'tag');
 check('区块 mode 不认识也回落 tag', sanitizeDoc({ blocks: [{ mode: 'wat', items: [] }] })?.blocks[0]?.mode === 'tag');
+// 两个新开关都按"缺省最宽松"收敛：漏字段的一份手写预设不该整块被吞掉 / 一进来就是收着的
+check('区块缺 collapsed / enabled 时按展开 + 启用', filled?.collapsed === false && filled?.enabled === true);
+check(
+  '区块的 collapsed / enabled 认得出真值',
+  sanitizeDoc({ blocks: [{ collapsed: true, enabled: false, items: [] }] })?.blocks[0]?.collapsed === true &&
+    sanitizeDoc({ blocks: [{ collapsed: true, enabled: false, items: [] }] })?.blocks[0]?.enabled === false,
+);
 const legacy = sanitizeDoc({ mode: 'text', blocks: [{ items: [] }, { mode: 'tag', items: [] }] });
 const legacyModes = (legacy?.blocks ?? []).map((block: { mode: string }) => block.mode).join(',');
 check('老格式（文档级 mode）仍能读进来：每个区块继承它', legacyModes === 'text,tag', legacyModes);
@@ -508,6 +539,8 @@ check(
     docFromStored(stored!).blocks[1]?.items.length === 0,
 );
 check('结构那一段不含条目', stored!.structure.every((meta) => !('items' in meta)));
+// 两个开关是**结构**的一部分（刷新后还收着 / 不使用的块下次打开还是不用），所以得过得了这段
+check('结构那一段带上 collapsed / enabled（缺字段读成展开 + 启用）', stored!.structure[0]?.collapsed === false && stored!.structure[0]?.enabled === true);
 check('缺 items 段的区块读成空数组', docFromStored(storedFromRaw({ blocks: [{ id: 'b9' }] })!).blocks[0]?.items.length === 0);
 check('盘上不是对象 → null', storedFromRaw('nope') === null && storedFromRaw(null) === null);
 // 老格式（条目直接挂在 block.items 上）也要读得进来 —— 上一次的 draft.json 就是这个形状
@@ -515,10 +548,15 @@ const migrated = storedFromRaw({ blocks: [{ id: 'b1', mode: 'text', items: [{ te
 check('老格式（block.items）自动迁移进 items 段', docFromStored(migrated!).blocks[0]?.items[0]?.text === '老格式');
 check('迁移时老的文档级 mode 也认', docFromStored(migrated!).blocks[0]?.mode === 'text');
 // Doc → 盘上两段 → Doc 往返一致
-const roundTrip = docFromStored(storedFromDoc(sanitizeDoc({ blocks: [{ id: 'b1', title: 'T', items: [{ text: 'x' }] }] })!));
+const roundTrip = docFromStored(
+  storedFromDoc(sanitizeDoc({ blocks: [{ id: 'b1', title: 'T', collapsed: true, enabled: false, items: [{ text: 'x' }] }] })!),
+);
 check(
-  'Doc 拆成两段再装配回来不丢东西',
-  roundTrip.blocks[0]?.title === 'T' && roundTrip.blocks[0]?.items[0]?.text === 'x',
+  'Doc 拆成两段再装配回来不丢东西（两个开关也原样回来）',
+  roundTrip.blocks[0]?.title === 'T' &&
+    roundTrip.blocks[0]?.items[0]?.text === 'x' &&
+    roundTrip.blocks[0]?.collapsed === true &&
+    roundTrip.blocks[0]?.enabled === false,
   JSON.stringify(roundTrip),
 );
 const raw = rawFromStored(stored!);

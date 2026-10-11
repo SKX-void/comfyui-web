@@ -1016,6 +1016,55 @@ await nextTick();
 check('禁用态挂在条目上', blockOf(0).querySelectorAll('.pe-chip-off').length === 1);
 check('被禁用的条目不出现在输出里', !output().includes('best quality'), JSON.stringify(output()));
 
+console.log('整块「不用」：内容一条不动、整块不进输出；「收起」只藏块体');
+{
+  const card = blockOf(1);
+  const outBefore = output();
+  const mark = calls.length;
+  const use = card.querySelector<HTMLButtonElement>('.pe-block-use');
+  if (use === null) throw new Error('表头没有「用不用」那颗开关');
+  check(
+    '表头有个拨动开关（默认拨在"用"这边）',
+    use.getAttribute('role') === 'switch' && use.getAttribute('aria-checked') === 'true',
+    `${use.getAttribute('role')} / ${use.getAttribute('aria-checked')}`,
+  );
+  check(
+    '开关放在 tag / 自然语言 左边（它比"怎么排版"更外一层）',
+    [...(card.querySelector('.pe-block-head')?.children ?? [])].indexOf(use) <
+      [...(card.querySelector('.pe-block-head')?.children ?? [])].indexOf(card.querySelector('.pe-block-modes') as Element),
+  );
+
+  use.click();
+  await nextTick();
+  check('整块挂上不使用态', card.classList.contains('pe-block-off') === true);
+  check('整块不进输出、别的块照旧', !output().includes('1girl') && output().includes('masterpiece'), JSON.stringify(output()));
+  check('开关拨到关（aria-checked=false）', use.getAttribute('aria-checked') === 'false');
+  const sent = writesSince(mark);
+  check('属性走的是结构那一次写', sent.length === 1 && sent[0]?.url === STRUCTURE_URL, JSON.stringify(sent.map((c) => c.url)));
+  check('结构请求里带上了 enabled:false', JSON.stringify(sent[0]?.body ?? null).includes('"enabled":false'));
+  check('条目一条都没少（只是不进输出）', chips(1).length > 0, String(chips(1).length));
+
+  use.click();
+  await nextTick();
+  check(
+    '拨回来就恢复原样',
+    output() === outBefore && card.classList.contains('pe-block-off') === false && use.getAttribute('aria-checked') === 'true',
+    JSON.stringify(output()),
+  );
+
+  const fold = card.querySelector<HTMLButtonElement>('.pe-block-fold');
+  if (fold === null) throw new Error('表头没有收起那颗箭头');
+  fold.click();
+  await nextTick();
+  check('收起后块体不在 DOM 里（表头留着）', card.querySelector('.pe-block-body') === null && card.querySelector('.pe-block-title') !== null);
+  check('收起不影响输出（纯显示状态）', output() === outBefore, JSON.stringify(output()));
+  check('收起也走结构那一次写', writesSince(mark).some((call) => JSON.stringify(call.body ?? null).includes('"collapsed":true')));
+
+  fold.click();
+  await nextTick();
+  check('展开后块体和条目都回来', card.querySelector('.pe-block-body') !== null && chips(1).length > 0);
+}
+
 console.log('草稿：编辑热路径上只有两种写事件');
 {
   // 事件 2：某个组编辑完了 —— 只发那个组的条目，别的组一个字都不带

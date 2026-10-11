@@ -45,6 +45,16 @@ export interface Block {
    * （质量块用 tag、场景块用自然语言），而区块是工作区里唯一的结构。
    */
   mode: Mode;
+  /**
+   * 收起：块体藏起来、表头留着。**纯显示状态** —— 不进输出、不动数据、不影响条目。
+   * 刷新页面会记住（它跟着结构那一段落盘），但载入预设一律展开：预设是"一份内容"，不是"我的视图"。
+   */
+  collapsed: boolean;
+  /**
+   * 不使用：整块不进输出 —— 和条目双击禁用是同一个语义，只是范围是整块。
+   * 条目自己的 `enabled` 不受影响（整块不用时条目连看都看不到，动它没有意义）。
+   */
+  enabled: boolean;
   items: Item[];
 }
 
@@ -108,7 +118,7 @@ export function newItem(text = ''): Item {
 }
 
 export function newBlock(title = '新区块', color = BLOCK_COLORS[0]!, mode: Mode = 'tag'): Block {
-  return { id: newId(), title, color, mode, items: [] };
+  return { id: newId(), title, color, mode, collapsed: false, enabled: true, items: [] };
 }
 
 /** 首屏的三块：只是"能立刻开始写"的起手式，标题和风格随便改 */
@@ -263,6 +273,8 @@ export function moveItem(doc: Doc, from: ItemRef, to: ItemRef): boolean {
 
 export function renderOutput(doc: Doc): string {
   return doc.blocks
+    // 「不使用」的块整个跳过：内容原样留着，只是不参与输出（和条目禁用同一件事，范围是整块）
+    .filter((block) => block.enabled)
     .map((block) => {
       // 连接符跟着**区块自己的风格**走：
       // tag 串成一行（逗号分隔）；自然语言**每句一行**（句号已经在条目里，换行只是排版）
@@ -281,6 +293,10 @@ export function renderOutput(doc: Doc): string {
     .join('\n');
 }
 
+/**
+ * 条目数：**整块「不使用」的那些不算** —— 右侧统计得跟"有多少内容在参与"对得上。
+ * 块内被双击禁用的条目照旧算（它们是文档里看得见的条目，只是不进输出）。
+ */
 export function countItems(doc: Doc): number {
-  return doc.blocks.reduce((n, block) => n + block.items.length, 0);
+  return doc.blocks.reduce((n, block) => (block.enabled ? n + block.items.length : n), 0);
 }

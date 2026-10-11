@@ -23,12 +23,16 @@ export interface Item {
   source: string;
 }
 
-/** 区块的「属性」（不含条目）：标题 / 颜色 / 风格。顺序由数组本身表达 */
+/** 区块的「属性」（不含条目）：标题 / 颜色 / 风格 / 收起 / 不使用。顺序由数组本身表达 */
 export interface BlockMeta {
   id: string;
   title: string;
   color: string;
   mode: Mode;
+  /** 收起：纯显示状态（前端记着刷新后还收着），后端只负责存 */
+  collapsed: boolean;
+  /** 不使用：整块不进输出。前端 renderOutput 按它跳过整块 */
+  enabled: boolean;
 }
 
 export interface Block extends BlockMeta {
@@ -102,6 +106,9 @@ export function sanitizeBlockMeta(block: Record<string, unknown>, fallbackMode: 
     title: text(block.title, LIMITS.title),
     color: text(block.color, LIMITS.color),
     mode: isMode(block.mode) ? block.mode : fallbackMode,
+    // 两个都按"缺省最宽松"收敛：手写一份预设时不该因为漏字段就整块被吞掉 / 被折叠起来
+    collapsed: block.collapsed === true,
+    enabled: block.enabled !== false,
   };
 }
 

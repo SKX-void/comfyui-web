@@ -36,6 +36,8 @@ export function useTranslate(options: {
 
   function enqueueAuto(block: Block): void {
     if (!settings.value.autoTranslate) return;
+    // 整块「不使用」= 它整个不进输出：为它花配额翻出来的译文没人看（重新启用时上层会再排一次队）
+    if (!block.enabled) return;
     for (const item of block.items) {
       if (item.translation !== '' || item.text.trim() === '') continue;
       queue.set(item.id, { item, block });

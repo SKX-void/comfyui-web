@@ -29,19 +29,41 @@ export function useWorkspace(flash: (message: string) => void) {
 
   const output = computed(() => renderOutput(doc));
   const itemCount = computed(() => countItems(doc));
+  /** 参与输出的区块数 / 被「不使用」的区块数：右侧统计说的是"有多少内容在参与"，不是"摆了多少块" */
+  const blockCount = computed(() => doc.blocks.filter((block) => block.enabled).length);
+  const unusedCount = computed(() => doc.blocks.length - blockCount.value);
   const draftLabel = computed(
     () => ({ idle: '', saving: '保存中…', saved: '草稿已保存', error: '草稿保存失败' })[draftState.value],
   );
 
-  /** 词库面板「插入到」的下拉：第 N 块 · 标题 */
+  /** 词库面板「插入到」的下拉：第 N 块 · 标题（不使用的块标出来，免得插完看不到输出变化） */
   const blockLabels = computed(() => doc.blocks.map((block, index) => ({
     id: block.id,
-    label: `第 ${index + 1} 块${block.title === '' ? '' : ` · ${block.title}`}`,
+    label: `第 ${index + 1} 块${block.title === '' ? '' : ` · ${block.title}`}${block.enabled ? '' : '（未使用）'}`,
   })));
 
+  /**
+   * 载入预设后一律展开：「收起」是**当前工作区的视图状态**，不是那份内容的一部分
+   * （它跟着结构那一段落盘，只是为了让刷新后还收着）。
+   */
+  function expandAll(): void {
+    for (const block of doc.blocks) block.collapsed = false;
+  }
+
+  /**
+   * 换掉整份文档（草稿 / 预设都走这里）。
+   *
+   * 顺手把区块的两个开关收敛成真布尔：手写的一份预设、老的草稿文件都可能没这两个字段，
+   * 而它们一旦是 `undefined`，"不用"的判定就会把它当成"已禁用"、整块悄悄从输出里消失。
+   * 缺省取**最宽松**的那边（启用 + 展开），和服务端 `sanitizeBlockMeta` 一个口径。
+   */
   function replaceDoc(next: Doc): void {
     doc.version = 1;
-    doc.blocks = next.blocks;
+    doc.blocks = next.blocks.map((block) => ({
+      ...block,
+      collapsed: block.collapsed === true,
+      enabled: block.enabled !== false,
+    }));
   }
 
   function addBlock(): void {
@@ -95,7 +117,14 @@ export function useWorkspace(flash: (message: string) => void) {
 
   function persistStructure(): void {
     draftState.value = 'saving';
-    const blocks = doc.blocks.map(({ id, title, color, mode }) => ({ id, title, color, mode }));
+    const blocks = doc.blocks.map(({ id, title, color, mode, collapsed, enabled }) => ({
+      id,
+      title,
+      color,
+      mode,
+      collapsed,
+      enabled,
+    }));
     void saveDraftStructure(blocks)
       .then(() => mark('saved'))
       .catch(() => mark('error'));
@@ -139,9 +168,12 @@ export function useWorkspace(flash: (message: string) => void) {
     activeBlockId,
     output,
     itemCount,
+    blockCount,
+    unusedCount,
     draftLabel,
     blockLabels,
     replaceDoc,
+    expandAll,
     addBlock,
     insertBlockPreset,
     removeBlock,

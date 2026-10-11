@@ -32,9 +32,12 @@ const {
   activeBlockId,
   output,
   itemCount,
+  blockCount,
+  unusedCount,
   draftLabel,
   blockLabels,
   replaceDoc,
+  expandAll,
   addBlock,
   removeBlock,
   clearAll,
@@ -216,6 +219,8 @@ const touchGhostStyle = computed(() => {
 
 function loadPreset(next: Doc): void {
   replaceDoc(next);
+  // 收起是**我当前工作区**的视图状态，不是那份内容的一部分：预设进来一律展开
+  expandAll();
   presetOpen.value = false;
   flash('预设已载入工作区');
   persistDoc();
@@ -232,6 +237,14 @@ function applySettings(next: TranslateSettings): void {
 function onItemsCommitted(block: Block): void {
   persistItems(block);
   enqueueAuto(block);
+}
+
+/**
+ * 整块「不用 / 启用」：属性本身走 `structure-changed` 那条路落盘，这里只管翻译队列 ——
+ * 不使用的块不进队列（别为不进输出的内容花配额），所以**重新启用**时得补排一次。
+ */
+function onBlockEnabledChanged(block: Block): void {
+  if (block.enabled) enqueueAuto(block);
 }
 
 /**
@@ -305,6 +318,7 @@ onMounted(async () => {
           "
           @structure-changed="persistStructure()"
           @items-committed="onItemsCommitted(block)"
+          @enabled-changed="onBlockEnabledChanged(block)"
           @translate="(itemIndex: number) => translateItem(block, itemIndex)"
           @translate-block="translateBlock(block)"
           @translation-edited="(text: string, translation: string) => onTranslationEdited(text, translation)"
@@ -314,7 +328,7 @@ onMounted(async () => {
       </section>
 
       <aside class="pe-side">
-        <OutputPane :text="output" :item-count="itemCount" :block-count="doc.blocks.length" />
+        <OutputPane :text="output" :item-count="itemCount" :block-count="blockCount" :unused-count="unusedCount" />
         <CrossCallPanel :text="output" />
       </aside>
     </div>

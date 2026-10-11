@@ -8,6 +8,7 @@ dist/
 *.tsbuildinfo
 lib/
 note.md
+comfyui-web.zip
 
 # （v1 的 config.local.json 规则已删：宿主只读 data/host.json，
 #  本机覆盖只剩环境变量这一条路，见 apps/server/src/config.ts）

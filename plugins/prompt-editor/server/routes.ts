@@ -173,7 +173,7 @@ export function registerRoutes(ctx: PluginContext): void {
   /** 事件 1：组结构。不带条目，所以请求体只跟区块数有关 */
   routes.put('/draft/structure', async (request, reply) => {
     const raw = asRecord(request.body)?.blocks;
-    if (!Array.isArray(raw)) return badRequest(reply, '请求体必须是 { blocks: [{ id, title, color, mode }] }');
+    if (!Array.isArray(raw)) return badRequest(reply, '请求体必须是 { blocks: [{ id, title, color, mode, collapsed, enabled }] }');
     const stored = loadDraft();
     const structure = raw
       .slice(0, LIMITS.blocks)
@@ -196,7 +196,7 @@ export function registerRoutes(ctx: PluginContext): void {
     if (!stored.structure.some((meta) => meta.id === blockId)) {
       // 结构写入还没落地（新建区块时两次请求可能乱序）：先垫一条默认属性。
       // 宁可多一个空区块，也不丢条目 —— 下一次结构写入会按结构把它清掉。
-      stored.structure.push({ id: blockId, title: '', color: DEFAULT_COLOR, mode: 'tag' });
+      stored.structure.push({ id: blockId, title: '', color: DEFAULT_COLOR, mode: 'tag', collapsed: false, enabled: true });
     }
     stored.items[blockId] = sanitizeItems(raw);
     writeJson(draftFile, rawFromStored(stored));

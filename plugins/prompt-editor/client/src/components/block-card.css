@@ -10,6 +10,20 @@
   outline-offset: -2px;
 }
 
+/**
+ * 「不使用」的块：整块淡下去（它在输出里没有位置），但**照旧可编辑** ——
+ * 鼠标进到卡片里就恢复正常亮度，不然"改一改再启用"这条最自然的用法会看不清字。
+ */
+.pe-block-off {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.pe-block-off:hover,
+.pe-block-off:focus-within {
+  opacity: 1;
+}
+
 .pe-palette {
   display: flex;
   flex-wrap: wrap;

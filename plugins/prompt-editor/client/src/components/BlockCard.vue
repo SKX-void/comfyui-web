@@ -52,10 +52,12 @@ const emit = defineEmits<{
   (e: 'promote', index: number): void;
   /** 这块被碰过了 → 上层记成"当前块"（词库面板插入的默认目标） */
   (e: 'activate'): void;
-  /** 草稿写事件 1：这个区块的**属性**变了（标题/颜色/风格）——父级只发结构 */
+  /** 草稿写事件 1：这个区块的**属性**变了（标题/颜色/风格/收起/不使用）——父级只发结构 */
   (e: 'structure-changed'): void;
   /** 草稿写事件 2：这个区块**编辑完了**（条目变了）——父级只发这个区块的条目 */
   (e: 'items-committed'): void;
+  /** 重新启用了这一块：它之前不进自动译队列，现在得把没译文的条目补排一次 */
+  (e: 'enabled-changed'): void;
 }>();
 
 const paletteOpen = ref(false);
@@ -69,6 +71,14 @@ watch(
   paletteOpen,
   (open) => {
     if (open) customColor.value = props.block.color;
+  },
+);
+
+/** 收起时色板跟着关掉：它挂在块体上，留着就是一块悬在表头下面的浮层 */
+watch(
+  () => props.block.collapsed,
+  (folded) => {
+    if (folded) paletteOpen.value = false;
   },
 );
 
@@ -216,7 +226,7 @@ function removeItem(index: number): void {
 <template>
   <section
     class="pe-block"
-    :class="{ 'pe-block-over': over }"
+    :class="{ 'pe-block-over': over, 'pe-block-off': !block.enabled }"
     :style="{ borderColor: block.color }"
     :data-block-id="block.id"
     :data-tail-index="block.items.length"
@@ -238,6 +248,7 @@ function removeItem(index: number): void {
       @toggle-palette="paletteOpen = !paletteOpen"
       @structure-changed="emit('structure-changed')"
       @items-committed="emit('items-committed')"
+      @enabled-changed="emit('enabled-changed')"
     />
 
     <div v-if="paletteOpen" class="pe-palette">
@@ -260,7 +271,9 @@ function removeItem(index: number): void {
       />
     </div>
 
+    <!-- 收起 = 只藏块体：条目一条不动，表头还在，所以整块照旧能拖、能接住拖进来的条目 -->
     <div
+      v-if="!block.collapsed"
       class="pe-block-body"
       :class="{ 'pe-block-body-text': block.mode === 'text', 'pe-block-body-drop': overBody }"
       :data-block-id="block.id"
