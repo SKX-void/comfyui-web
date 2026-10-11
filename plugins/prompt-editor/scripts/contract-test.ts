@@ -23,6 +23,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { createSSRApp } from 'vue';
+
+import { inspectAssets, readAsset } from './dict-assets.mjs';
 import { renderToString } from 'vue/server-renderer';
 
 import {
@@ -1051,20 +1053,20 @@ check(
 console.log('内置词库资产（assets/*.csv）');
 {
   const assets = fileURLToPath(new URL('../assets/', import.meta.url));
-  const big = path.join(assets, 'danbooru-zh.csv');
-  const head = (() => {
-    if (!fs.existsSync(big)) return '';
-    const fd = fs.openSync(big, 'r');
-    const buf = Buffer.alloc(200);
-    const read = fs.readSync(fd, buf, 0, 200, 0);
-    fs.closeSync(fd);
-    return buf.subarray(0, read).toString('utf8');
-  })();
+  // 机翻表在 git 里只存 .gz（明文是本地工作副本）：readAsset 明文优先、否则解压 —— 新克隆也能过
+  const bigText = readAsset('danbooru-zh.csv') ?? '';
   check(
-    '机翻表在，且不是 lfs 指针（没拉 lfs 时是个 130 字节的指针，导入会"成功但 0 条"）',
-    fs.existsSync(big) && fs.statSync(big).size > 1_000_000 && !looksLikeLfsPointer(head),
-    head.slice(0, 40),
+    '机翻表在（明文或 .gz 解出来），且不是 lfs 指针（是的话导入会"成功但 0 条"）',
+    bigText.length > 1_000_000 && !looksLikeLfsPointer(bigText.slice(0, 200)),
+    `${bigText.length} B`,
   );
+  // 两份大资产：.gz 才是入库那份；明文改了没 pack 就是漂移（产物与 git 从此不一致）
+  for (const one of inspectAssets()) {
+    check(`大资产 ${one.name}：.gz 在（git 里存的就是它）`, one.hasGz, one.gz);
+    if (one.hasPlain) {
+      check(`大资产 ${one.name}：明文与 .gz 一致（改了明文要跑 pnpm dict:pack）`, one.same === true, one.plain);
+    }
+  }
 
   const weilin = path.join(assets, 'weilin-zh.csv');
   const text = fs.existsSync(weilin) ? fs.readFileSync(weilin, 'utf8') : '';
@@ -1097,7 +1099,7 @@ console.log('内置词库资产（assets/*.csv）');
     );
     check('人工表：`未分类` 没被当成分类名（面板里那个是伪分类）', !parsed.parents.has('未分类') && !groups.has('未分类'), [...groups].join(' '));
     // 机翻表也读一遍（12.6MB）：人工那层的热度底座是"机翻最大 + 1"，不对比就验不出这条
-    const machine = parseTagCsv(fs.readFileSync(big, 'utf8'), { keepPlaceholders: true });
+    const machine = parseTagCsv(bigText, { keepPlaceholders: true });
     const machineMax = machine.rows.reduce((max, one) => (one.hot > max ? one.hot : max), 0);
     const humanMin = parsed.rows.reduce((min, one) => (one.hot < min ? one.hot : min), Number.POSITIVE_INFINITY);
     // 借到同词热度的那些 = 高过底座（底座 = 机翻最大 + 1）的那批；其余只有底座

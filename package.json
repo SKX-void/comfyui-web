@@ -26,6 +26,9 @@
     "typecheck": "pnpm -r typecheck",
     "smoke": "pnpm --filter @comfyui-web/anima-plus smoke",
     "contract": "pnpm -r --filter \"./plugins/*\" test:contract",
+    "dict:unpack": "node plugins/prompt-editor/scripts/dict-assets.mjs unpack",
+    "dict:pack": "node plugins/prompt-editor/scripts/dict-assets.mjs pack",
+    "dict:check": "node plugins/prompt-editor/scripts/dict-assets.mjs check",
     "verify": "node scripts/verify.mjs"
   },
   "packageManager": "pnpm@11.25.0"

@@ -44,6 +44,12 @@ pnpm -r typecheck
 - 端口：宿主 `8087`，外壳 vite dev **固定 5173**（`strictPort`，被占就直接失败；换端口用 `COMFYUI_WEB_DEV_PORT`），`/api`、`/plugins` 由它代理到宿主。
 - 生产态宿主**自己就能送前端**（`dist/app/web`），不需要 vite；但改了 `apps/web` 要重新 `pnpm build:web`。
   交付物是 `dist/` 整包（D18）：`node dist/app/server.mjs` 就能跑，`repoRoot` = `dist/`。
+- **大资产看"该不该有 diff"，不看大小**：`plugins/prompt-editor/assets/` 四份资产都走 git-lfs ——
+  机翻词库与共现表存 `.gz` 的 **LFS 指针**（`danbooru-zh.csv.gz` 6.2MB / `cooccur.tsv.gz` 0.67MB，单对象能过
+  推送窗口；12.6MB 原文对象走 HTTP 传不完，见 `docs/archive/lfs-migration.md`），`weilin-zh.csv` /
+  `block-library.json` 存原文指针。明文是**本地工作副本**（`.gitignore`）：`pnpm dict:unpack` /
+  `pnpm dict:pack`；构建与 contract **明文优先、没有就解压 `.gz`**。规则写在
+  `plugins/prompt-editor/assets/.gitattributes`；`docs/img/*.webp` 的规则在 `docs/img/.gitattributes`（**不写根目录**、也别写 `./x` 前缀）。
 
 ## 硬规矩
 

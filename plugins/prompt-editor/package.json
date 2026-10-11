@@ -12,7 +12,10 @@
     "test:contract": "node scripts/contract-test.ts && node scripts/interaction-test.ts",
     "test:interaction": "node scripts/interaction-test.ts",
     "bench:scale": "node scripts/scale-bench.ts",
-    "import:tags": "node scripts/import-tags.ts"
+    "import:tags": "node scripts/import-tags.ts",
+    "dict:unpack": "node scripts/dict-assets.mjs unpack",
+    "dict:pack": "node scripts/dict-assets.mjs pack",
+    "dict:check": "node scripts/dict-assets.mjs check"
   },
   "plugin": {
     "contract": 1,

@@ -134,10 +134,10 @@ const parts = splitByMode(input?.value ?? adding.value, props.block.mode);
 
 | 资产 | 是什么 | 谁生成 |
 |---|---|---|
-| `danbooru-zh.csv`（**git-lfs**，12.6MB / 32.4 万条） | 机翻词库表（`source:'import'`） | `scripts/build-dict.ts` |
-| `cooccur.tsv`（**git-lfs**，2.4MB / 20.2 万对邻居） | 共现邻居（`GET /tags/neighbors`） | 同上 |
-| `weilin-zh.csv`（218KB / 3,793 条） | **人工**词表（`source:'builtin'`，11 大类 / 128 小类） | `scripts/build-weilin.ts` |
-| `block-library.json`（108KB / 160 块 / 12 分类） | 内置区块库（WeiLin 存档转来的） | `scripts/build-blocks.ts` |
+| `danbooru-zh.csv.gz`（**git 里存 .gz**，12.6MB → 6.2MB / 32.4 万条；明文 `.gitignore`） | 机翻词库表（`source:'import'`） | `scripts/build-dict.ts` |
+| `cooccur.tsv.gz`（**git 里存 .gz**，2.4MB → 0.67MB / 20.2 万对邻居；明文 `.gitignore`） | 共现邻居（`GET /tags/neighbors`） | 同上 |
+| `weilin-zh.csv`（明文，230KB / 3,793 条） | **人工**词表（`source:'builtin'`，11 大类 / 128 小类） | `scripts/build-weilin.ts` |
+| `block-library.json`（明文，108KB / 160 块 / 12 分类） | 内置区块库（WeiLin 存档转来的） | `scripts/build-blocks.ts` |
 
 构建时由 `pack.mjs` 的 extras 把整个 `assets/` 拷进 `tabs/prompt-editor/assets/`，
 服务端按 `import.meta.url` 读它们（见 [导入词库](#导入词库内置表--外部-csv) 与
@@ -496,15 +496,17 @@ tag_aliases(tag_key, alias_key, alias)
 人工表那边 `keepPlaceholders: false`：那份表里"译文 == 正名"是"这词不用翻"，真写进去反而会把
 机翻的中文盖成英文，跳过才对。共现邻居（`cooccur.tsv`）跟着一起灌，读不到只记一条日志、不让整次导入失败。
 
-产物里这几份资产都在 `plugins/prompt-editor/assets/`（两个大的走 **git-lfs**），构建时由 `pack.mjs`
-的 extras 拷进 `tabs/prompt-editor/assets/`，于是：
+产物里这几份资产都在 `plugins/prompt-editor/assets/`，构建时由 `pack.mjs` 的 extras 拷进
+`tabs/prompt-editor/assets/`，于是：
 
-- `danbooru-zh.csv` + `cooccur.tsv` = 机翻表与共现邻居，`weilin-zh.csv` = 人工表；
+- `danbooru-zh.csv` + `cooccur.tsv` = 机翻表与共现邻居（**git 里存 `.gz` 的 LFS 指针**，明文是本地工作副本），
+  `weilin-zh.csv` = 人工表（原文 LFS 指针）；
 - 服务端按 `import.meta.url` **直接读自己目录里的它们**，不走浏览器上传 —— 32 万行没必要过一遍
   HTTP 和宿主内存，解析规则也就能和命令行共用一份（`server/tagcsv.ts`）；
-- `dist/` 整包搬走也带着它们：**LFS 只在源码 checkout 那一侧存在**，部署机不用装 lfs；
-- 但 clone 时没装 lfs（或 `GIT_LFS_SKIP_SMUDGE=1`）时，源码里躺着的是 130 字节的**指针文件**。
-  这条路被显式挡住：读到指针就报「先 `git lfs pull`」，而不是"导入成功，入库 0 条"。
+- 产物里躺的是**明文**：`pack.mjs` 拷完 extras 就地把 `.gz` 解压进去、删掉 `.gz`（运行期零改动）；
+- `dist/` 整包搬走也带着明文：**`.gz` 只在源码 checkout 那一侧存在**，部署机不需要任何解压工具；
+- 开发时看/改明文：`pnpm dict:unpack` 解出来（`.gitignore`，不入库），改完 `pnpm dict:pack` 回写 `.gz`。
+  改了明文没 pack 会被 `pnpm verify` 的 contract 步挡下（`scripts/contract-test.ts` 比对明文与 `.gz` 是否逐字节一致）。
 
 **命令行（任意 CSV）**：
 
@@ -662,7 +664,7 @@ node scripts/scale-bench.ts                          # 规模基准（不在 ver
 |---|---|---|
 | `scripts/contract-test.ts` | 注入最小 document 桩 + SSR 真渲染产物 | 产物形状（tabs/routes/样式）、首屏结构、纯函数（切分/重切/输出/服务端收敛/草稿两段装配）、词库（命中/别名/迁移/排序/导入不覆盖手改的/两级分类的 parent 迁移与改名删除）、**词库表解析与导入**（引号里的逗号与转义引号 / 下划线归一 / 占位行与 `keepPlaceholders` / group·sub 两级 / `source` 列与两层守卫 / 同键去重 / 共现邻居 / 内置区块库路由不被 `/:id` 吃掉 / lfs 指针 + 子进程真跑一遍脚本端到端）、非安全上下文下的降级 |
 | `scripts/interaction-test.ts` | happy-dom 造 DOM，挂载产物、发真事件，**并记录发出去的请求** | 敲字/**失焦提交**、**输入法组字**、区块风格开关、单击改名、译文格编辑、双击禁用 → 输出跟着变；**两级分类树的收起/展开与筛选**（默认收起、点三角只展开不改筛选、收起时三角染色）；以及草稿的**两个写事件**（只发该发的那一段） |
-| `scripts/unpack-bmz.mjs` · `scripts/build-dict.ts` | 解开第三方词库包 → 生成机翻表 + 共现邻居（换词库时才跑） | 不进 verify：输入是 `.cache/dictpack/` 那 15MB 原始层，产物是入库的 LFS 资产 |
+| `scripts/unpack-bmz.mjs` · `scripts/build-dict.ts` | 解开第三方词库包 → 生成机翻表 + 共现邻居（换词库时才跑） | 不进 verify：输入是 `.cache/dictpack/` 那 15MB 原始层，产物是入库的 `.gz`（明文 + `.gz` 一起写，见 `scripts/dict-assets.mjs`） |
 | `scripts/build-weilin.ts` | 浅克隆 WeiLin 的人工词库仓（`.cache/weilin-prompt/`）→ `assets/weilin-zh.csv`（下划线折空格、热度 = 机翻最大 + 1 + 同词热度、两级分类） | 不进 verify：要联网 clone；产物是入库的小文件（218KB） |
 | `scripts/build-blocks.ts` | `assets/存档.json` → `assets/block-library.json`（一条 prompt 按逗号切条目、分类按 `catOrder` 排、负提示词单列一类） | 不进 verify：纯离线转换，换存档时才跑 |
 
@@ -687,7 +689,7 @@ node scripts/scale-bench.ts                          # 规模基准（不在 ver
 ## 词库往后怎么长
 
 - **导入外部词库表**：两条路都能用（见 [导入词库](#导入词库内置表--外部-csv)）—— 面板那个
-  「导入内置词库」按钮读的是**产物自带**的 `assets/danbooru-zh.csv`（git-lfs，12.6MB / 32.4 万行，
+  「导入内置词库」按钮读的是**产物自带**的 `assets/danbooru-zh.csv`（12.6MB / 32.4 万行；源码里存的是 `.gz`，
   实测 107MB 库 / 8.9s，另加 20 万对共现邻居），命令行那条吃任意 CSV。一次全量 + 以后靠 `hot` 排序把长尾压下去，
   比"先砍到 3 万"更划算（砍了再想加回来就得重新导一次；留全量随时能按 `hot` 一条 SQL 砍）。
 - **换词库**：`scripts/unpack-bmz.mjs`（解开第三方词库包）→ `scripts/build-dict.ts`（生成上面两个资产）。

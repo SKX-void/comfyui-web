@@ -1,0 +1,4 @@
+# 两份大资产：git 里存 .gz 的 LFS 指针；明文是本地工作副本（开发时直接看/改）。
+# 改完明文要 pnpm dict:pack 回写 .gz
+/danbooru-zh.csv
+/cooccur.tsv

@@ -30,6 +30,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { build } from 'esbuild';
 
+import { readTextOrGz, writeAssetPair } from './dict-assets.mjs';
+
 const pluginDir = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-dict-'));
@@ -98,8 +100,10 @@ const plugin = (await loadPlugin()) as unknown as {
  * 重跑会把那 7.7 万条的热度清零。
  */
 const hot = new Map<string, number>();
-if (fs.existsSync(args.hot)) {
-  for (const row of plugin.parseTagCsv(fs.readFileSync(args.hot, 'utf8'), { keepPlaceholders: true }).rows) {
+// 旧表在 git 里只存 .gz（明文是本地工作副本）：明文优先、否则解压。读不到就当没有热度来源
+const hotText = readTextOrGz(args.hot);
+if (hotText !== null) {
+  for (const row of plugin.parseTagCsv(hotText, { keepPlaceholders: true }).rows) {
     hot.set(row.key, row.hot);
   }
 }
@@ -129,8 +133,9 @@ for (const [en = '', zh = '', category = ''] of rowsOf(tagsFile)) {
 
 fs.mkdirSync(args.out, { recursive: true });
 const csv = `${lines.join('\n')}\n`;
-fs.writeFileSync(path.join(args.out, 'danbooru-zh.csv'), csv);
-fs.copyFileSync(coocFile, path.join(args.out, 'cooccur.tsv'));
+// 明文 + .gz 一起写：明文供开发时看/改（.gitignore，不入库），.gz 才是 git 里那份
+writeAssetPair('danbooru-zh.csv', csv, args.out);
+writeAssetPair('cooccur.tsv', fs.readFileSync(coocFile), args.out);
 
 // 自检：拿导入器自己的解析器读一遍产物，确认列认得出来（这一步能挡住转义/列序写错）
 const parsed = plugin.parseTagCsv(csv);

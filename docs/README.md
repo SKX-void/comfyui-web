@@ -16,6 +16,13 @@
 
 > 约定：**过程叙事不要写进现行文档**。落地过程写进 `archive/`，现行文档只留结论与状态。
 
+> **大资产走 git-lfs，但对象是 `.gz`**：`plugins/prompt-editor/assets/` 的机翻词库与共现表
+> （12.6MB / 2.4MB）以 `danbooru-zh.csv.gz`·`cooccur.tsv.gz` 的 **LFS 指针**入库 —— 对象 6.2MB / 0.67MB，
+> 单对象能过 LFS 推送窗口（12.6MB 原文对象走 HTTP 传不完，见 `archive/lfs-migration.md`）。
+> 明文是**本地工作副本**（`.gitignore`）：`pnpm dict:unpack` 解出来看/改，改完 `pnpm dict:pack` 回写 `.gz`；
+> 构建与契约测试**明文优先、没有就解压 `.gz`**，所以新克隆不必先 unpack。`weilin-zh.csv` / `block-library.json`
+> 以原文指针走 git-lfs；`docs/img/*.webp` 仍走 git-lfs（要装 lfs）。
+
 ```bash
 pnpm install
 

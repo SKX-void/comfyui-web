@@ -34,6 +34,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { build } from 'esbuild';
 
+import { readTextOrGz } from './dict-assets.mjs';
+
 const REPO_URL = 'https://github.com/weilin9999/WeiLin-Comfyui-Tools-Prompt';
 const pluginDir = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
@@ -230,8 +232,10 @@ const plugin = (await loadPlugin()) as unknown as {
 
 /** 机翻表的热度：key → hot（那份表的 key 已经是空格形，两边折完就能对上） */
 const hot = new Map<string, number>();
-if (fs.existsSync(args.hot)) {
-  for (const row of plugin.parseTagCsv(fs.readFileSync(args.hot, 'utf8'), { keepPlaceholders: true }).rows) {
+// 机翻表在 git 里只存 .gz（明文是本地工作副本）：明文优先、否则解压
+const hotText = readTextOrGz(args.hot);
+if (hotText !== null) {
+  for (const row of plugin.parseTagCsv(hotText, { keepPlaceholders: true }).rows) {
     hot.set(row.key, row.hot);
   }
 }
