@@ -184,7 +184,12 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
       <span v-if="props.modelValue && !props.disabled" class="tr-clear" title="清除" @click="clear">
         ×
       </span>
-      <span class="tr-caret">▾</span>
+      <span class="tr-caret" aria-hidden="true">
+        <!-- 内联 svg：`▼` 码位容器字体里没有字形（会被画成空框） -->
+        <svg class="tr-caret-icon" viewBox="0 0 10 10" fill="currentColor">
+          <path d="M1.2 2 5 8.4 8.8 2Z" />
+        </svg>
+      </span>
     </button>
 
     <!-- 展开态 -->

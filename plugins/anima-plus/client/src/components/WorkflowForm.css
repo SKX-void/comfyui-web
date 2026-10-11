@@ -48,9 +48,20 @@
 }
 .caret {
   flex: 0 0 auto;
+  display: inline-flex;
   color: #93c5fd;
-  font-size: 11px;
-  line-height: 1;
+}
+
+/* 收起 = 右指，展开 = 转 90° 变下指 */
+.caret-icon {
+  display: block;
+  width: 11px;
+  height: 11px;
+  transition: transform 0.15s ease;
+}
+
+.caret.open .caret-icon {
+  transform: rotate(90deg);
 }
 /* 两个 span 都是 flex 子项：不放开 min-width 的话长文本会把标题行顶宽 */
 .fold-label,

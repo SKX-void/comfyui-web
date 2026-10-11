@@ -70,10 +70,14 @@ function toggleEnabled(): void {
     <!-- 收起：块体藏起来、表头留着（条目一条不动，再点一下就展开） -->
     <button
       class="pe-block-fold"
+      :class="{ open: !block.collapsed }"
       :title="block.collapsed ? '展开这一块' : '收起这一块（内容还在，只是折起来）'"
       @click.stop="toggleCollapse"
     >
-      {{ block.collapsed ? '▸' : '▾' }}
+      <!-- 三角是内联 svg，不用 `▾`/`▸` 码位：那些"小三角"字符容器字体里没有字形（画成空框），svg 不挑字体 -->
+      <svg class="pe-fold-icon" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+        <path d="M2.2 1.2 8.6 5 2.2 8.8Z" />
+      </svg>
     </button>
     <!-- 拖动只认这个把手：整个头部 draggable 的话，点开关/标题时手一抖就会开始拖区块 -->
     <span class="pe-block-grip" draggable="true" title="拖动排序">⠿</span>
@@ -138,14 +142,26 @@ function toggleEnabled(): void {
 
 .pe-block-fold {
   flex: none;
+  display: inline-flex;
   border: none;
   background: transparent;
   color: var(--muted, #9aa3b2);
   font: inherit;
-  font-size: 12px;
-  line-height: 1;
   padding: 0 2px;
   cursor: pointer;
+}
+
+/* 收起/展开三角：内联 svg 不挑字体（`▾`/`▸` 这类码位容器里没有字形，会被画成空框）。
+   收起 = 右指，展开 = 转 90° 变下指 */
+.pe-fold-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  transition: transform 0.15s ease;
+}
+
+.pe-block-fold.open .pe-fold-icon {
+  transform: rotate(90deg);
 }
 
 .pe-block-fold:hover {
@@ -390,8 +406,12 @@ function toggleEnabled(): void {
 
   /* 收起那颗箭头也是入口，跟别的按钮一样撑到指头点得准 */
   .pe-block-fold {
-    font-size: 15px;
     padding: 4px 6px;
+  }
+
+  .pe-fold-icon {
+    width: 15px;
+    height: 15px;
   }
 
   .pe-block-del {

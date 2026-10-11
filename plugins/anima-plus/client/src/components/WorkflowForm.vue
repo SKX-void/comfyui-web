@@ -7,7 +7,7 @@
  * - 行内任意字段声明 `ui.swap: "<key>"` 时，该字段后出现 ⇄ 一键交换
  * - 字段声明 `ui.preset` 时出现预设切换器（单字段在标签行右侧，
  *   分组行里贴在整行最右那一格的标签行右端）；`targets` 决定预设覆盖哪些字段
- * - 单字段声明 `ui.collapsible` 时标题行变成 ▸/▾，收起后只留标题 + 值摘要；
+ * - 单字段声明 `ui.collapsible` 时标题行变成三角（内联 svg），收起后只留标题 + 值摘要；
  *   `ui.collapsed: true` 决定初始是收起的（质量词这种"填一次就不动"的长文本用得上）
  *
  * 控件本身的渲染见 FieldControl.vue。
@@ -148,7 +148,12 @@ function onApplyPreset(values: Record<string, unknown>): void {
             :title="isCollapsed(item.inputs[0]!) ? '展开' : '收起'"
             @click="toggleFold(item.inputs[0]!)"
           >
-            <span class="caret">{{ isCollapsed(item.inputs[0]!) ? '▸' : '▾' }}</span>
+            <span class="caret" :class="{ open: !isCollapsed(item.inputs[0]!) }">
+              <!-- 三角是内联 svg：`▸`/`▾` 那两个码位容器字体里没有字形，会被画成空框 -->
+              <svg class="caret-icon" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                <path d="M2.2 1.2 8.6 5 2.2 8.8Z" />
+              </svg>
+            </span>
             <span class="fold-label">{{ item.inputs[0]!.label }}</span>
             <span v-if="item.inputs[0]!.required" class="req">*</span>
             <span v-if="isCollapsed(item.inputs[0]!)" class="folded-value">

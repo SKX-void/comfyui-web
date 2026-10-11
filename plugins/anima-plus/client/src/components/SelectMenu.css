@@ -59,8 +59,14 @@
 }
 .tr-caret {
   flex: none;
+  display: inline-flex;
   color: #64748b;
-  font-size: 11px;
+}
+
+.tr-caret-icon {
+  display: block;
+  width: 11px;
+  height: 11px;
 }
 
 /* 展开面板 */

@@ -32,6 +32,23 @@
   gap: 8px;
 }
 
+/* 展开/收起三角是内联 svg：外壳这层的图标不依赖字体（`▾`/`▸` 这类码位容器里没有字形） */
+.chevron {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.chevron-icon {
+  display: block;
+  width: 13px;
+  height: 13px;
+  transition: transform 0.15s ease;
+}
+
+.chevron.open .chevron-icon {
+  transform: rotate(90deg);
+}
+
 .badge {
   font-size: 11px;
   border-radius: 999px;

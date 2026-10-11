@@ -1057,12 +1057,20 @@ console.log('整块「不用」：内容一条不动、整块不进输出；「�
   fold.click();
   await nextTick();
   check('收起后块体不在 DOM 里（表头留着）', card.querySelector('.pe-block-body') === null && card.querySelector('.pe-block-title') !== null);
+  check(
+    '收起三角是内联 svg（不靠字体）',
+    card.querySelector('.pe-block-fold svg') !== null && fold.classList.contains('open') === false,
+    `svg=${card.querySelector('.pe-block-fold svg') !== null}，open=${fold.classList.contains('open')}`,
+  );
   check('收起不影响输出（纯显示状态）', output() === outBefore, JSON.stringify(output()));
   check('收起也走结构那一次写', writesSince(mark).some((call) => JSON.stringify(call.body ?? null).includes('"collapsed":true')));
 
   fold.click();
   await nextTick();
-  check('展开后块体和条目都回来', card.querySelector('.pe-block-body') !== null && chips(1).length > 0);
+  check(
+    '展开后块体和条目都回来（三角转成下指）',
+    card.querySelector('.pe-block-body') !== null && chips(1).length > 0 && fold.classList.contains('open') === true,
+  );
 }
 
 console.log('草稿：编辑热路径上只有两种写事件');
@@ -1408,6 +1416,8 @@ check('分类树：全部 / 未分类 / 已有分类（计数多的在前）', c
     calls.slice(markCaret).every((call) => !call.url.includes('category=')) === true &&
       catRowNames() === '画质|光照' &&
       caret()?.getAttribute('aria-expanded') === 'true' &&
+      caret()?.querySelector('svg') !== null &&
+      caret()?.classList.contains('open') === true &&
       catRows()[1]?.classList.contains('pe-lib-cat-row-child') === true &&
       catRows()[1]?.querySelector('.pe-lib-grip') === null &&
       catRows()[0]?.querySelector('.pe-lib-grip') !== null,
@@ -1426,6 +1436,11 @@ check('分类树：全部 / 未分类 / 已有分类（计数多的在前）', c
     '收起时三角染色：当前筛的小类被藏起来了，得让人找得到（筛选本身不动，还是那 2 条）',
     catRowNames() === '画质' && caret()?.classList.contains('pe-lib-cat-caret-on') === true && libNames().length === 2,
     `${catRowNames()} · ${caret()?.className} · ${libNames().join('|')}`,
+  );
+  check(
+    '分类行的三角是内联 svg（收起态不带 open）',
+    caret()?.querySelector('svg') !== null && caret()?.classList.contains('open') === false,
+    `svg=${caret()?.querySelector('svg') !== null}，open=${caret()?.classList.contains('open')}`,
   );
   // 复原：后面几节按平铺的分类树断言（父名不在列表里时当顶级处理，这里不留状态）
   (pickAll<HTMLButtonElement>('.pe-lib-cats > button')[0] as HTMLButtonElement).click();
@@ -2355,7 +2370,11 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
 
   // 条目默认收着；点一块才按 id 取整条铺出来（列表里只有摘要 + 前 3 条预览）
   const savedItems = (posted?.body?.items as string[]) ?? [];
-  check('默认不展示条目（只有摘要和 ▸）', pick('.pe-item-tokens') === null && (pick('.pe-caret')?.textContent ?? '') === '▸', pick('.pe-caret')?.textContent ?? '（没有 ▸）');
+  check(
+    '默认不展示条目（只有摘要和收起的三角）',
+    pick('.pe-item-tokens') === null && pick('.pe-caret svg') !== null && pick('.pe-caret')?.classList.contains('open') === false,
+    `三角：${pick('.pe-caret svg') !== null ? '内联 svg' : '（没有）'}，open=${pick('.pe-caret')?.classList.contains('open')}`,
+  );
   check(
     '展开开关在色点左边（跟名字同一行，不单占一行）',
     pick('.pe-item-name .pe-caret') !== null && (pick('.pe-caret')?.nextElementSibling?.className ?? '') === 'pe-blk-color',
@@ -2374,7 +2393,7 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
     savedItems.length > 3 && sameTexts(pickAll('.pe-token').map((one) => one.textContent ?? ''), savedItems),
     `${pickAll('.pe-token').length} 条：${pickAll('.pe-token').map((one) => one.textContent).join('|')} vs ${savedItems.length} 条`,
   );
-  check('▾ 跟着翻过来（还标了能收起）', (pick('.pe-caret')?.textContent ?? '') === '▾' && (pick('.pe-item-head')?.getAttribute('title') ?? '').includes('收起') === true);
+  check('三角跟着转过来（还标了能收起）', pick('.pe-caret')?.classList.contains('open') === true && (pick('.pe-item-head')?.getAttribute('title') ?? '').includes('收起') === true);
   const markCollapse = calls.length;
   (pick('.pe-item-head') as HTMLElement).click();
   await settle();

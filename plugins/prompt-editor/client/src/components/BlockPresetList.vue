@@ -157,8 +157,13 @@ watch(
           @click="!picking && draggingKey === '' && emit('toggle-expand', preset)"
         >
           <span class="pe-item-name">
-            <!-- 展开开关就摆在色点左边的小方块里：这是个动作，别做成一个看不见的符号 -->
-            <span class="pe-caret" aria-hidden="true">{{ expandedId === preset.id ? '▾' : '▸' }}</span>
+            <!-- 展开开关就摆在色点左边的小方块里：这是个动作，别做成一个看不见的符号。
+                 三角用内联 svg（`▸`/`▾` 码位容器字体里没有字形，会被画成空框） -->
+            <span class="pe-caret" :class="{ open: expandedId === preset.id }" aria-hidden="true">
+              <svg class="pe-caret-icon" viewBox="0 0 10 10" fill="currentColor">
+                <path d="M2.2 1.2 8.6 5 2.2 8.8Z" />
+              </svg>
+            </span>
             <span class="pe-blk-color" :style="{ background: preset.color }" />
             <span class="pe-item-title">{{ preset.name }}</span>
             <span class="pe-item-cat" :class="{ off: preset.categoryId === '' }">{{ categoryLabel(preset) }}</span>

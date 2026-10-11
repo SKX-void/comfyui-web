@@ -95,8 +95,8 @@
   opacity: 0.85;
 }
 
-/* 收起/展开的小三角（`▸` / `▾`）。没有小类的大类留一个同宽的占位：不然顶级的名字会左右不齐。
-   默认全收起 —— 人工那份是 11 大类 / 128 小类，全铺出来左栏一百多行 */
+/* 收起/展开三角是内联 svg（`▸` / `▾` 那两个码位容器字体里没有字形）。没有小类的大类留一个同宽的占位：
+   不然顶级的名字会左右不齐。默认全收起 —— 人工那份是 11 大类 / 128 小类，全铺出来左栏一百多行 */
 .pe-lib-cat-row .pe-lib-cat-caret-slot {
   display: inline-flex;
   flex: 0 0 auto;
@@ -113,9 +113,19 @@
   border-radius: 4px;
   background: transparent;
   color: var(--muted, #9aa3b2);
-  font-size: 10px;
-  line-height: 1;
   cursor: pointer;
+}
+
+/* 三角本身：收起 = 右指，展开 = 转 90° 变下指 */
+.pe-lib-cat-caret-icon {
+  display: block;
+  width: 10px;
+  height: 10px;
+  transition: transform 0.15s ease;
+}
+
+.pe-lib-cat-caret.open .pe-lib-cat-caret-icon {
+  transform: rotate(90deg);
 }
 
 .pe-lib-cat-row .pe-lib-cat-caret:hover {

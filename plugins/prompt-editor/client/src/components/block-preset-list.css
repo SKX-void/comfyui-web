@@ -118,7 +118,7 @@
   border-radius: 50%;
 }
 
-/* 可点的那一块（▸ 名字 / 分类 / 风格·条数·时间）：点开才铺条目。手柄与按钮不在里面 */
+/* 可点的那一块（三角 · 名字 / 分类 / 风格·条数·时间）：点开才铺条目。手柄与按钮不在里面 */
 .pe-item-head {
   display: flex;
   flex-direction: column;
@@ -127,7 +127,7 @@
   cursor: pointer;
 }
 
-/* 展开开关：12px 的 ▸/▾ 摆在色点左边，给个自己的小方块（有边、有底色），
+/* 展开开关：内联 svg 三角摆在色点左边，给个自己的小方块（有边、有底色），
    不然它就是一个容易被当成装饰的小符号 */
 .pe-caret {
   flex: none;
@@ -140,8 +140,18 @@
   border-radius: 4px;
   background: var(--panel, #1b1e24);
   color: var(--accent, #6ea8fe);
-  font-size: 12px;
-  line-height: 1;
+}
+
+/* 收起 = 右指，展开 = 转 90° 变下指 */
+.pe-caret-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  transition: transform 0.15s ease;
+}
+
+.pe-caret.open .pe-caret-icon {
+  transform: rotate(90deg);
 }
 
 .pe-item-head:hover .pe-caret {
@@ -219,6 +229,11 @@
   .pe-caret {
     width: 26px;
     height: 26px;
+  }
+
+  .pe-caret-icon {
+    width: 15px;
+    height: 15px;
   }
 }
 

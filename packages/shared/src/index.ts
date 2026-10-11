@@ -84,7 +84,7 @@ export interface WorkflowInput {
      */
     preset?: string | { kind: string; targets?: string[] };
     /**
-     * 可折叠：标题行变成可点的 ▸/▾，收起时只留标题 + 当前值摘要（预设切换器照常可用）。
+     * 可折叠：标题行变成可点的 ►/▼，收起时只留标题 + 当前值摘要（预设切换器照常可用）。
      * 只对独占一行的字段生效；同行分组（`ui.row`）里的字段不支持。
      */
     collapsible?: boolean;

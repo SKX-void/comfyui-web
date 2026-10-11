@@ -294,12 +294,14 @@ watch(() => props.renaming, (name) => { if (name !== '') grab(renameInput); }, {
         <button
           v-if="row.caret"
           class="pe-lib-cat-caret"
-          :class="{ 'pe-lib-cat-caret-on': row.holdsActive }"
+          :class="{ 'pe-lib-cat-caret-on': row.holdsActive, open: row.open }"
           :aria-expanded="row.open ? 'true' : 'false'"
           :title="caretTitle(row)"
           @click="toggleTop(row.cat.name)"
         >
-          {{ row.open ? '▾' : '▸' }}
+          <svg class="pe-lib-cat-caret-icon" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+            <path d="M2.2 1.2 8.6 5 2.2 8.8Z" />
+          </svg>
         </button>
         <span v-else class="pe-lib-cat-caret pe-lib-cat-caret-none" aria-hidden="true"></span>
       </span>

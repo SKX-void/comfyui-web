@@ -46,7 +46,12 @@ async function setEnabled(enabled: boolean): Promise<void> {
       <div class="plugin-meta">
         <span class="badge" :class="plugin.phase">{{ plugin.phase }}</span>
         <span v-if="plugin.phase === 'rejected'" class="badge rejected">未通过检查</span>
-        <span class="chevron">{{ open ? '▾' : '▸' }}</span>
+        <span class="chevron" :class="{ open }">
+          <!-- 内联 svg：`▸`/`▾` 码位容器字体里没有字形（会被画成空框） -->
+          <svg class="chevron-icon" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+            <path d="M2.2 1.2 8.6 5 2.2 8.8Z" />
+          </svg>
+        </span>
       </div>
     </header>
 
