@@ -10,7 +10,7 @@
  */
 import { LEGACY_DICT_FILE, SETTINGS_FILE, TAGS_DB_FILE, TAGS_FILE, USAGE_FILE } from './constants.js';
 import { PROVIDERS } from './providers.js';
-import { sanitizeSettings, sanitizeUsage, type Settings, type Usage } from './settings.js';
+import { llmSettingsView, mergeApiKey, sanitizeSettings, sanitizeUsage, type Settings, type Usage } from './settings.js';
 import { readJson, writeJson } from './store.js';
 import { openTagDb, type TagDb } from './tagdb.js';
 import { translateTexts } from './translate.js';
@@ -59,24 +59,35 @@ export function registerTranslateRoutes({ routes, space, badRequest }: RouteHelp
   const loadSettings = (): Settings => sanitizeSettings(readJson(settingsFile, null));
   const loadUsage = (): Usage => sanitizeUsage(readJson(usageFile, null), today());
 
-  routes.get('/settings', async () => ({
-    settings: loadSettings(),
-    usage: loadUsage(),
-    tagCount: tags().count(),
-    providers: Object.entries(PROVIDERS).map(([id, provider]) => ({
-      id,
-      label: provider.label,
-      fields: provider.fields,
-    })),
-  }));
+  routes.get('/settings', async () => {
+    const settings = loadSettings();
+    return {
+      // key 只写不读：出去的那份换成 apiKeySet（见 settings.ts 的 llmSettingsView）
+      settings: { ...settings, llm: llmSettingsView(settings.llm) },
+      usage: loadUsage(),
+      tagCount: tags().count(),
+      providers: Object.entries(PROVIDERS).map(([id, provider]) => ({
+        id,
+        label: provider.label,
+        fields: provider.fields,
+      })),
+    };
+  });
 
   routes.put('/settings', async (request, reply) => {
     const body = request.body;
     if (body === null || typeof body !== 'object') return badRequest(reply, '请求体必须是 { settings } 对象');
-    const patch = asRecord(body)?.settings ?? body;
-    const next = sanitizeSettings({ ...loadSettings(), ...(asRecord(patch) ?? {}) });
+    const patch = asRecord(asRecord(body)?.settings ?? body) ?? {};
+    const current = loadSettings();
+    const llmPatch = asRecord(patch.llm);
+    const next = sanitizeSettings({
+      ...current,
+      ...patch,
+      // 没带 / 空串 = 保持后端已存的那份（前端输入框保存即清空）；显式 null = 清掉
+      ...(llmPatch === null ? {} : { llm: { ...llmPatch, apiKey: mergeApiKey(llmPatch.apiKey, current.llm.apiKey) } }),
+    });
     writeJson(settingsFile, next);
-    return { settings: next };
+    return { settings: { ...next, llm: llmSettingsView(next.llm) } };
   });
 
   /**

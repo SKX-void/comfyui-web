@@ -12,16 +12,21 @@
  */
 import { onUnmounted, ref, watch } from 'vue';
 
-defineProps<{ draftLabel: string; notice: string; view: 'workspace' | 'output' }>();
+defineProps<{
+  draftLabel: string;
+  notice: string;
+  view: 'workspace' | 'output' | 'ai';
+  /** 总闸（settings.llm.enabled）：关着的时候「AI」那一屏不存在，也没有 AI 卡片 */
+  aiEnabled: boolean;
+}>();
 const emit = defineEmits<{
-  (e: 'update:view', view: 'workspace' | 'output'): void;
+  (e: 'update:view', view: 'workspace' | 'output' | 'ai'): void;
   (e: 'add-block'): void;
   (e: 'open-preset'): void;
   (e: 'open-lib'): void;
   (e: 'open-block-library'): void;
   (e: 'open-translate'): void;
-  (e: 'open-ai'): void;
-  (e: 'clear'): void;
+  (e: 'open-settings'): void;
 }>();
 
 const sheetOpen = ref(false);
@@ -32,8 +37,7 @@ const sheetItems: { label: string; run: () => void }[] = [
   { label: '词库…', run: () => emit('open-lib') },
   { label: '区块库…', run: () => emit('open-block-library') },
   { label: '翻译…', run: () => emit('open-translate') },
-  { label: 'AI…', run: () => emit('open-ai') },
-  { label: '清空工作区', run: () => emit('clear') },
+  { label: '设置…', run: () => emit('open-settings') },
 ];
 
 /** 先关抽屉再执行：面板挂在 App 上，抽屉留着会盖住它 */
@@ -64,8 +68,8 @@ function onKeydown(event: KeyboardEvent): void {
     <span v-if="notice !== ''" class="pe-notice">{{ notice }}</span>
 
     <!--
-      宽屏：六个动作平铺。**顺序与文案别动** —— scripts/interaction-test.ts 按索引点它们
-      （[2] 词库、[3] 区块库），契约测试还断言了「+ 新建区块」这个字符串。
+      宽屏：六个动作平铺（最后那颗齿轮图标 = 分节设置的唯一入口）。**顺序与文案别动** ——
+      scripts/interaction-test.ts 按索引点它们（[2] 词库、[3] 区块库），契约测试还断言了「+ 新建区块」这个字符串。
     -->
     <div class="pe-actions">
       <button @click="emit('add-block')">新建区块</button>
@@ -73,19 +77,27 @@ function onKeydown(event: KeyboardEvent): void {
       <button @click="emit('open-lib')">词库…</button>
       <button @click="emit('open-block-library')">区块库…</button>
       <button @click="emit('open-translate')">翻译…</button>
-      <button @click="emit('open-ai')">AI…</button>
-      <button @click="emit('clear')">清空</button>
+      <!-- 设置：齿轮图标（内联 svg —— `⚙` 这类码位容器字体里不一定有字形，会画成空框）。
+           textContent 是空的，脚本里按文字找按钮的 topBtn() 找不到它，只能按类名点 -->
+      <button class="pe-icon-btn" title="设置" aria-label="设置" @click="emit('open-settings')">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path
+            d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"
+          />
+        </svg>
+      </button>
     </div>
 
     <button class="pe-more" title="更多操作" @click="sheetOpen = true">更多…</button>
   </header>
 
   <!--
-    手机：工作区 / 输出 两屏切换。
+    手机：工作区 / AI / 输出 三屏切换（「AI」那一屏只在总闸开着时出现）。
     窄屏下左右两栏会竖着叠起来，输出区就被压在几十张卡片底下 —— 写完想复制得先滚到底。
   -->
   <div class="pe-viewswitch">
     <button :class="{ on: view === 'workspace' }" @click="emit('update:view', 'workspace')">工作区</button>
+    <button v-if="aiEnabled" :class="{ on: view === 'ai' }" @click="emit('update:view', 'ai')">AI</button>
     <button :class="{ on: view === 'output' }" @click="emit('update:view', 'output')">输出</button>
   </div>
 
@@ -153,6 +165,19 @@ function onKeydown(event: KeyboardEvent): void {
 
 .pe-actions button:hover {
   border-color: var(--accent, #6ea8fe);
+}
+
+/* 图标按钮（设置）：文字按钮那套左右 padding 太宽，压成方的 */
+.pe-actions .pe-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+.pe-icon-btn svg {
+  display: block;
+  width: 15px;
+  height: 15px;
 }
 
 /* 手机那三件套在宽屏上不参与排版 */

@@ -8,7 +8,6 @@
 import { ref, watch } from 'vue';
 
 import { fetchSettings, saveSettings, type ProviderInfo, type Settings, type TranslateSettings } from '../api';
-import LlmSettingsFields from './LlmSettingsFields.vue';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved', settings: Settings): void }>();
@@ -65,7 +64,7 @@ async function save(): Promise<void> {
   <div v-if="open" class="pe-overlay" @click.self="emit('close')">
     <div class="pe-panel">
       <header class="pe-panel-head">
-        <strong>翻译</strong>
+        <strong>翻译设置</strong>
         <button class="pe-close" title="关闭" @click="emit('close')">×</button>
       </header>
 
@@ -113,9 +112,6 @@ async function save(): Promise<void> {
       <p class="pe-stat">
         今天已调用 {{ usageCalls }} 次 · 词库 {{ tagCount }} 条（在「词库…」面板里看和改）
       </p>
-
-      <hr class="pe-sep" />
-      <LlmSettingsFields />
 
       <p v-if="error !== ''" class="pe-error">{{ error }}</p>
       <p v-else-if="hint !== ''" class="pe-hint">{{ hint }}</p>
@@ -208,12 +204,6 @@ async function save(): Promise<void> {
   margin: 0 0 10px;
   font-size: 11px;
   color: var(--muted, #9aa3b2);
-}
-
-.pe-sep {
-  margin: 4px 0 12px;
-  border: none;
-  border-top: 1px solid var(--line, #2e333d);
 }
 
 .pe-error {

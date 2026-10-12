@@ -24,6 +24,8 @@ export const SETTINGS_FILE = 'settings.json';
 export const USAGE_FILE = 'usage.json';
 /** LLM 初始提示词库（用户可编辑）；默认值在产物 assets/llm/，见 `llm-prompts.ts` */
 export const LLM_PROMPTS_FILE = 'llm-prompts.json';
+/** LLM 多轮对话（D28）：会话 + 每轮的问答与动作摘要，见 `llm-chats.ts` */
+export const LLM_CHATS_FILE = 'llm-chats.json';
 
 /** 上限：自用工具也要防「一个坏请求 / 手改坏的文件」把 UI 撑爆 */
 export const LIMITS = {
@@ -44,6 +46,10 @@ export const LIMITS = {
   aliases: 16,
   /** 一次手动排序最多收多少个 key（面板"加载更多"最多到 1000 条，留点余量） */
   orderKeys: 5000,
+  /** 多轮对话：会话数 / 单个会话轮数 / 每次回放给模型的历史轮数（对话能很长，回放必须有界） */
+  chats: 50,
+  llmTurns: 100,
+  llmHistoryTurns: 12,
 };
 
 /** 区块风格：tag = 逗号分隔的标签流 · text = 自然语言句子 */

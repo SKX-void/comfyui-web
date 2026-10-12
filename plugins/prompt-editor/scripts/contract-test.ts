@@ -79,6 +79,7 @@ const server = (await import(artifact('server.js').href)) as typeof import('../s
 const {
   PROVIDERS,
   docFromStored,
+  isLlmReasoning,
   looksLikeLfsPointer,
   machineCategory,
   maskPromptSyntax,
@@ -169,6 +170,11 @@ const plugin = (await import(artifact('client.js').href)).default as {
     'DELETE /llm/blocks/:id',
     'GET /llm/prompts',
     'PUT /llm/prompts',
+    'GET /llm/chats',
+    'POST /llm/chats',
+    'GET /llm/chats/:id',
+    'DELETE /llm/chats/:id',
+    'POST /llm/chats/:id/messages',
   ];
   const registered = tables.at(-1) ?? []; // 宿主最终留下的是最后领的那张表
   check(
@@ -1486,8 +1492,100 @@ check(
 );
 check('LLM 段越界收敛到范围内', (() => {
   const s = sanitizeSettings({ llm: { enabled: 'yes', timeoutMs: 1, maxCallsPerDay: 999999, maxToolRounds: 0 } });
-  return s.llm.enabled === false && s.llm.timeoutMs === 1000 && s.llm.maxCallsPerDay === 100000 && s.llm.maxToolRounds === 1;
+  return (
+    s.llm.enabled === false &&
+    s.llm.timeoutMs === 1000 &&
+    s.llm.maxCallsPerDay === 100000 &&
+    s.llm.maxToolRounds === 1
+  );
 })());
+
+check('推理档位只认 off/low/high', isLlmReasoning('low') && isLlmReasoning('high') && !isLlmReasoning('medium') && !isLlmReasoning(1));
+
+// ── key 只写不读（D27）：离开后端的那份永远没有 apiKey，写进来的空串 = 不改动 ──
+check('key 只写不读：view 里没有 apiKey，只有 apiKeySet', (() => {
+  const view = server.llmSettingsView({ ...server.sanitizeSettings(null).llm, apiKey: 'sk-x' });
+  return !('apiKey' in view) && view.apiKeySet === true;
+})());
+check('key 只写不读：没存 key 时 apiKeySet=false', server.llmSettingsView(server.sanitizeSettings(null).llm).apiKeySet === false);
+check(
+  'key 写语义：空串/没带 = 不动、非空 = 换、null = 清',
+  server.mergeApiKey('', 'old') === 'old' &&
+    server.mergeApiKey(undefined, 'old') === 'old' &&
+    server.mergeApiKey('  new  ', 'old') === 'new' &&
+    server.mergeApiKey(null, 'old') === '',
+);
+
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-settings-'));
+  const table: Record<string, (request: unknown, reply: unknown) => unknown> = {};
+  const reply = () => {
+    const r = {
+      status: 200,
+      body: null as unknown,
+      code(n: number) {
+        r.status = n;
+        return r;
+      },
+      send(b: unknown) {
+        r.body = b;
+        return r;
+      },
+    };
+    return r;
+  };
+  const routes = {
+    get: (p: string, h: unknown) => {
+      table[`GET ${p}`] = h as never;
+    },
+    put: (p: string, h: unknown) => {
+      table[`PUT ${p}`] = h as never;
+    },
+    post: (p: string, h: unknown) => {
+      table[`POST ${p}`] = h as never;
+    },
+    delete: (p: string, h: unknown) => {
+      table[`DELETE ${p}`] = h as never;
+    },
+  };
+  const handle = server.registerTranslateRoutes({
+    routes,
+    space: { packageName: 'x', root: dir, resolve: (f: string) => path.join(dir, f) },
+    badRequest: (r: { code: (n: number) => { send: (b: unknown) => unknown } }, message: string) =>
+      r.code(400).send({ error: { code: 'BAD_REQUEST', message } }),
+    log: () => {},
+  } as unknown as Parameters<typeof server.registerTranslateRoutes>[0]);
+  const call = async (key: string, request: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
+    const r = reply();
+    const returned = await table[key]?.({ params: {}, body: null, ...request }, r);
+    return { ...r, body: r.body ?? returned ?? null };
+  };
+  const storedKey = (): string =>
+    (JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')) as { llm: { apiKey: string } }).llm.apiKey;
+  const llmOf = (body: unknown): Record<string, unknown> =>
+    (body as { settings: { llm: Record<string, unknown> } }).settings.llm;
+
+  fs.writeFileSync(
+    path.join(dir, 'settings.json'),
+    JSON.stringify({ llm: { enabled: true, baseUrl: 'https://x/v1', model: 'm', apiKey: 'k' } }),
+  );
+
+  const got = await call('GET /settings');
+  check(
+    'GET /settings 不回 key，只说有没有',
+    llmOf(got.body).apiKey === undefined && llmOf(got.body).apiKeySet === true,
+    JSON.stringify(llmOf(got.body).apiKey),
+  );
+  const kept = await call('PUT /settings', { body: { settings: { llm: { ...llmOf(got.body), apiKey: '' } } } });
+  check('PUT 带空 key：后端那份不动', storedKey() === 'k' && llmOf(kept.body).apiKeySet === true);
+  const changed = await call('PUT /settings', { body: { settings: { llm: { ...llmOf(got.body), apiKey: 'new-key' } } } });
+  check('PUT 带新 key：换掉后端那份', storedKey() === 'new-key' && llmOf(changed.body).apiKeySet === true);
+  const cleared = await call('PUT /settings', { body: { settings: { llm: { ...llmOf(got.body), apiKey: null } } } });
+  check('PUT 带 null：清掉后端那份', storedKey() === '' && llmOf(cleared.body).apiKeySet === false);
+
+  handle.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+}
 
 /** 有道体验版的 stub：记下每次发出的 q，按 map 回译文 */
 function youdaoStub(map: Record<string, string>, { ok = true, errorCode = '0' } = {}) {
@@ -1921,6 +2019,7 @@ console.log('LLM 路由：总闸与区块读写');
     tags: () => ({ lookup: () => null }),
   };
   server.registerLlmRoutes(helpers as unknown as Parameters<typeof server.registerLlmRoutes>[0]);
+  server.registerLlmChatRoutes(helpers as unknown as Parameters<typeof server.registerLlmChatRoutes>[0]);
 
   const call = async (key: string, request: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
     const r = reply();
@@ -1931,6 +2030,10 @@ console.log('LLM 路由：总闸与区块读写');
 
   check('总闸关着：/llm/blocks 403 LLM_DISABLED', (await call('GET /llm/blocks')).status === 403 && errorCode((await call('GET /llm/blocks')).body) === 'LLM_DISABLED');
   check('总闸关着：/llm/prompts 403 LLM_DISABLED', (await call('GET /llm/prompts')).status === 403);
+  check(
+    '总闸关着：/llm/chats 403 LLM_DISABLED',
+    (await call('GET /llm/chats')).status === 403 && errorCode((await call('GET /llm/chats')).body) === 'LLM_DISABLED',
+  );
 
   const settingsOn = {
     provider: 'youdao-demo',
@@ -2011,6 +2114,82 @@ console.log('LLM 路由：总闸与区块读写');
   check('默认模板随首次读取写盘（bundled 那份）', (prompts.prompts ?? []).length >= 1 && fs.existsSync(path.join(spaceDir, 'llm-prompts.json')));
   const putPrompts = (await call('PUT /llm/prompts', { body: { prompts: [{ name: '我的模板', template: '把 {{instruction}} 写进 {{workspace}}' }] } })).body as { prompts?: { id: string; name: string }[] };
   check('PUT /llm/prompts 全量替换并落盘', putPrompts.prompts?.length === 1 && putPrompts.prompts[0]?.name === '我的模板');
+
+  // 多轮对话（D28）：会话 CRUD + 真的跑一遍 agent loop（把 fetch 换成桩，不碰网络）。
+  // 桩同时把请求体记下来 —— "第二轮带上了第一轮的话"这件事只能从发出去的 messages 看。
+  const newChat = (await call('POST /llm/chats', { body: {} })).body as { chat?: { id: string; title: string; turns: unknown[] } };
+  check('POST /llm/chats 建会话（标题先占位）', newChat.chat?.title === '新对话' && (newChat.chat?.turns ?? []).length === 0);
+  const chatId = newChat.chat?.id ?? '';
+  check('GET /llm/chats 列表只有摘要', ((await call('GET /llm/chats')).body as { chats?: { turns?: number }[] }).chats?.[0]?.turns === 0);
+
+  type SentBody = {
+    messages: { role: string; content: string | null }[];
+    reasoning_effort?: string;
+    thinking?: { type?: string };
+  };
+  const sent: SentBody[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: string, init: { body: string }) => {
+    sent.push(JSON.parse(init.body) as SentBody);
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ choices: [{ message: { content: '好，我把质量块写强一点。' } }] }),
+    };
+  }) as unknown as typeof globalThis.fetch;
+  try {
+    const first = (await call('POST /llm/chats/:id/messages', {
+      params: { id: chatId },
+      body: { instruction: '把质量块写强一点' },
+    })).body as { turn?: { reply?: string }; chat?: { title?: string; turns?: number } };
+    check(
+      '第一条消息：回复落成一轮、标题取自第一句',
+      first.turn?.reply === '好，我把质量块写强一点。' && first.chat?.title === '把质量块写强一点' && first.chat?.turns === 1,
+    );
+    const second = (await call('POST /llm/chats/:id/messages', {
+      params: { id: chatId },
+      body: { instruction: '再短一点', reasoning: 'high' },
+    })).body as { chat?: { turns?: number } };
+    check('第二条消息：会话累计 2 轮', second.chat?.turns === 2);
+    const secondSent = sent[1]?.messages ?? [];
+    check(
+      '回放历史：第二轮带上了第一轮的话与回复',
+      secondSent.some((one) => one.role === 'user' && one.content === '把质量块写强一点') &&
+        secondSent.some((one) => one.role === 'assistant' && (one.content ?? '').includes('好，我把质量块写强一点。')),
+    );
+    check('回放历史：system 在最前、本次 user 在最后', secondSent[0]?.role === 'system' && secondSent.at(-1)?.content === '再短一点');
+    check(
+      '推理档位：请求体两个字段都显式发（缺省 off、本次 high）',
+      sent.length === 2 &&
+        sent[0]?.reasoning_effort === 'off' &&
+        sent[0]?.thinking?.type === 'disabled' &&
+        sent[1]?.reasoning_effort === 'high' &&
+        sent[1]?.thinking?.type === 'enabled',
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  check(
+    '用量：两条消息 = 2 次 llmCalls',
+    (JSON.parse(fs.readFileSync(path.join(spaceDir, 'usage.json'), 'utf8')) as { llmCalls?: number }).llmCalls === 2,
+  );
+  check('会话落盘 llm-chats.json', fs.existsSync(path.join(spaceDir, 'llm-chats.json')));
+  const reloaded = (await call('GET /llm/chats/:id', { params: { id: chatId } })).body as { chat?: { turns?: { action?: string }[] } };
+  check(
+    'GET /llm/chats/:id 读回两轮（动作摘要也在）',
+    reloaded.chat?.turns?.length === 2 && typeof reloaded.chat?.turns?.[0]?.action === 'string',
+  );
+  check('不存在的会话：GET 404', (await call('GET /llm/chats/:id', { params: { id: 'nope' } })).status === 404);
+  check(
+    '不存在的会话：发消息 404',
+    (await call('POST /llm/chats/:id/messages', { params: { id: 'nope' }, body: { instruction: 'hi' } })).status === 404,
+  );
+  check(
+    'DELETE /llm/chats/:id 删掉',
+    ((await call('DELETE /llm/chats/:id', { params: { id: chatId } })).body as { ok?: boolean }).ok === true &&
+      (((await call('GET /llm/chats')).body as { chats?: unknown[] }).chats ?? []).length === 0,
+  );
 
   fs.rmSync(spaceDir, { recursive: true, force: true });
 }

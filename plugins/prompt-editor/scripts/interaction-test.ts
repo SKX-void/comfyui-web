@@ -335,7 +335,7 @@ Object.defineProperty(globalThis, 'fetch', {
         settings: {
           provider: 'youdao-demo', autoTranslate: false, maxCallsPerDay: 2000, timeoutMs: 8000, minIntervalMs: 6000,
           llm: {
-            enabled: false, provider: 'openai-compatible', baseUrl: '', model: '', apiKey: '',
+            enabled: false, provider: 'openai-compatible', baseUrl: '', model: '', apiKeySet: false,
             timeoutMs: 60000, maxCallsPerDay: 200, newBlockColor: '#6ea8fe', maxToolRounds: 12,
           },
         },

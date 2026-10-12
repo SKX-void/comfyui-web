@@ -57,6 +57,15 @@ function toggleEnabled(): void {
   emit('structure-changed');
   emit('enabled-changed');
 }
+
+/**
+ * 允许 / 收回「AI 可以改这一块」（D27）：LLM 的写工具只认 `ai === true` 的块。
+ * 纯属性（事件 1），跟颜色 / 标题一样只发结构。
+ */
+function toggleAi(): void {
+  props.block.ai = !props.block.ai;
+  emit('structure-changed');
+}
 </script>
 
 <template>
@@ -111,6 +120,17 @@ function toggleEnabled(): void {
       @click.stop="toggleEnabled"
     >
       <span class="pe-block-use-track"><span class="pe-block-use-knob" /></span>
+    </button>
+    <!-- 允许 AI 改这一块：LLM 的写工具只认 ai===true 的块（D27）。
+         它跟「不使用」一样是块级属性（"这一块交给谁"），所以紧挨着那颗开关放 -->
+    <button
+      class="pe-block-ai"
+      :class="{ on: block.ai }"
+      :aria-pressed="block.ai"
+      :title="block.ai ? 'AI 可以改这一块 —— 点一下收回' : 'AI 不能改这一块 —— 点一下交给 AI 改'"
+      @click.stop="toggleAi"
+    >
+      AI
     </button>
     <!-- 风格开关挂在区块自己身上：每个区块各选 tag 串还是自然语言句子，互不影响 -->
     <div class="pe-block-modes" title="这个区块的风格">
@@ -296,6 +316,36 @@ function toggleEnabled(): void {
   border-color: var(--accent, #6ea8fe);
 }
 
+/* 「允许 AI 改这一块」（D27）：块级开关，开着时用强调色 —— 一眼看出哪些块交给了 AI */
+.pe-block-ai {
+  flex: none;
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted, #9aa3b2);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.pe-block-ai.on {
+  background: var(--accent, #6ea8fe);
+  border-color: var(--accent, #6ea8fe);
+  color: #0b1220;
+}
+
+.pe-block-ai:hover {
+  border-color: var(--accent, #6ea8fe);
+  color: var(--accent, #6ea8fe);
+}
+
+.pe-block-ai.on:hover {
+  color: #0b1220;
+}
+
 .pe-block-tr:hover,
 .pe-block-save:hover {
   border-color: var(--accent, #6ea8fe);
@@ -387,6 +437,7 @@ function toggleEnabled(): void {
   }
 
   .pe-block-tr,
+  .pe-block-ai,
   .pe-block-save {
     font-size: 12px;
     padding: 6px 10px;

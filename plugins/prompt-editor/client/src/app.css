@@ -20,6 +20,15 @@
   align-items: start;
 }
 
+/* 左列 = 工作区 + AI 卡片。包一层是为了让卡片紧跟工作区：当 `.pe-body` 的直接 grid 孩子时，
+   它落在第 2 行，而第 1 行的高度由两列里更高的那个（通常是右侧输出栏）决定 —— 工作区矮就空一大片 */
+.pe-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
 .pe-workspace {
   display: flex;
   flex-direction: column;
@@ -73,11 +82,15 @@
   }
 }
 
-/* 手机：工作区 / 输出 一次只显示一屏（切换条在 EditorChrome 里，这里只认它给的那个 class）。
+/* 手机：工作区 / AI / 输出 一次只显示一屏（切换条在 EditorChrome 里，这里只认它给的那个 class）。
    上面 900px 那条只管"两栏叠起来"，叠起来之后输出区照样在几十张卡片底下 */
 @media (max-width: 720px) {
   .pe-view-workspace .pe-side,
-  .pe-view-output .pe-workspace {
+  .pe-view-workspace .pe-ai,
+  .pe-view-output .pe-workspace,
+  .pe-view-output .pe-ai,
+  .pe-view-ai .pe-workspace,
+  .pe-view-ai .pe-side {
     display: none;
   }
 }

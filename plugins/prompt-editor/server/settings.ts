@@ -12,6 +12,13 @@ import { DEFAULT_COLOR, MIN_INTERVAL_MS_DEFAULT } from './constants.js';
 import { PROVIDERS } from './providers.js';
 import { asRecord, clampInt } from './util.js';
 
+/** 推理强度三档（D29）：**单次请求**的参数，住在前端 AI 卡片里、不落盘；`off` 也显式发 */
+export type LlmReasoning = 'off' | 'low' | 'high';
+
+export function isLlmReasoning(value: unknown): value is LlmReasoning {
+  return value === 'off' || value === 'low' || value === 'high';
+}
+
 export interface LlmSettings {
   /** 总开关：false 时 /llm/* 一律 403 LLM_DISABLED */
   enabled: boolean;
@@ -37,6 +44,29 @@ export interface Settings {
   timeoutMs: number;
   minIntervalMs: number;
   llm: LlmSettings;
+}
+
+/** 对外（GET/PUT /settings 的返回）的 LLM 段：**永远不带 apiKey**，只带「后端有没有」 */
+export interface LlmSettingsView extends Omit<LlmSettings, 'apiKey'> {
+  apiKeySet: boolean;
+}
+
+export type SettingsView = Omit<Settings, 'llm'> & { llm: LlmSettingsView };
+
+/** key 只写不读：离开后端的那份只留 apiKeySet（前端那框保存即清空，不靠它回填） */
+export function llmSettingsView(llm: LlmSettings): LlmSettingsView {
+  const { apiKey, ...rest } = llm;
+  return { ...rest, apiKeySet: apiKey !== '' };
+}
+
+/**
+ * key 的写语义：非空串 = 换新的；显式 `null` = 清掉；没带 / 空串 = 保持后端已存的那份。
+ * 空串必须等于「不改动」—— 前端那一框永远是空的，不然一保存就把 key 擦了。
+ */
+export function mergeApiKey(next: unknown, current: string): string {
+  if (next === null) return '';
+  if (typeof next === 'string' && next.trim() !== '') return next.trim();
+  return current;
 }
 
 export const LLM_PROVIDER = 'openai-compatible';

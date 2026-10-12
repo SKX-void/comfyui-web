@@ -4,7 +4,7 @@
  * 边界：工具**即时落盘**、中途失败不回滚；轮次上限 + 总超时兜底；
  * 一次 `/llm/generate` 提交只算 1 次用量（内部多轮 tool call 不另计 —— 计数在 routes-llm）。
  */
-import type { LlmSettings } from './settings.js';
+import type { LlmReasoning, LlmSettings } from './settings.js';
 import { LlmError, openAiCompatibleChat, type LlmMessage, type LlmToolSpec } from './llm-providers.js';
 import { asRecord, errorMessage } from './util.js';
 
@@ -20,9 +20,13 @@ export interface LlmToolKit {
 
 export interface LlmAgentOptions {
   llm: LlmSettings;
+  /** 本次请求的推理强度（D29）：来自请求体，缺省 off —— 不是 settings 里的字段 */
+  reasoning: LlmReasoning;
   system: string;
   user: string;
   toolkit: LlmToolKit;
+  /** 多轮对话的历史（纯文本 user/assistant 对），插在 system 与本次 user 之间 */
+  history?: LlmMessage[];
   fetchImpl?: Parameters<typeof openAiCompatibleChat>[1];
 }
 
@@ -79,6 +83,7 @@ export const LLM_TOOLS: LlmToolSpec[] = [
 export async function runLlmAgent(options: LlmAgentOptions): Promise<LlmAgentOutcome> {
   const messages: LlmMessage[] = [
     { role: 'system', content: options.system },
+    ...(options.history ?? []),
     { role: 'user', content: options.user },
   ];
   // 总超时兜底：每次调用本身有 timeoutMs，这里再包一层"轮数 × 单次超时"的墙
@@ -98,6 +103,7 @@ export async function runLlmAgent(options: LlmAgentOptions): Promise<LlmAgentOut
           model: options.llm.model,
           timeoutMs: options.llm.timeoutMs,
           messages,
+          reasoning: options.reasoning,
           tools: LLM_TOOLS,
         },
         options.fetchImpl,

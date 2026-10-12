@@ -27,6 +27,7 @@ import { PRESETS_KIND, presetExportDoc, readExportIds, readPresetImport } from '
 import { registerBlockCategoryRoutes } from './routes-block-categories.js';
 import { registerBlockPresetRoutes } from './routes-block-presets.js';
 import { registerLlmRoutes } from './routes-llm.js';
+import { registerLlmChatRoutes } from './routes-llm-chats.js';
 import { registerTranslateRoutes } from './routes-translate.js';
 import { registerTagRoutes } from './routes-tags.js';
 import { readJson, writeJson } from './store.js';
@@ -162,7 +163,7 @@ export function registerRoutes(ctx: PluginContext): void {
   // 编辑热路径上只有两个写事件（前端按"改了多大一块"分派）：
   //   1. 组结构变了（区块增删/排序/标题/颜色/风格）→ PUT /draft/structure
   //   2. 某个组编辑完了（那个组的条目变了）        → PUT /draft/blocks/:id/items
-  // 整份替换（载入预设 / 清空）不在热路径上，走 PUT /draft。
+  // 整份替换（载入预设）不在热路径上，走 PUT /draft。
 
   const loadDraft = (): Stored => storedFromRaw(readJson(draftFile, null)) ?? { structure: [], items: {} };
 
@@ -204,7 +205,7 @@ export function registerRoutes(ctx: PluginContext): void {
     return { ok: true };
   });
 
-  /** 整份替换：载入预设 / 清空工作区。少见，不拆 */
+  /** 整份替换：载入预设。少见，不拆 */
   routes.put('/draft', async (request, reply) => {
     const doc = sanitizeDoc(asRecord(request.body)?.doc ?? null);
     if (doc === null) return badRequest(reply, '请求体必须是 { doc: { blocks } }');
@@ -222,6 +223,7 @@ export function registerRoutes(ctx: PluginContext): void {
   const translateRoutes = registerTranslateRoutes({ routes, space, badRequest, log });
   registerTagRoutes({ routes, space, badRequest, log, tags: translateRoutes.tags });
   registerLlmRoutes({ routes, space, badRequest, log, tags: translateRoutes.tags });
+  registerLlmChatRoutes({ routes, space, badRequest, log, tags: translateRoutes.tags });
 
   ctx.effect(() => () => {
     // 词库是长持的 SQLite 连接：重挂 = 新闭包，不关就是句柄 + WAL 文件泄漏

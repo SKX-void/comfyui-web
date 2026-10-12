@@ -7,6 +7,7 @@
  * 和翻译的 providers.ts 平行：那边按 `Provider { label, fields, translate }` 注册，
  * 这边只有一个协议实现 —— 想换协议时再加一个同签名的函数。
  */
+import type { LlmReasoning } from './settings.js';
 import { errorMessage } from './util.js';
 
 export interface LlmToolCall {
@@ -33,6 +34,8 @@ export interface LlmChatRequest {
   model: string;
   timeoutMs: number;
   messages: LlmMessage[];
+  /** 推理强度（D29）：两个字段都显式发，`off` 也不省略 */
+  reasoning: LlmReasoning;
   tools?: LlmToolSpec[];
 }
 
@@ -80,6 +83,9 @@ export async function openAiCompatibleChat(
       body: JSON.stringify({
         model: req.model,
         messages: req.messages,
+        // D29：三档都显式发 —— reasoning_effort 拿档位字面值，thinking.type 只分开关
+        reasoning_effort: req.reasoning,
+        thinking: { type: req.reasoning === 'off' ? 'disabled' : 'enabled' },
         ...(req.tools === undefined || req.tools.length === 0 ? {} : { tools: req.tools, tool_choice: 'auto' }),
       }),
       signal: controller.signal,

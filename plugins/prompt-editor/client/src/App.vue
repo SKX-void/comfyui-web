@@ -8,25 +8,20 @@
  *
  * 这里只做装配与串线：状态在 composables/，视图在 components/。
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
-import AiPanel from './components/AiPanel.vue';
+import AiChatCard from './components/AiChatCard.vue';
 import BlockCard from './components/BlockCard.vue';
 import BlockLibraryPanel from './components/BlockLibraryPanel.vue';
 import CrossCallPanel from './components/CrossCallPanel.vue';
 import EditorChrome from './components/EditorChrome.vue';
+import SettingsPanel from './components/SettingsPanel.vue';
 import OutputPane from './components/OutputPane.vue';
 import PresetPanel from './components/PresetPanel.vue';
 import TagLibraryPanel from './components/TagLibraryPanel.vue';
 import TranslatePanel from './components/TranslatePanel.vue';
-import {
-  fetchDraft,
-  fetchSettings,
-  type BlockPreset,
-  type LlmGenerateOutcome,
-  type LlmSuggestion,
-  type Settings,
-} from './api';
+import { fetchDraft, fetchSettings, type BlockPreset, type LlmSuggestion, type Settings } from './api';
+import type { LlmTurn } from './api-llm-chat';
 import { canDropItem, moveItem, newItem, splitByMode, type Block, type Doc, type ItemRef } from './model';
 import { useNotice } from './composables/useNotice';
 import { useTouchItemDrag } from './composables/useTouchItemDrag';
@@ -48,7 +43,6 @@ const {
   expandAll,
   addBlock,
   removeBlock,
-  clearAll,
   persistStructure,
   persistItems,
   persistDoc,
@@ -74,7 +68,10 @@ function saveBlockToLibrary(block: Block): void {
 
 const presetOpen = ref(false);
 const translateOpen = ref(false);
-const aiOpen = ref(false);
+/** 设置面板（左侧栏分节，现在只有 AI 一节）：顶栏「设置…」与卡片头部「LLM 设置」都开它 */
+const settingsOpen = ref(false);
+/** 设置保存后 +1：AI 卡片重拉模板（总闸可能刚打开） */
+const llmVersion = ref(0);
 const libOpen = ref(false);
 const blockLibOpen = ref(false);
 /** 从区块表头「存」送过来的那一块快照：区块库面板据此弹出"起个名字" */
@@ -91,8 +88,8 @@ function closeBlockLibrary(): void {
   blockPending.value = null;
 }
 
-/** 手机：工作区 / 输出 两屏切换 —— 窄屏两栏叠起来时，输出区会被压在几十张卡片底下 */
-const view = ref<'workspace' | 'output'>('workspace');
+/** 手机：工作区 / AI / 输出 三屏切换 —— 窄屏叠起来时，输出区会被压在几十张卡片底下 */
+const view = ref<'workspace' | 'output' | 'ai'>('workspace');
 
 const dragBlock = ref<number | null>(null);
 const overBlock = ref<number | null>(null);
@@ -113,7 +110,7 @@ const settings = ref<Settings>({
     provider: 'openai-compatible',
     baseUrl: '',
     model: '',
-    apiKey: '',
+    apiKeySet: false,
     timeoutMs: 60000,
     maxCallsPerDay: 200,
     newBlockColor: '#6ea8fe',
@@ -253,16 +250,47 @@ function applySettings(next: Settings): void {
   settings.value = next;
 }
 
-/** AI 面板收工：AI 已经即时落盘，这里回读草稿并给 touched 的块补翻 */
-async function onLlmGenerated(outcome: LlmGenerateOutcome): Promise<void> {
-  flash(`AI：${outcome.summary.slice(0, 60)}`);
+/** 打开设置面板（顶栏「设置…」/ 卡片头部「LLM 设置」都走这里） */
+function openSettings(): void {
+  settingsOpen.value = true;
+}
+
+/** LLM 设置保存成功：面板**不自动关**（让人看见「已保存」），重取设置让总闸立刻生效 */
+async function onLlmSettingsSaved(): Promise<void> {
+  try {
+    settings.value = (await fetchSettings()).settings;
+  } catch {
+    // 拿不到设置不致命：卡片在 403 时自己会切成"未启用"
+  }
+  llmVersion.value += 1;
+}
+
+/**
+ * 总闸关掉 = 卡片整个消失（模板 v-if），手机上的「AI」那一屏也跟着没了 ——
+ * 视图还停在 'ai' 的话会看到一片空白，退回工作区。
+ */
+watch(
+  () => settings.value.llm.enabled,
+  (enabled) => {
+    if (!enabled && view.value === 'ai') view.value = 'workspace';
+  },
+);
+
+/**
+ * 一轮对话收工：AI 已经即时落盘，这里回读草稿并给动过的块补翻。
+ *
+ * 删除也要认（`turn.deleted`）：草稿被删空时同样得回读，否则工作区里还留着已经删掉的块。
+ */
+async function onLlmTurn(turn: LlmTurn): Promise<void> {
+  if (turn.reply !== '') flash(`AI：${turn.reply.slice(0, 60)}`);
+  const touchedAny = turn.changed.length + turn.created.length + turn.deleted.length > 0;
   try {
     const stored = await fetchDraft();
-    if (stored !== null && stored.blocks.length > 0) replaceDoc(stored);
-    const touched = new Set([...outcome.changed, ...outcome.created]);
+    if (stored !== null && (stored.blocks.length > 0 || touchedAny)) replaceDoc(stored);
+    const touched = new Set([...turn.changed, ...turn.created]);
     for (const block of doc.blocks) if (touched.has(block.id)) enqueueAuto(block);
   } catch {
-    // 回读失败不致命：面板已经展示了这次的结果
+    // 回读失败不致命：卡片已经展示了这一轮的结果
   }
 }
 
@@ -327,49 +355,66 @@ onMounted(async () => {
       @open-lib="libOpen = true"
       @open-block-library="blockLibOpen = true"
       @open-translate="translateOpen = true"
-      @open-ai="aiOpen = true"
-      @clear="clearAll"
+      :ai-enabled="settings.llm.enabled"
+      @open-settings="openSettings"
     />
 
-    <div class="pe-body" :class="view === 'output' ? 'pe-view-output' : 'pe-view-workspace'">
-      <section class="pe-workspace">
-        <BlockCard
-          v-for="(block, index) in doc.blocks"
-          :key="block.id"
-          :block="block"
-          :dragging="dragBlock === index"
-          :over="overBlock === index && dragBlock !== null && dragBlock !== index"
-          :drag-item="dragItem"
-          :over-item="overItem"
-          :drop-ok="canDropInto(block)"
-          :busy-ids="busyIds"
-          :failed-ids="failedIds"
-          @activate="activeBlockId = block.id"
-          @save-to-library="saveBlockToLibrary(block)"
-          @remove="removeBlock(index)"
-          @drag-start="dragBlock = index"
-          @drag-over="overBlockAt(index)"
-          @drop="dropBlock(index)"
-          @drag-end="endBlockDrag()"
-          @move="(delta: number) => moveBlock(index, delta)"
-          @item-drag-start="(itemIndex: number) => startItemDrag(block.id, itemIndex)"
-          @item-drag-over="(itemIndex: number) => overItemAt(block.id, itemIndex)"
-          @item-drop="(itemIndex: number) => dropItemAt(block.id, itemIndex)"
-          @item-drag-end="endItemDrag()"
-          @item-touch-drag-start="
-            (itemIndex: number, event: PointerEvent) =>
-              beginTouchItemDrag(event, block.id, itemIndex, block.items[itemIndex]?.text ?? '')
-          "
-          @structure-changed="persistStructure()"
-          @items-committed="onItemsCommitted(block)"
-          @enabled-changed="onBlockEnabledChanged(block)"
-          @translate="(itemIndex: number) => translateItem(block, itemIndex)"
-          @translate-block="translateBlock(block)"
-          @translation-edited="(text: string, translation: string) => onTranslationEdited(text, translation)"
-          @promote="(itemIndex: number) => promoteTranslation(block, itemIndex)"
+    <div class="pe-body" :class="'pe-view-' + view">
+      <!--
+        左列（工作区 + AI 卡片）装在一个 flex 列里。AI 卡片不能当 `.pe-body` 的直接 grid 孩子：
+        那样它落在第 2 行第 1 列，而第 1 行的高度由两列里更高的那个决定 —— 右侧输出栏高的时候，
+        工作区下面就空一大片（实测 442px）。手机上它是第三个视图，见 app.css 的 720px 那条。
+      -->
+      <div class="pe-main">
+        <section class="pe-workspace">
+          <BlockCard
+            v-for="(block, index) in doc.blocks"
+            :key="block.id"
+            :block="block"
+            :dragging="dragBlock === index"
+            :over="overBlock === index && dragBlock !== null && dragBlock !== index"
+            :drag-item="dragItem"
+            :over-item="overItem"
+            :drop-ok="canDropInto(block)"
+            :busy-ids="busyIds"
+            :failed-ids="failedIds"
+            @activate="activeBlockId = block.id"
+            @save-to-library="saveBlockToLibrary(block)"
+            @remove="removeBlock(index)"
+            @drag-start="dragBlock = index"
+            @drag-over="overBlockAt(index)"
+            @drop="dropBlock(index)"
+            @drag-end="endBlockDrag()"
+            @move="(delta: number) => moveBlock(index, delta)"
+            @item-drag-start="(itemIndex: number) => startItemDrag(block.id, itemIndex)"
+            @item-drag-over="(itemIndex: number) => overItemAt(block.id, itemIndex)"
+            @item-drop="(itemIndex: number) => dropItemAt(block.id, itemIndex)"
+            @item-drag-end="endItemDrag()"
+            @item-touch-drag-start="
+              (itemIndex: number, event: PointerEvent) =>
+                beginTouchItemDrag(event, block.id, itemIndex, block.items[itemIndex]?.text ?? '')
+            "
+            @structure-changed="persistStructure()"
+            @items-committed="onItemsCommitted(block)"
+            @enabled-changed="onBlockEnabledChanged(block)"
+            @translate="(itemIndex: number) => translateItem(block, itemIndex)"
+            @translate-block="translateBlock(block)"
+            @translation-edited="(text: string, translation: string) => onTranslationEdited(text, translation)"
+            @promote="(itemIndex: number) => promoteTranslation(block, itemIndex)"
+          />
+          <button class="pe-add-block" @click="addBlock">+ 新建区块</button>
+        </section>
+
+        <AiChatCard
+          v-if="settings.llm.enabled"
+          :blocks="doc.blocks"
+          :version="llmVersion"
+          :enabled="settings.llm.enabled"
+          @open-settings="openSettings"
+          @changed="onLlmTurn"
+          @apply-suggestion="applySuggestion"
         />
-        <button class="pe-add-block" @click="addBlock">+ 新建区块</button>
-      </section>
+      </div>
 
       <aside class="pe-side">
         <OutputPane :text="output" :item-count="itemCount" :block-count="blockCount" :unused-count="unusedCount" />
@@ -393,13 +438,7 @@ onMounted(async () => {
       @insert="insertPresetBlock"
     />
     <TranslatePanel :open="translateOpen" @close="translateOpen = false" @saved="applySettings" />
-    <AiPanel
-      :open="aiOpen"
-      :blocks="doc.blocks"
-      @close="aiOpen = false"
-      @generated="onLlmGenerated"
-      @apply-suggestion="applySuggestion"
-    />
+    <SettingsPanel :open="settingsOpen" @close="settingsOpen = false" @saved="onLlmSettingsSaved" />
 
     <!-- 触屏拖拽的幽灵：跟着手指走，说明"现在拖的是哪一条"（pointer-events: none，见 app.css） -->
     <div v-if="touchGhost" class="pe-touch-ghost" :style="touchGhostStyle">{{ touchGhost.text }}</div>

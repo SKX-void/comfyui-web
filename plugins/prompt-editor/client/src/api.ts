@@ -10,6 +10,7 @@ import { request } from './api-core';
 export * from './api-presets';
 export * from './api-block';
 export * from './api-llm';
+export * from './api-llm-chat';
 export { API_BASE, request } from './api-core';
 
 export async function fetchDraft(): Promise<Doc | null> {
@@ -32,7 +33,7 @@ export async function saveDraftItems(blockId: string, items: Item[]): Promise<vo
   });
 }
 
-/** 整份替换：载入预设 / 清空工作区（不在编辑热路径上） */
+/** 整份替换：载入预设（不在编辑热路径上） */
 export async function saveDraft(doc: Doc): Promise<void> {
   await request<{ ok: boolean }>('/draft', { method: 'PUT', body: JSON.stringify({ doc }) });
 }
@@ -48,22 +49,31 @@ export interface TranslateSettings {
   minIntervalMs: number;
 }
 
-/** LLM 辅助（D27）：OpenAI-compatible 的 baseUrl + 模型 + key；key 只存后端，前端只回显长度占位 */
+/** 推理强度三档（D29）：单次请求的参数，住 AI 卡片、不落盘；请求体里两个字段都显式发 */
+export type LlmReasoning = 'off' | 'low' | 'high';
+
+/** LLM 辅助（D27）：OpenAI-compatible 的 baseUrl + 模型 + 护栏。**key 只写不读**（见 apiKeySet） */
 export interface LlmSettings {
   enabled: boolean;
   provider: string;
   baseUrl: string;
   model: string;
-  apiKey: string;
+  /** 后端存了 key 没有 —— **拿不到 key 本体**，GET /settings 永远不回它 */
+  apiKeySet: boolean;
   timeoutMs: number;
   maxCallsPerDay: number;
   newBlockColor: string;
   maxToolRounds: number;
 }
 
+/** 写方向的 LLM 段：apiKey 非空 = 换新的，`null` = 清掉，不带 / 空串 = 不动后端那份 */
+export type LlmSettingsPatch = Omit<LlmSettings, 'apiKeySet'> & { apiKey?: string | null };
+
 export interface Settings extends TranslateSettings {
   llm: LlmSettings;
 }
+
+export type SettingsPatch = Partial<Omit<Settings, 'llm'>> & { llm?: LlmSettingsPatch };
 
 export interface TranslateUsage {
   date: string;
@@ -102,7 +112,7 @@ export async function fetchSettings(): Promise<SettingsPayload> {
   return request<SettingsPayload>('/settings');
 }
 
-export async function saveSettings(settings: Partial<Settings>): Promise<Settings> {
+export async function saveSettings(settings: SettingsPatch): Promise<Settings> {
   return (await request<{ settings: Settings }>('/settings', {
     method: 'PUT',
     body: JSON.stringify({ settings }),

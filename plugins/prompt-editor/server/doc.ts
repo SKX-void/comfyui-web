@@ -165,7 +165,7 @@ export function docFromStored(stored: Stored): Doc {
   };
 }
 
-/** Doc → { structure, items }（整份替换：载入预设 / 清空） */
+/** Doc → { structure, items }（整份替换：载入预设） */
 export function storedFromDoc(doc: Doc): Stored {
   const items: Record<string, Item[]> = {};
   for (const block of doc.blocks) items[block.id] = block.items;

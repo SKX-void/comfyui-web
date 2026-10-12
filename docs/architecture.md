@@ -73,7 +73,9 @@
 | D24 | 跨插件调用 | **特别允许一条单向依赖**：prompt-editor 的输出可以直接变成 anima-plus 的一次出图 —— 全程走 HTTP 路由（`GET /api/plugins` 看对方装没装 / 启没启、`GET`+`PUT /api/p/anima-plus/api/state`、`POST /api/p/anima-plus/api/jobs`），**不 import 对方代码、不读对方库文件**；参数基底一律取自对方「最后一次状态」，没有就**禁用按钮并把原因说出来**（不猜模板默认值） | "写好的提示词直接发去出图"是这两个插件真实的工作流，隔一层复制粘贴才是假隔离；但隔离规则（§8）不能破，所以对方那几条提交语义（`randomSeed` 开着先抽种子、先写快照再建作业）在适配器里复刻并注明来源。代价：两处逻辑要一起改（对方改了这边不知道），且 prompt-editor 从此知道 anima-plus 存在 —— 方向单向、下游只有一个适配器时这个代价可接受。见 §8、§14.6 |
 | D25 | 首页说明的形状 | **欢迎页文案是外壳的静态资产**：`apps/web/public/home.md`（构建进 `dist/app/web/home.md`），home 路由自己 `fetch` + marked 渲染；**后端不加路由、不参与**；取用带 `no-store`，改产物里那份 md、刷新浏览器即生效 | 一段文案与 `index.html` / `brush.svg` 同类，交给宿主已有的静态托管即可 —— 为它加一条 core 端点等于把"改文案"绑到后端上。宿主用 `@fastify/static`（默认 `wildcard`）按请求现读磁盘，所以 docker 的只读 `/app` 也能"改宿主机文件 → 刷新即生效"；**别用 `wildcard:false`**（启动时按文件登记路由，重新 build:web 换 hash 后会拿 `text/html` 冒充 CSS，见 §5.3、§14.7） |
 | D26 | 标签页常驻（切走不卸载） | **可选、逐插件、默认关**：真源是 `data/host.json` 偏好段的 `keepAlive: string[]`（设置页「切走不卸载」勾选 → `PUT /api/ui`），外壳把它翻成 `<KeepAlive :include>` 的名单；组件名由 `apps/web/src/main.ts` 的 `namedPlugin()` 固定成 `plugin:<id>`（插件 SFC 多半没有 name，而 Vue 只按组件名匹配 include）。崩过的页面立刻移出名单。**插件义务**：常驻后切 tab 不再触发 `onUnmounted`，长命资源（SSE / 定时器）改由 `onActivated` / `onDeactivated` 按可见性决定去留 | 诉求是"切回来还是刚才那一页，而不是从空框重建"；但常驻的代价（内存、活着的连接）随插件差得很远，只有用户知道值不值 —— 所以做成**宿主偏好而非插件自述**（与 D21 同款分层），默认关 = 不改任何现有行为。踩过的坑：`<KeepAlive><RouterView /></KeepAlive>` 缓存的是 RouterView 自己（名字恒为 `RouterView`，include 永不匹配，一个都缓存不住），必须写成 `v-slot="{ Component }"` + `<component :is="Component" />`（实测：改前切回来 DOM 照样重建）。见 §7.2、§14.8 |
-| D27 | LLM 提示词辅助模块 | **协议/存储/权限三条线**：① 协议层新建 `server/llm-providers.ts`（与翻译 `providers.ts` 平行），只做 OpenAI-compatible 非流式 chat + function calling，`baseUrl`+`apiKey`+`model` 可配、`apiKey` 只存后端 `settings.json`；② 初始提示词多份存 `llm-prompts.json`（`ctx.space`，用户可编辑，默认值在 `assets/llm/`），支持 `{{变量}}` 插值（未知变量置空并记日志）；③ 操作对象=区块不是条目：LLM 写工具是高层 `set_block`（只给 `{id,title,mode,content}`，后端按 mode 拆分 content 生成条目、新 id、`enabled:true`、译文即时查词库、过 sanitize+LIMITS 落草稿、原禁用条目保留），`suggest` 工具 `{blockId,content}` 对不可改块只出文本建议不落盘。入口=全局 AI 表单（顶栏按钮），非块级按钮。权限：`BlockMeta.ai` 缺省 false（不升 version），读=全部块可见，LLM 写工具改/删只限 `ai===true` 且 id 在本次 `blockIds` 内，HTTP 的 PUT/DELETE `/llm/blocks/:id` 只限 `ai===true`，建= `allowCreate`（默认开）。用量按次：一次 `/llm/generate` 提交=1 次 `llmCalls`（跨天清零），内部多轮 tool call 不另计；`maxToolRounds=12`+总超时兜底，工具写即时落盘、中途失败不回滚；`llm.enabled=false` 时 `/llm/*` 一律 403 `LLM_DISABLED` | 与翻译模块同构：协议层平行新增、设置/用量并表（翻译 `calls` 与 LLM `llmCalls` 分开记账）、存储写 `ctx.space`。选高层 `set-block` 而非逐条目 API：LLM 需要的是"把这个块改成这段内容"，逐条删/增会让 agent 反复读回并放大 tool-call 轮数，且后端拆分规则必须与前端 `splitByMode` 逐字一致（`server/split.ts` 移植自 `client/src/split.ts`）。见 §14.9 |
+| D27 | LLM 提示词辅助模块 | **协议/存储/权限三条线**：① 协议层新建 `server/llm-providers.ts`（与翻译 `providers.ts` 平行），只做 OpenAI-compatible 非流式 chat + function calling，`baseUrl`+`apiKey`+`model` 可配、`apiKey` 只存后端 `settings.json` 且**只写不读**（`GET /settings` 只回 `apiKeySet`，写时空串=不改动、`null`=清除）；② 初始提示词多份存 `llm-prompts.json`（`ctx.space`，用户可编辑，默认值在 `assets/llm/`），支持 `{{变量}}` 插值（未知变量置空并记日志）；③ 操作对象=区块不是条目：LLM 写工具是高层 `set_block`（只给 `{id,title,mode,content}`，后端按 mode 拆分 content 生成条目、新 id、`enabled:true`、译文即时查词库、过 sanitize+LIMITS 落草稿、原禁用条目保留），`suggest` 工具 `{blockId,content}` 对不可改块只出文本建议不落盘。入口=AI 卡片（工作区下面那一列，非块级按钮），配置入口=顶栏「设置…」的 AI 一节，`llm.enabled=false` 时卡片整个不挂载。权限：`BlockMeta.ai` 缺省 false（不升 version），读=全部块可见，LLM 写工具改/删只限 `ai===true` 且 id 在本次 `blockIds` 内，HTTP 的 PUT/DELETE `/llm/blocks/:id` 只限 `ai===true`，建= `allowCreate`（默认开）。用量按次：一次 `/llm/generate` 提交=1 次 `llmCalls`（跨天清零），内部多轮 tool call 不另计；`maxToolRounds=12`+总超时兜底，工具写即时落盘、中途失败不回滚；`llm.enabled=false` 时 `/llm/*` 一律 403 `LLM_DISABLED` | 与翻译模块同构：协议层平行新增、设置/用量并表（翻译 `calls` 与 LLM `llmCalls` 分开记账）、存储写 `ctx.space`。选高层 `set-block` 而非逐条目 API：LLM 需要的是"把这个块改成这段内容"，逐条删/增会让 agent 反复读回并放大 tool-call 轮数，且后端拆分规则必须与前端 `splitByMode` 逐字一致（`server/split.ts` 移植自 `client/src/split.ts`）。见 §14.9 |
+| D28 | LLM 多轮对话 | **对话是卡片不是弹层；历史只回放纯文本**：会话存 `llm-chats.json`（`ctx.space`，`LIMITS.chats=50`/`llmTurns=100`），接口 `GET/POST /llm/chats`、`GET/DELETE /llm/chats/:id`、`POST /llm/chats/:id/messages`；生成内核抽成 `server/llm-run.ts` 的 `createLlmRunner()`，`/llm/generate` 与对话消息共用同一份总闸/配额/可写范围/模板插值/落盘语义（一次性入口 = 没有历史的 `run()`）；历史回放最近 `LIMITS.llmHistoryTurns=12` 轮、**只回放 user+assistant 纯文本**（assistant 那句附「本轮动作」），不回放 `tool_calls`/`tool` 消息；前端 AI 卡片 `AiChatCard.vue` 是 `.pe-body` 的第三个孩子 —— 桌面上 grid 自动落到"工作区下面"那一格，手机上是「工作区 / AI / 输出」三视图之一；总闸关着时卡片**一个请求都不发** | 对话是"边聊边看块变化"的活儿：弹层盖住工作区就看不见 AI 刚写进去的东西，所以卡片化；手机上卡片与工作区平行（各自一屏）才不互相挤。历史只给纯文本是因为 `tool_calls` 与 `tool` 结果是**成对结构**，按"最近 N 轮"截断必然切坏配对、provider 直接 400。内核必须共用：两套生成路径各写一份总闸/配额，早晚漂移。见 §14.10 |
+| D29 | LLM 推理强度三档 + 大模型不做翻译 | **推理强度是单次请求的参数，不是设置**：`off` / `low` / `high` 三档住在 AI 卡片（与模板选择、`allowCreate` 同一排，不落盘，缺省 `off`），随请求体 `reasoning` 传给后端；**三档都显式发** —— 请求体里同时带 `reasoning_effort: <档位字面值>` 与 `thinking: { type: off→'disabled'、low/high→'enabled' }`，映射只写在 `server/llm-providers.ts` 一处，`isLlmReasoning()` 白名单收敛（认不出的值、没传 = `off`）。**大模型不承担翻译职责**：LLM 从不生成中文 —— `Item.translation` 一律来自词库命中（`llm-toolkit.ts` 里 `hit.zh`）或翻译接口，默认模板明写「content 只用英文，不要输出译文」；机器翻译链路（词库 + provider 现翻 + 自动译）**全部保留** | 各家网关的思考开关字段名不统一（`reasoning_effort` / `thinking.type`），两个都发才能同时喂到两类网关；`off` 也显式发（而不是省略字段）是为了让"关"在请求里可见 —— 网关不认 `off` 字面值时只改那一处映射。翻译与 LLM 是两条独立能力：译文要"准且可复核"，词库有 32 万条对照 + 人工校对层 + 信任级别，让模型现场翻既慢又不可复核。见 §14.11 |
 
 ## 3. 系统结构与职责边界
 
@@ -820,9 +822,11 @@ comfyui-web/
   `POST {baseUrl}/chat/completions` + function calling（`tools`/`tool_calls`），错误映射 `429→RATE_LIMIT`、
   `401/403→AUTH`、超时 `TIMEOUT`、其余 `PROVIDER`；与翻译 `providers.ts` 平行，不进 cordis 运行时。
 - **配置/用量**：`settings.json` 增 `llm` 段（`enabled/provider/baseUrl/model/apiKey/timeoutMs/maxCallsPerDay/
-  newBlockColor/maxToolRounds`，默认 `enabled:false`），`apiKey` 只存后端；`usage.json` 增 `llmCalls`（跨天清零），
+  newBlockColor/maxToolRounds`，默认 `enabled:false`），`apiKey` 只写不读（`GET /settings` 回的是 `apiKeySet`，
+  不是 key 本体；写时空串 = 不改动后端那份、`null` = 清除）；`usage.json` 增 `llmCalls`（跨天清零），
   一次 `/llm/generate` 提交记 1 次，内部多轮 tool call 不另计。
-- **区块与权限**：`BlockMeta` 增 `ai:boolean`（默认 false，不升 version）；读=全部块可见；
+- **区块与权限**：`BlockMeta` 增 `ai:boolean`（默认 false，不升 version），**块头那颗「AI」按钮**（`BlockHeader.vue`，
+  挨着「不使用」开关）就是它的唯一人工入口 —— 点一下把块交给 AI、再点收回，走 `structure-changed` 落盘；读=全部块可见；
   LLM 写工具改/删只限 `ai===true` 且 id 在本次 `blockIds` 内；HTTP 的 `PUT/DELETE /llm/blocks/:id` 只限 `ai===true`；
   建= `allowCreate`（默认开）。`set_block` 高层操作 `{id,title,mode,content}`：后端 `splitByMode(content,mode)`
   生成条目（新 id、`enabled:true`、译文即时查词库命中填 `dict`/`import`、未命中留空），过 `sanitize`+`LIMITS`
@@ -833,13 +837,53 @@ comfyui-web/
   `GET/PUT/DELETE /llm/blocks/:id`（name 或 id 寻址，重名 409+候选，改 mode 必须带 content）；
   `POST /llm/blocks`（批量建，mode 缺省 tag，颜色 `settings.llm.newBlockColor`，自动 `ai:true`）；
   `GET/PUT /llm/prompts` 模板管理。`llm.enabled=false` 时 `/llm/*` 一律 403 `LLM_DISABLED`。
-- **前端**：顶栏「AI…」按钮开全局 AI 表单 `AiPanel.vue`（指令输入、模板选择、多选可改块默认全选带 AI 标签的块、
-  允许新增开关默认开）；`EditorChrome.vue` 按钮插在「翻译…」之后（不影响契约测试按索引点 [2]词库/[3]区块库）；
-  设置面板 `TranslatePanel.vue` 内嵌 `LlmSettingsFields.vue` 管理 `llm` 段；`useWorkspace.persistStructure/replaceDoc`
-  映射补 `ai` 字段；`client/src/split.ts` 从 `model.ts` 拆出，与服务端 `server/split.ts` 逐字同款。
+- **前端**：**设置的唯一入口 = 顶栏「设置…」→ `SettingsPanel.vue`（一份大设置，左侧栏分节，现在只有
+  「AI」一节，节内容 = `LlmSettingsFields.vue`）**；AI 卡片头部那颗「设置」也开同一个面板；
+  `EditorChrome.vue` 的按钮插在「翻译…」之后（不影响契约测试按索引点 [2]词库/[3]区块库），
+  翻译设置仍走它自己的「翻译…」面板。
+  AI 卡片（`AiChatCard.vue`，工作区下面那一列）**只在 `llm.enabled===true` 时挂载**：
+  关掉总闸它整个消失，手机上「AI」那一屏也一起收起来（`EditorChrome` 的 `aiEnabled` 控制那颗视图按钮，
+  `App.vue` 的 watch 把停在 `'ai'` 的视图退回工作区）；
+  区块表头那颗「AI」按钮是 `BlockMeta.ai` 的人工入口（挨着「不使用」开关）；
+  `useWorkspace.persistStructure/replaceDoc` 映射补 `ai` 字段；`client/src/split.ts` 从 `model.ts` 拆出，
+  与服务端 `server/split.ts` 逐字同款。
 - **验收**：契约测试新增「LLM 路由：总闸与区块读写」段（temp space + `registerLlmRoutes` + 假 `tags`）——
   总闸 403、建块/读摘要/按 id/按名寻址/重名 409/PUT 400 与 403 分支/DELETE 清孤儿/提示词默认与替换全绿；
   设置与用量段加 `llmCalls` 跨天清零与 `llm` 段收敛断言；`pnpm verify` 全绿。
+
+### 14.10 D28 的落点（LLM 多轮对话）
+
+- **存储与接口**：`llm-chats.json`（`ctx.space`）存 `{version:1, chats:[{id,title,createdAt,updatedAt,turns}]}`，
+  一轮 = `{at,instruction,reply,action,changed,created,deleted,suggestions,toolCalls,aborted,error?}`；
+  `server/routes-llm-chats.ts`：`GET/POST /llm/chats`（列表只给轮数）、`GET/DELETE /llm/chats/:id`、
+  `POST /llm/chats/:id/messages`（首轮把标题换成指令前 24 字；`LIMITS.chats=50` / `llmTurns=100` 拦住增长）。
+- **共用内核**：`server/llm-run.ts` 的 `createLlmRunner()` 收拢总闸 / 配额 / 可写范围 / 模板插值 / 工具装配 / 落盘，
+  `/llm/generate` 与对话消息都走它 —— 一次性入口就是"没有历史的 `run()`"，两条路不会漂移；
+  失败以 `{ok:false,status,code,message}` 交回路由层转 HTTP，路由层只管转发。
+- **历史回放**：`replayHistory(turns, LIMITS.llmHistoryTurns)` 只回放 user+assistant **纯文本**
+  （assistant 那句带上「本轮动作」），不回放 `tool_calls`/`tool` 消息 —— 那类是成对结构，按条数截断会让 provider 400。
+- **前端**：`client/src/components/AiChatCard.vue` + `api-llm-chat.ts`；卡片是 `.pe-body` 的第三个孩子
+  （桌面上 grid 自动落到"工作区下面"那一格；手机上 `EditorChrome` 的切换条给出「工作区 / AI / 输出」三视图，
+  `app.css` 的 720px 那段按 `pe-view-*` 只显示一屏）；总闸状态由 App 从设置传入，关着时卡片**不发任何请求**；
+  一轮收工由 App 接 `changed` 事件统一回读草稿 + 给动过的块补翻译（删除也算，草稿被删空时同样回读）。
+- **验收**：契约测试「LLM 路由」段新增会话 CRUD + 两条消息（`globalThis.fetch` 换桩，同时断言第二轮发出去的
+  messages 带上了第一轮的话与回复、system 在最前、本次 user 在最后、用量 = 2 次 `llmCalls`、会话落盘）；
+  交互测试装载期请求数仍是 5（总闸默认关 → 卡片零请求）；浏览器实测卡片与工作区同列且在其下方、窄屏三视图正常。
+
+### 14.11 D29 的落点（推理强度三档 + 大模型不做翻译）
+
+- **参数（不是设置）**：`LlmReasoning` = `off` / `low` / `high`，由 `client/src/components/AiChatCard.vue` 的
+  「推理强度」选择框随每次请求发出（`LlmSendRequest.reasoning`，与模板 / `allowCreate` 同一排），**不落盘**；
+  `server/llm-run.ts` 用 `isLlmReasoning()` 做白名单收敛（认不出的值、没传都算 `off`）—— `settings.json` 里没有这个字段。
+- **请求体**：映射只写在 `server/llm-providers.ts` 一处 —— `reasoning_effort: <档位字面值>` 与
+  `thinking: { type: off→'disabled'、low/high→'enabled' }` **每次都显式发**（`off` 也不省略）；
+  `server/llm.ts` 的 `runLlmAgent` 把本次请求的 `reasoning` 透传给唯一那次 `openAiCompatibleChat`。
+- **不做翻译**：LLM 侧没有任何译文来源 —— `set_block` 写进 `Item.translation` 的值只来自词库命中
+  （`llm-toolkit.ts` 的 `hit.zh`，未命中留空、由前端自动译补齐），默认模板 `assets/llm/llm-prompts.json`
+  明写「content 只用英文；中文译文由词库与翻译接口负责，不要输出译文」；词库 / provider 现翻 / 自动译**全部保留**。
+- **验收**：契约测试新增「推理档位只认 off/low/high」（`isLlmReasoning`）；对话段断言桩收到的第一条（没传档位）
+  请求体是 `reasoning_effort:'off'` + `thinking.type:'disabled'`、第二条（传了 `reasoning:'high'`）是 `'high'` + `'enabled'`；
+  typecheck / build / 契约 / 交互测试全绿（插件版本 0.5.0）。
 
 其余实施细节（每条功能的落地过程、验收证据）见
 [`docs/archive/v2-implementation-notes.md`](./archive/v2-implementation-notes.md)。

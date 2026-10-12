@@ -97,12 +97,6 @@ export function useWorkspace(flash: (message: string) => void) {
     persistStructure();
   }
 
-  function clearAll(): void {
-    if (!window.confirm('清空当前工作区？（预设库里已保存的不受影响）')) return;
-    replaceDoc({ version: 1, blocks: [newBlock('区块 1')] });
-    persistDoc();
-  }
-
   // ── 草稿：编辑热路径上只有两个写事件 ─────────────────────────────────────────
   //
   // 1. 组结构变了（区块增删/排序/标题/颜色/风格）→ 只发结构，不含条目
@@ -110,7 +104,7 @@ export function useWorkspace(flash: (message: string) => void) {
   //
   // 不再"深监听整个 doc + 防抖整份发"：那样改一个字就要把全文档序列化传一遍，
   // 而且防抖窗口里切 tab / 关页面会把最后一次改动丢掉（现在失焦即写，没有待发队列）。
-  // 载入预设 / 清空是整份替换，不在热路径上，单独走 persistDoc()。
+  // 载入预设是整份替换，不在热路径上，单独走 persistDoc()。
 
   function mark(state: 'saved' | 'error'): void {
     draftState.value = state;
@@ -179,7 +173,6 @@ export function useWorkspace(flash: (message: string) => void) {
     addBlock,
     insertBlockPreset,
     removeBlock,
-    clearAll,
     persistStructure,
     persistItems,
     persistDoc,
