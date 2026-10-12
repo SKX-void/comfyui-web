@@ -2,23 +2,40 @@
 /**
  * 设置面板（D27）：顶栏「设置…」进来的**一份大设置**，左侧栏分节，右边是当前节的字段。
  *
- * 为什么带左侧栏：翻译、LLM、将来的别的段都往这里放，一个入口一份设置；
- * 现在只有「AI」一节 —— 翻译设置仍走顶栏那颗「翻译…」（它有自己的面板与用量回执）。
+ * 为什么带左侧栏：翻译、LLM、提示词、将来的别的段都往这里放，一个入口一份设置；
+ * 左侧栏是**一棵小树**：`AI`（总闸/凭据/护栏）是父节点，「提示词」（预设 = 有序分段，D30）挂在它下面 ——
+ * 提示词是 AI 的附属；翻译设置仍走顶栏那颗「翻译…」（它有自己的面板与用量回执）。
  *
- * z-index 30：AI 卡片（20）里那颗「LLM 设置」也开这个面板，得盖在卡片上。
+ * z-index 30：AI 卡片（20）里那颗「设置」也开这个面板，得盖在卡片上。
  */
+import { ChevronDown, ChevronRight, X } from '@lucide/vue';
 import { ref } from 'vue';
 
+import LlmPromptsFields from './LlmPromptsFields.vue';
 import LlmSettingsFields from './LlmSettingsFields.vue';
 
 defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>();
 
-/** 左侧栏的分节表：加一节就在这里加一行（右侧用 v-if 认 id） */
-const sections = [{ id: 'ai', label: 'AI' }] as const;
-type SectionId = (typeof sections)[number]['id'];
+type SectionId = 'model' | 'prompts';
 
-const section = ref<SectionId>('ai');
+/**
+ * 左侧栏是一棵小树：`AI` 是**纯分组节点**（点它只展开/收起，自己不承载内容），叶子才对应右边的内容 ——
+ * 分组行能点开自己那一页的话，树就没意义了。
+ */
+const sections: { id: string; label: string; children: { id: SectionId; label: string }[] }[] = [
+  {
+    id: 'ai',
+    label: 'AI',
+    children: [
+      { id: 'model', label: '模型与限额' },
+      { id: 'prompts', label: '提示词' },
+    ],
+  },
+];
+
+const section = ref<SectionId>('model');
+const expanded = ref(true);
 </script>
 
 <template>
@@ -26,24 +43,34 @@ const section = ref<SectionId>('ai');
     <div class="pe-panel">
       <header class="pe-panel-head">
         <strong>设置</strong>
-        <button class="pe-close" title="关闭" @click="emit('close')">×</button>
+        <button class="pe-close" title="关闭" @click="emit('close')"><X :size="16" /></button>
       </header>
 
       <div class="pe-settings">
         <nav class="pe-settings-nav">
-          <button
-            v-for="item in sections"
-            :key="item.id"
-            class="pe-settings-tab"
-            :class="{ on: section === item.id }"
-            @click="section = item.id"
-          >
-            {{ item.label }}
-          </button>
+          <template v-for="node in sections" :key="node.id">
+            <button class="pe-nav-group" :aria-expanded="expanded" @click="expanded = !expanded">
+              <span>{{ node.label }}</span>
+              <ChevronDown v-if="expanded" :size="14" />
+              <ChevronRight v-else :size="14" />
+            </button>
+            <template v-if="expanded">
+              <button
+                v-for="child in node.children"
+                :key="child.id"
+                class="pe-settings-tab pe-nav-child"
+                :class="{ on: section === child.id }"
+                @click="section = child.id"
+              >
+                {{ child.label }}
+              </button>
+            </template>
+          </template>
         </nav>
 
         <div class="pe-settings-body">
-          <LlmSettingsFields v-if="section === 'ai'" @saved="emit('saved')" />
+          <LlmSettingsFields v-if="section === 'model'" @saved="emit('saved')" />
+          <LlmPromptsFields v-else-if="section === 'prompts'" @saved="emit('saved')" />
         </div>
       </div>
 
@@ -84,10 +111,11 @@ const section = ref<SectionId>('ai');
 }
 
 .pe-close {
+  display: inline-flex;
+  align-items: center;
   border: none;
   background: transparent;
   color: var(--muted, #9aa3b2);
-  font-size: 16px;
   cursor: pointer;
 }
 
@@ -128,6 +156,35 @@ const section = ref<SectionId>('ai');
 
 .pe-settings-tab:hover {
   color: var(--accent, #6ea8fe);
+}
+
+/* 分组行：不是叶子，点它只展开/收起 —— 所以它没有「选中」态 */
+.pe-nav-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted, #9aa3b2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.pe-nav-group:hover {
+  color: var(--accent, #6ea8fe);
+}
+
+/* 树里的子节点：缩进一级 */
+.pe-nav-child {
+  padding-left: 20px;
+  font-size: 11px;
 }
 
 /* 只有这一栏滚：面板头与底部「关闭」始终在视口里 */
@@ -192,9 +249,18 @@ const section = ref<SectionId>('ai');
     padding: 6px 12px;
   }
 
-  .pe-close {
-    font-size: 24px;
-    padding: 4px 10px;
+  .pe-nav-child {
+    padding-left: 10px;
+  }
+
+  /* 横排时分组行不该占满整行 */
+  .pe-nav-group {
+    width: auto;
+  }
+
+  .pe-close svg {
+    width: 22px;
+    height: 22px;
   }
 }
 </style>

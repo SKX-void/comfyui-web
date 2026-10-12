@@ -68,7 +68,7 @@ function saveBlockToLibrary(block: Block): void {
 
 const presetOpen = ref(false);
 const translateOpen = ref(false);
-/** 设置面板（左侧栏分节，现在只有 AI 一节）：顶栏「设置…」与卡片头部「LLM 设置」都开它 */
+/** 设置面板（左侧栏小树：AI 分组下面是「模型与限额」「提示词」）：顶栏「设置…」与卡片头部「设置」都开它 */
 const settingsOpen = ref(false);
 /** 设置保存后 +1：AI 卡片重拉模板（总闸可能刚打开） */
 const llmVersion = ref(0);
@@ -250,7 +250,7 @@ function applySettings(next: Settings): void {
   settings.value = next;
 }
 
-/** 打开设置面板（顶栏「设置…」/ 卡片头部「LLM 设置」都走这里） */
+/** 打开设置面板（顶栏「设置…」/ 卡片头部「设置」都走这里） */
 function openSettings(): void {
   settingsOpen.value = true;
 }

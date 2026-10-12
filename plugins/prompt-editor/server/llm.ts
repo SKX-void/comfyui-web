@@ -27,6 +27,8 @@ export interface LlmAgentOptions {
   toolkit: LlmToolKit;
   /** 多轮对话的历史（纯文本 user/assistant 对），插在 system 与本次 user 之间 */
   history?: LlmMessage[];
+  /** 预设里 role=user / assistant 的分段（D30）：按顺序排在 history 与本次指令之间 */
+  extras?: LlmMessage[];
   fetchImpl?: Parameters<typeof openAiCompatibleChat>[1];
 }
 
@@ -82,8 +84,10 @@ export const LLM_TOOLS: LlmToolSpec[] = [
  */
 export async function runLlmAgent(options: LlmAgentOptions): Promise<LlmAgentOutcome> {
   const messages: LlmMessage[] = [
-    { role: 'system', content: options.system },
+    // 预设里可能一段 system 都没启用：空 system 有的 provider 会 400，索性不发这条
+    ...(options.system === '' ? [] : [{ role: 'system', content: options.system } as LlmMessage]),
     ...(options.history ?? []),
+    ...(options.extras ?? []),
     { role: 'user', content: options.user },
   ];
   // 总超时兜底：每次调用本身有 timeoutMs，这里再包一层"轮数 × 单次超时"的墙

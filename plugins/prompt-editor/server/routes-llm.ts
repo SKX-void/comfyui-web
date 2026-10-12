@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { DRAFT_FILE, LIMITS, LLM_PROMPTS_FILE } from './constants.js';
 import { rawFromStored, storedFromRaw, text, type BlockMeta, type Stored } from './doc.js';
 import { createLlmRunner, joinBlockContent } from './llm-run.js';
-import { loadLlmPrompts, sanitizeLlmPrompt } from './llm-prompts.js';
+import { LLM_PROMPTS_VERSION, loadLlmPrompts, sanitizeLlmPrompt } from './llm-prompts.js';
 import { buildItems } from './llm-toolkit.js';
 import { readJson, writeJson } from './store.js';
 import type { TagLookup } from './tags.js';
@@ -188,12 +188,14 @@ export function registerLlmRoutes({ routes, space, badRequest, log, tags }: LlmR
     if (!runner.enabled()) return disabled(reply);
     const body = asRecord(request.body);
     const rawList = body !== null && Array.isArray(body.prompts) ? body.prompts : null;
-    if (rawList === null) return badRequest(reply, '请求体必须是 { prompts: [{ id?, name, template }] }');
+    if (rawList === null) {
+      return badRequest(reply, '请求体必须是 { prompts: [{ id?, name, segments: [{ name, role?, content, enabled? }] }] }');
+    }
     const prompts = rawList
       .map((one, index) => sanitizeLlmPrompt(one, `prompt-${index + 1}`))
       .filter((prompt) => prompt !== null);
     for (const prompt of prompts) prompt.updatedAt = Date.now();
-    writeJson(space.resolve(LLM_PROMPTS_FILE), { version: 1, prompts });
+    writeJson(space.resolve(LLM_PROMPTS_FILE), { version: LLM_PROMPTS_VERSION, prompts });
     return { prompts };
   });
 }

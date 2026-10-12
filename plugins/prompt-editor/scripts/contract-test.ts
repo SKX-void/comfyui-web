@@ -2110,10 +2110,77 @@ console.log('LLM 路由：总闸与区块读写');
       errorCode((await call('PUT /llm/blocks/:id', { params: { id: 'human-1' }, body: { content: 'a' } })).body) === 'NOT_AI_BLOCK',
   );
 
-  const prompts = (await call('GET /llm/prompts')).body as { prompts?: unknown[] };
-  check('默认模板随首次读取写盘（bundled 那份）', (prompts.prompts ?? []).length >= 1 && fs.existsSync(path.join(spaceDir, 'llm-prompts.json')));
-  const putPrompts = (await call('PUT /llm/prompts', { body: { prompts: [{ name: '我的模板', template: '把 {{instruction}} 写进 {{workspace}}' }] } })).body as { prompts?: { id: string; name: string }[] };
-  check('PUT /llm/prompts 全量替换并落盘', putPrompts.prompts?.length === 1 && putPrompts.prompts[0]?.name === '我的模板');
+  const prompts = (await call('GET /llm/prompts')).body as { prompts?: { segments?: unknown[] }[] };
+  check(
+    '默认模板随首次读取写盘（bundled 那份，分段）',
+    (prompts.prompts ?? []).length >= 1 &&
+      (prompts.prompts?.[0]?.segments ?? []).length >= 2 &&
+      fs.existsSync(path.join(spaceDir, 'llm-prompts.json')),
+  );
+  const putPrompts = (
+    await call('PUT /llm/prompts', {
+      body: {
+        prompts: [
+          {
+            name: '我的模板',
+            segments: [
+              { name: '角色', role: 'system', content: '你是助手' },
+              { name: '示例', role: 'user', content: '把 {{instruction}} 写进 {{workspace}}' },
+              { name: '空的', role: 'system', content: '   ' },
+            ],
+          },
+        ],
+      },
+    })
+  ).body as { prompts?: { id: string; name: string; segments: { id: string; name: string; role: string }[] }[] };
+  check(
+    'PUT /llm/prompts 全量替换并落盘（分段；空段被丢掉）',
+    putPrompts.prompts?.length === 1 &&
+      putPrompts.prompts[0]?.name === '我的模板' &&
+      putPrompts.prompts[0]?.segments.length === 2 &&
+      putPrompts.prompts[0]?.segments[1]?.role === 'user',
+  );
+  const reread = (await call('GET /llm/prompts')).body as { prompts?: { segments: unknown[] }[] };
+  check(
+    '读回来还是分段，落盘是 version 2',
+    reread.prompts?.[0]?.segments.length === 2 &&
+      (JSON.parse(fs.readFileSync(path.join(spaceDir, 'llm-prompts.json'), 'utf8')) as { version: number }).version === 2,
+  );
+
+  // 分段模型本身（D30）：旧格式迁移、拼接顺序、启用开关、角色分流
+  const legacy = server.sanitizeLlmPrompt({ id: 'p', name: '旧', template: '老的整串' }, 'x');
+  check(
+    '旧格式（一份大字符串）读成单段 system',
+    legacy?.segments.length === 1 && legacy.segments[0]?.role === 'system' && legacy.segments[0]?.content === '老的整串',
+  );
+  const composed = server.composePrompt(
+    {
+      id: 'p',
+      name: 'n',
+      updatedAt: 0,
+      segments: [
+        { id: 'a', name: 'A', content: '甲', enabled: true, role: 'system' },
+        { id: 'b', name: 'B', content: '乙', enabled: false, role: 'system' },
+        { id: 'c', name: 'C', content: '丙 {{instruction}}', enabled: true, role: 'user' },
+        { id: 'd', name: 'D', content: '丁 {{nope}}', enabled: true, role: 'assistant' },
+      ],
+    },
+    { instruction: '做点什么' },
+    () => {},
+  );
+  check('分段拼接：只拼启用的 system 段', composed.system === '甲');
+  check(
+    '分段拼接：user / assistant 段各成一条消息并插值（未知变量置空）',
+    composed.extras.length === 2 &&
+      composed.extras[0]?.role === 'user' &&
+      composed.extras[0]?.content === '丙 做点什么' &&
+      composed.extras[1]?.role === 'assistant' &&
+      composed.extras[1]?.content === '丁',
+  );
+  check(
+    '分段：角色白名单（认不出当 system）',
+    server.sanitizeLlmPrompt({ segments: [{ content: 'x', role: 'nope' }] }, 'p')?.segments[0]?.role === 'system',
+  );
 
   // 多轮对话（D28）：会话 CRUD + 真的跑一遍 agent loop（把 fetch 换成桩，不碰网络）。
   // 桩同时把请求体记下来 —— "第二轮带上了第一轮的话"这件事只能从发出去的 messages 看。

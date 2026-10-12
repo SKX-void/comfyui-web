@@ -9,7 +9,7 @@ import { DRAFT_FILE, LIMITS, SETTINGS_FILE, USAGE_FILE } from './constants.js';
 import { rawFromStored, storedFromRaw, text, type BlockMeta, type Stored } from './doc.js';
 import { runLlmAgent } from './llm.js';
 import type { LlmMessage } from './llm-providers.js';
-import { interpolatePrompt, loadLlmPrompts } from './llm-prompts.js';
+import { composePrompt, loadLlmPrompts } from './llm-prompts.js';
 import { buildItems, describeWorkspace, makeToolkit, type LlmStats } from './llm-toolkit.js';
 import { isLlmReasoning, sanitizeSettings, sanitizeUsage, type Settings } from './settings.js';
 import { readJson, writeJson } from './store.js';
@@ -116,12 +116,20 @@ export function createLlmRunner(deps: {
       buildItems: (content, mode) => buildItems(content, mode, tags),
     });
 
-    const system = interpolatePrompt(
-      prompt.template,
+    const composition = composePrompt(
+      prompt,
       { workspace: describeWorkspace(stored, writableIds, joinBlockContent), instruction },
       log,
     );
-    const outcome = await runLlmAgent({ llm: settings.llm, reasoning, system, user: instruction, toolkit, history });
+    const outcome = await runLlmAgent({
+      llm: settings.llm,
+      reasoning,
+      system: composition.system,
+      extras: composition.extras,
+      user: instruction,
+      toolkit,
+      history,
+    });
 
     return {
       ok: true,

@@ -205,8 +205,8 @@ function togglePick(): void {
     </header>
 
     <p v-if="disabled" class="pe-note">
-      LLM 功能未启用：在「LLM 设置」里勾上「启用 LLM 辅助」，并填 baseUrl / 模型 / apiKey。设置存在插件自己的空间里，key
-      只落后端。
+      LLM 功能未启用：点上面的「设置」→ 左侧栏 `AI` → 「模型与限额」，勾上「启用 LLM 辅助」，并填 baseUrl / 模型 /
+      apiKey。设置存在插件自己的空间里，key 只落后端。
     </p>
 
     <template v-else>

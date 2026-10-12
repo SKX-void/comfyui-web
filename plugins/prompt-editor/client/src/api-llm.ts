@@ -22,10 +22,21 @@ export interface LlmBlockDetail {
   content: string;
 }
 
+export type LlmPromptRole = 'system' | 'user' | 'assistant';
+
+/** 一段（D30）：能单独开关 / 排序 / 选角色，生成时按顺序拼起来 */
+export interface LlmPromptSegment {
+  id: string;
+  name: string;
+  content: string;
+  enabled: boolean;
+  role: LlmPromptRole;
+}
+
 export interface LlmPrompt {
   id: string;
   name: string;
-  template: string;
+  segments: LlmPromptSegment[];
   updatedAt: number;
 }
 
@@ -86,7 +97,9 @@ export async function fetchLlmPrompts(): Promise<LlmPrompt[]> {
   return (await request<{ prompts: LlmPrompt[] }>('/llm/prompts')).prompts;
 }
 
-export async function saveLlmPrompts(prompts: { id?: string; name: string; template: string }[]): Promise<LlmPrompt[]> {
+export async function saveLlmPrompts(
+  prompts: { id?: string; name: string; segments: LlmPromptSegment[] }[],
+): Promise<LlmPrompt[]> {
   return (
     await request<{ prompts: LlmPrompt[] }>('/llm/prompts', {
       method: 'PUT',

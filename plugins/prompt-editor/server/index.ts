@@ -25,7 +25,15 @@ export { maskPromptSyntax, tagKey } from './prompt.js';
 export { PROVIDERS } from './providers.js';
 export { isLlmReasoning, llmSettingsView, mergeApiKey, sanitizeSettings, sanitizeUsage } from './settings.js';
 export { splitByMode, splitSentences, splitTags } from './split.js';
-export { interpolatePrompt, loadLlmPrompts, sanitizeLlmPrompt } from './llm-prompts.js';
+export {
+  composePrompt,
+  interpolatePrompt,
+  isLlmPromptRole,
+  LLM_PROMPTS_VERSION,
+  loadLlmPrompts,
+  sanitizeLlmPrompt,
+  sanitizePromptSegment,
+} from './llm-prompts.js';
 export { LlmError, openAiCompatibleChat } from './llm-providers.js';
 export { LLM_TOOLS, runLlmAgent } from './llm.js';
 export { buildItems, describeWorkspace, makeToolkit } from './llm-toolkit.js';
