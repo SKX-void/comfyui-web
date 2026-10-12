@@ -1,0 +1,7 @@
+{
+  "core": "fbb3a0dcf9f610728034840f62fba2891eb6c2aa",
+  "plugins/anima-example": "fbb3a0dcf9f610728034840f62fba2891eb6c2aa",
+  "plugins/anima-plus": "fbb3a0dcf9f610728034840f62fba2891eb6c2aa",
+  "plugins/image-reverse-inference": "fbb3a0dcf9f610728034840f62fba2891eb6c2aa",
+  "plugins/prompt-editor": "fbb3a0dcf9f610728034840f62fba2891eb6c2aa"
+}

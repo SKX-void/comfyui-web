@@ -28,6 +28,12 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../', import.meta.url));
 
+/** 构建指纹：git 提交 sha。构建字节可复现（D17），同一提交多次构建值不变 */
+function gitHead() {
+  const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : 'unknown';
+}
+
 /** tab 目录：目录名即 id（与插件目录同名），与宿主 tabs.ts 的约定一致 */
 export function tabOutDir(pluginDir) {
   return path.join(repoRoot, 'tabs', path.basename(pluginDir));
@@ -51,13 +57,14 @@ function copyInto(src, dest) {
 }
 
 /** 从源码 manifest 派生 tab 的 manifest：只留宿主会读的字段 */
-function writeTabManifest(pkg, outDir) {
+function writeTabManifest(pkg, outDir, builtFrom) {
   const plugin = { ...(pkg.plugin ?? {}) };
   // 入口名固定为 tab 根下的 server.js / client.js（见文件头）
   plugin.client = 'client.js';
   const manifest = {
     name: pkg.name,
     version: pkg.version,
+    builtFrom,
     private: true,
     type: 'module',
     ...(typeof pkg.description === 'string' ? { description: pkg.description } : {}),
@@ -85,7 +92,7 @@ export async function packTab({ pluginDir, extras = [], build = [], watch = fals
   fs.mkdirSync(outDir, { recursive: true });
 
   for (const extra of extras) copyInto(path.join(pluginDir, extra), path.join(outDir, extra));
-  writeTabManifest(pkg, outDir);
+  writeTabManifest(pkg, outDir, gitHead());
 
   const env = { ...process.env, TAB_OUT_DIR: outDir };
   const opts = { cwd: pluginDir, env, stdio: 'inherit' };

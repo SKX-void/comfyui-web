@@ -35,6 +35,15 @@ const STEPS = [
     failLimit: 12,
   },
   {
+    // 改了代码没升 version 就失败（核心 / 每个插件各一条版本线）
+    id: 'versions',
+    cmd: 'node',
+    args: ['scripts/check-versions.mjs'],
+    env: {},
+    failRe: /✘/,
+    failLimit: 12,
+  },
+  {
     // 纯 Node 跑，不需要浏览器：用宿主 dev 态那份 Vue 复现"插件页面崩了带走整个外壳"
     id: 'isolation',
     cmd: 'node',

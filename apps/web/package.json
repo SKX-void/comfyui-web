@@ -1,6 +1,6 @@
 {
   "name": "@comfyui-web/web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "前端外壳：Vue 壳 + tab 栏 + 设置页 + import map（业务页面是插件）",
   "type": "module",

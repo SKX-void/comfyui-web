@@ -1,6 +1,6 @@
 {
   "name": "@comfyui-web/server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "v2 宿主后端：cordis 微内核 + 挂载点句柄，零业务插件",
   "type": "module",

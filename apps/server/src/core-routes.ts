@@ -1,3 +1,4 @@
+import { BUILT_FROM, VERSION } from './build-info.js';
 import { describeRow, listRows } from './core-rows.js';
 import type { CoreHost } from './core-host.js';
 import { readHostSettings, settingsView, writeHostSettings } from './host-settings.js';
@@ -17,6 +18,8 @@ export function registerCoreRoutes(host: CoreHost): void {
   // ---- 宿主信息 ----------------------------------------------------------
 
   app.get('/api/host', async () => ({
+    version: VERSION,
+    builtFrom: BUILT_FROM,
     dataDir: config.dataDir,
     tabsDir: config.tabsDir,
     contract: SUPPORTED_CONTRACT,

@@ -11,11 +11,20 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const appDir = fileURLToPath(new URL('..', import.meta.url));
+const repoRoot = path.resolve(appDir, '../..');
 const outDir = path.resolve(appDir, '../../dist/app');
+const pkg = JSON.parse(fs.readFileSync(path.join(appDir, 'package.json'), 'utf8'));
+
+/** 构建指纹：git 提交 sha。dev（tsx）不经过这里，build-info.ts 会回落 'dev' */
+function gitHead() {
+  const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : 'unknown';
+}
 
 fs.mkdirSync(outDir, { recursive: true });
 // 旧布局 dist/host/ 整个退役：留着会让人以为还能 `node dist/host/host.mjs`
@@ -34,8 +43,12 @@ const result = await build({
   target: 'node22',
   format: 'esm',
   sourcemap: false,
-  // 产物态：config.ts 用产物上级目录（dist/）当"仓库根"
-  define: { __BUNDLED__: 'true' },
+  // 产物态：config.ts 用产物上级目录（dist/）当"仓库根"；版本与提交指纹在 build-info.ts 里被替换
+  define: {
+    __BUNDLED__: 'true',
+    'process.env.COMFYUI_WEB_VERSION': JSON.stringify(pkg.version),
+    'process.env.COMFYUI_WEB_BUILT_FROM': JSON.stringify(gitHead()),
+  },
   // 动态 require / 可选依赖不要拖进来
   external: ['pino-pretty'],
   banner: {

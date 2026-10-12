@@ -13,6 +13,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -20,6 +21,12 @@ const srcTabs = path.join(root, 'tabs');
 const distDir = path.join(root, 'dist');
 const distTabs = path.join(distDir, 'tabs');
 const distData = path.join(distDir, 'data');
+
+/** 构建指纹：git 提交 sha（与 pack-tab.mjs 写进 tab manifest 的是同一个值） */
+function gitHead() {
+  const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : 'unknown';
+}
 
 if (!fs.existsSync(path.join(distDir, 'app', 'server.mjs'))) {
   console.error('[pack:dist] 找不到 dist/app/server.mjs：先跑 pnpm build:host');
@@ -54,6 +61,22 @@ for (const id of ids) {
 // data/ 只保证存在，**绝不清理**：那里面是运行期状态（host.json + 插件空间）
 fs.mkdirSync(distData, { recursive: true });
 
+// 交付物自描述清单：一份 dist 包里"核心是哪个版本、每个 tab 是哪个版本"看这一个文件就知道，
+// 不用再猜"这次更新到底动了谁"。core 版本以 apps/server 为准（apps/web、packages/shared 跟随）。
+const corePkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/server/package.json'), 'utf8'));
+const tabs = {};
+for (const id of ids) {
+  const tabManifestPath = path.join(distTabs, id, 'package.json');
+  const tabPkg = fs.existsSync(tabManifestPath) ? JSON.parse(fs.readFileSync(tabManifestPath, 'utf8')) : {};
+  tabs[id] = { version: tabPkg.version ?? 'unknown', builtFrom: tabPkg.builtFrom ?? 'unknown' };
+}
+const manifest = {
+  core: { version: corePkg.version, builtFrom: gitHead() },
+  builtAt: new Date().toISOString(),
+  tabs,
+};
+fs.writeFileSync(path.join(distDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+
 console.log(
-  `[pack:dist] dist/tabs/ ← tabs/（${ids.length} 个插件：${ids.join(' ')}；${files} 个文件 ${(bytes / 1024).toFixed(0)} kB），dist/data/ 已就绪`,
+  `[pack:dist] dist/tabs/ ← tabs/（${ids.length} 个插件：${ids.join(' ')}；${files} 个文件 ${(bytes / 1024).toFixed(0)} kB），dist/data/ 已就绪，dist/manifest.json 已生成`,
 );
