@@ -22,6 +22,8 @@ export const TAGS_FILE = 'tags.json';
 export const LEGACY_DICT_FILE = 'dict.json';
 export const SETTINGS_FILE = 'settings.json';
 export const USAGE_FILE = 'usage.json';
+/** LLM 初始提示词库（用户可编辑）；默认值在产物 assets/llm/，见 `llm-prompts.ts` */
+export const LLM_PROMPTS_FILE = 'llm-prompts.json';
 
 /** 上限：自用工具也要防「一个坏请求 / 手改坏的文件」把 UI 撑爆 */
 export const LIMITS = {

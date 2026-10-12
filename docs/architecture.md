@@ -73,6 +73,7 @@
 | D24 | 跨插件调用 | **特别允许一条单向依赖**：prompt-editor 的输出可以直接变成 anima-plus 的一次出图 —— 全程走 HTTP 路由（`GET /api/plugins` 看对方装没装 / 启没启、`GET`+`PUT /api/p/anima-plus/api/state`、`POST /api/p/anima-plus/api/jobs`），**不 import 对方代码、不读对方库文件**；参数基底一律取自对方「最后一次状态」，没有就**禁用按钮并把原因说出来**（不猜模板默认值） | "写好的提示词直接发去出图"是这两个插件真实的工作流，隔一层复制粘贴才是假隔离；但隔离规则（§8）不能破，所以对方那几条提交语义（`randomSeed` 开着先抽种子、先写快照再建作业）在适配器里复刻并注明来源。代价：两处逻辑要一起改（对方改了这边不知道），且 prompt-editor 从此知道 anima-plus 存在 —— 方向单向、下游只有一个适配器时这个代价可接受。见 §8、§14.6 |
 | D25 | 首页说明的形状 | **欢迎页文案是外壳的静态资产**：`apps/web/public/home.md`（构建进 `dist/app/web/home.md`），home 路由自己 `fetch` + marked 渲染；**后端不加路由、不参与**；取用带 `no-store`，改产物里那份 md、刷新浏览器即生效 | 一段文案与 `index.html` / `brush.svg` 同类，交给宿主已有的静态托管即可 —— 为它加一条 core 端点等于把"改文案"绑到后端上。宿主用 `@fastify/static`（默认 `wildcard`）按请求现读磁盘，所以 docker 的只读 `/app` 也能"改宿主机文件 → 刷新即生效"；**别用 `wildcard:false`**（启动时按文件登记路由，重新 build:web 换 hash 后会拿 `text/html` 冒充 CSS，见 §5.3、§14.7） |
 | D26 | 标签页常驻（切走不卸载） | **可选、逐插件、默认关**：真源是 `data/host.json` 偏好段的 `keepAlive: string[]`（设置页「切走不卸载」勾选 → `PUT /api/ui`），外壳把它翻成 `<KeepAlive :include>` 的名单；组件名由 `apps/web/src/main.ts` 的 `namedPlugin()` 固定成 `plugin:<id>`（插件 SFC 多半没有 name，而 Vue 只按组件名匹配 include）。崩过的页面立刻移出名单。**插件义务**：常驻后切 tab 不再触发 `onUnmounted`，长命资源（SSE / 定时器）改由 `onActivated` / `onDeactivated` 按可见性决定去留 | 诉求是"切回来还是刚才那一页，而不是从空框重建"；但常驻的代价（内存、活着的连接）随插件差得很远，只有用户知道值不值 —— 所以做成**宿主偏好而非插件自述**（与 D21 同款分层），默认关 = 不改任何现有行为。踩过的坑：`<KeepAlive><RouterView /></KeepAlive>` 缓存的是 RouterView 自己（名字恒为 `RouterView`，include 永不匹配，一个都缓存不住），必须写成 `v-slot="{ Component }"` + `<component :is="Component" />`（实测：改前切回来 DOM 照样重建）。见 §7.2、§14.8 |
+| D27 | LLM 提示词辅助模块 | **协议/存储/权限三条线**：① 协议层新建 `server/llm-providers.ts`（与翻译 `providers.ts` 平行），只做 OpenAI-compatible 非流式 chat + function calling，`baseUrl`+`apiKey`+`model` 可配、`apiKey` 只存后端 `settings.json`；② 初始提示词多份存 `llm-prompts.json`（`ctx.space`，用户可编辑，默认值在 `assets/llm/`），支持 `{{变量}}` 插值（未知变量置空并记日志）；③ 操作对象=区块不是条目：LLM 写工具是高层 `set_block`（只给 `{id,title,mode,content}`，后端按 mode 拆分 content 生成条目、新 id、`enabled:true`、译文即时查词库、过 sanitize+LIMITS 落草稿、原禁用条目保留），`suggest` 工具 `{blockId,content}` 对不可改块只出文本建议不落盘。入口=全局 AI 表单（顶栏按钮），非块级按钮。权限：`BlockMeta.ai` 缺省 false（不升 version），读=全部块可见，LLM 写工具改/删只限 `ai===true` 且 id 在本次 `blockIds` 内，HTTP 的 PUT/DELETE `/llm/blocks/:id` 只限 `ai===true`，建= `allowCreate`（默认开）。用量按次：一次 `/llm/generate` 提交=1 次 `llmCalls`（跨天清零），内部多轮 tool call 不另计；`maxToolRounds=12`+总超时兜底，工具写即时落盘、中途失败不回滚；`llm.enabled=false` 时 `/llm/*` 一律 403 `LLM_DISABLED` | 与翻译模块同构：协议层平行新增、设置/用量并表（翻译 `calls` 与 LLM `llmCalls` 分开记账）、存储写 `ctx.space`。选高层 `set-block` 而非逐条目 API：LLM 需要的是"把这个块改成这段内容"，逐条删/增会让 agent 反复读回并放大 tool-call 轮数，且后端拆分规则必须与前端 `splitByMode` 逐字一致（`server/split.ts` 移植自 `client/src/split.ts`）。见 §14.9 |
 
 ## 3. 系统结构与职责边界
 
@@ -812,6 +813,33 @@ comfyui-web/
   给插件根元素打标记后：默认态切回来标记消失（重建）、勾选后标记还在（实例留住）、取消勾选后又消失（名单收缩剪了缓存）；
   输入框里打的字在常驻态留着；SSE 在"切走且队列为空"时被中止、切回来重开一条；全程无未捕获异常。
   `pnpm verify` 6 步全绿。
+
+### 14.9 D27 的落点（LLM 提示词辅助模块）
+
+- **协议层**：`server/llm-providers.ts` 的 `openAiCompatibleChat()` —— OpenAI-compatible 非流式
+  `POST {baseUrl}/chat/completions` + function calling（`tools`/`tool_calls`），错误映射 `429→RATE_LIMIT`、
+  `401/403→AUTH`、超时 `TIMEOUT`、其余 `PROVIDER`；与翻译 `providers.ts` 平行，不进 cordis 运行时。
+- **配置/用量**：`settings.json` 增 `llm` 段（`enabled/provider/baseUrl/model/apiKey/timeoutMs/maxCallsPerDay/
+  newBlockColor/maxToolRounds`，默认 `enabled:false`），`apiKey` 只存后端；`usage.json` 增 `llmCalls`（跨天清零），
+  一次 `/llm/generate` 提交记 1 次，内部多轮 tool call 不另计。
+- **区块与权限**：`BlockMeta` 增 `ai:boolean`（默认 false，不升 version）；读=全部块可见；
+  LLM 写工具改/删只限 `ai===true` 且 id 在本次 `blockIds` 内；HTTP 的 `PUT/DELETE /llm/blocks/:id` 只限 `ai===true`；
+  建= `allowCreate`（默认开）。`set_block` 高层操作 `{id,title,mode,content}`：后端 `splitByMode(content,mode)`
+  生成条目（新 id、`enabled:true`、译文即时查词库命中填 `dict`/`import`、未命中留空），过 `sanitize`+`LIMITS`
+  落草稿、原禁用条目保留；`suggest` 工具 `{blockId,content}` 无写门禁、不落盘，随 `/llm/generate` 返回
+  `suggestions`，前端展示+[应用]（应用走人类路径 `PUT /draft/blocks/:id/items`）。
+- **编排与接口**：`server/llm.ts` `runLlmAgent()` —— agent loop 用 function calling，`maxToolRounds=12`+总超时兜底，
+  工具写即时落盘、中途失败不回滚。接口全集：`POST /llm/generate`；`GET /llm/blocks`（摘要不带条目）；
+  `GET/PUT/DELETE /llm/blocks/:id`（name 或 id 寻址，重名 409+候选，改 mode 必须带 content）；
+  `POST /llm/blocks`（批量建，mode 缺省 tag，颜色 `settings.llm.newBlockColor`，自动 `ai:true`）；
+  `GET/PUT /llm/prompts` 模板管理。`llm.enabled=false` 时 `/llm/*` 一律 403 `LLM_DISABLED`。
+- **前端**：顶栏「AI…」按钮开全局 AI 表单 `AiPanel.vue`（指令输入、模板选择、多选可改块默认全选带 AI 标签的块、
+  允许新增开关默认开）；`EditorChrome.vue` 按钮插在「翻译…」之后（不影响契约测试按索引点 [2]词库/[3]区块库）；
+  设置面板 `TranslatePanel.vue` 内嵌 `LlmSettingsFields.vue` 管理 `llm` 段；`useWorkspace.persistStructure/replaceDoc`
+  映射补 `ai` 字段；`client/src/split.ts` 从 `model.ts` 拆出，与服务端 `server/split.ts` 逐字同款。
+- **验收**：契约测试新增「LLM 路由：总闸与区块读写」段（temp space + `registerLlmRoutes` + 假 `tags`）——
+  总闸 403、建块/读摘要/按 id/按名寻址/重名 409/PUT 400 与 403 分支/DELETE 清孤儿/提示词默认与替换全绿；
+  设置与用量段加 `llmCalls` 跨天清零与 `llm` 段收敛断言；`pnpm verify` 全绿。
 
 其余实施细节（每条功能的落地过程、验收证据）见
 [`docs/archive/v2-implementation-notes.md`](./archive/v2-implementation-notes.md)。

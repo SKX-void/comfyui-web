@@ -9,6 +9,7 @@ import { request } from './api-core';
 
 export * from './api-presets';
 export * from './api-block';
+export * from './api-llm';
 export { API_BASE, request } from './api-core';
 
 export async function fetchDraft(): Promise<Doc | null> {
@@ -47,9 +48,27 @@ export interface TranslateSettings {
   minIntervalMs: number;
 }
 
+/** LLM 辅助（D27）：OpenAI-compatible 的 baseUrl + 模型 + key；key 只存后端，前端只回显长度占位 */
+export interface LlmSettings {
+  enabled: boolean;
+  provider: string;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  timeoutMs: number;
+  maxCallsPerDay: number;
+  newBlockColor: string;
+  maxToolRounds: number;
+}
+
+export interface Settings extends TranslateSettings {
+  llm: LlmSettings;
+}
+
 export interface TranslateUsage {
   date: string;
   calls: number;
+  llmCalls: number;
 }
 
 export interface ProviderInfo {
@@ -59,7 +78,7 @@ export interface ProviderInfo {
 }
 
 export interface SettingsPayload {
-  settings: TranslateSettings;
+  settings: Settings;
   usage: TranslateUsage;
   tagCount: number;
   providers: ProviderInfo[];
@@ -83,8 +102,8 @@ export async function fetchSettings(): Promise<SettingsPayload> {
   return request<SettingsPayload>('/settings');
 }
 
-export async function saveSettings(settings: Partial<TranslateSettings>): Promise<TranslateSettings> {
-  return (await request<{ settings: TranslateSettings }>('/settings', {
+export async function saveSettings(settings: Partial<Settings>): Promise<Settings> {
+  return (await request<{ settings: Settings }>('/settings', {
     method: 'PUT',
     body: JSON.stringify({ settings }),
   })).settings;

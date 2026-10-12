@@ -10,6 +10,7 @@
  */
 import { computed, onMounted, ref } from 'vue';
 
+import AiPanel from './components/AiPanel.vue';
 import BlockCard from './components/BlockCard.vue';
 import BlockLibraryPanel from './components/BlockLibraryPanel.vue';
 import CrossCallPanel from './components/CrossCallPanel.vue';
@@ -18,8 +19,15 @@ import OutputPane from './components/OutputPane.vue';
 import PresetPanel from './components/PresetPanel.vue';
 import TagLibraryPanel from './components/TagLibraryPanel.vue';
 import TranslatePanel from './components/TranslatePanel.vue';
-import { fetchDraft, fetchSettings, type BlockPreset, type TranslateSettings } from './api';
-import { canDropItem, moveItem, type Block, type Doc, type ItemRef } from './model';
+import {
+  fetchDraft,
+  fetchSettings,
+  type BlockPreset,
+  type LlmGenerateOutcome,
+  type LlmSuggestion,
+  type Settings,
+} from './api';
+import { canDropItem, moveItem, newItem, splitByMode, type Block, type Doc, type ItemRef } from './model';
 import { useNotice } from './composables/useNotice';
 import { useTouchItemDrag } from './composables/useTouchItemDrag';
 import { useTranslate } from './composables/useTranslate';
@@ -66,6 +74,7 @@ function saveBlockToLibrary(block: Block): void {
 
 const presetOpen = ref(false);
 const translateOpen = ref(false);
+const aiOpen = ref(false);
 const libOpen = ref(false);
 const blockLibOpen = ref(false);
 /** 从区块表头「存」送过来的那一块快照：区块库面板据此弹出"起个名字" */
@@ -93,12 +102,23 @@ const overBlock = ref<number | null>(null);
  */
 const dragItem = ref<ItemRef | null>(null);
 const overItem = ref<ItemRef | null>(null);
-const settings = ref<TranslateSettings>({
+const settings = ref<Settings>({
   provider: 'youdao-demo',
   autoTranslate: true,
   maxCallsPerDay: 2000,
   timeoutMs: 8000,
   minIntervalMs: 6000,
+  llm: {
+    enabled: false,
+    provider: 'openai-compatible',
+    baseUrl: '',
+    model: '',
+    apiKey: '',
+    timeoutMs: 60000,
+    maxCallsPerDay: 200,
+    newBlockColor: '#6ea8fe',
+    maxToolRounds: 12,
+  },
 });
 
 const { busyIds, failedIds, enqueueAuto, translateItem, translateBlock, promoteTranslation, onTranslationEdited } =
@@ -229,8 +249,31 @@ function loadPreset(next: Doc): void {
 }
 
 /** 设置面板保存后回填：自动译开关要立刻生效，不用刷新页面 */
-function applySettings(next: TranslateSettings): void {
+function applySettings(next: Settings): void {
   settings.value = next;
+}
+
+/** AI 面板收工：AI 已经即时落盘，这里回读草稿并给 touched 的块补翻 */
+async function onLlmGenerated(outcome: LlmGenerateOutcome): Promise<void> {
+  flash(`AI：${outcome.summary.slice(0, 60)}`);
+  try {
+    const stored = await fetchDraft();
+    if (stored !== null && stored.blocks.length > 0) replaceDoc(stored);
+    const touched = new Set([...outcome.changed, ...outcome.created]);
+    for (const block of doc.blocks) if (touched.has(block.id)) enqueueAuto(block);
+  } catch {
+    // 回读失败不致命：面板已经展示了这次的结果
+  }
+}
+
+/** 建议落地：走人类同款路径（按块模式重切 + PUT 条目），不经过 LLM 写门禁 */
+function applySuggestion(suggestion: LlmSuggestion): void {
+  const block = doc.blocks.find((one) => one.id === suggestion.blockId);
+  if (block === undefined) return;
+  block.items = splitByMode(suggestion.content, block.mode).map((text) => newItem(text));
+  persistItems(block);
+  enqueueAuto(block);
+  flash('建议已应用到区块');
 }
 
 /** 条目变了：落盘 + （自动译开着的话）排队去翻还没有译文的那几条 */
@@ -284,6 +327,7 @@ onMounted(async () => {
       @open-lib="libOpen = true"
       @open-block-library="blockLibOpen = true"
       @open-translate="translateOpen = true"
+      @open-ai="aiOpen = true"
       @clear="clearAll"
     />
 
@@ -349,6 +393,13 @@ onMounted(async () => {
       @insert="insertPresetBlock"
     />
     <TranslatePanel :open="translateOpen" @close="translateOpen = false" @saved="applySettings" />
+    <AiPanel
+      :open="aiOpen"
+      :blocks="doc.blocks"
+      @close="aiOpen = false"
+      @generated="onLlmGenerated"
+      @apply-suggestion="applySuggestion"
+    />
 
     <!-- 触屏拖拽的幽灵：跟着手指走，说明"现在拖的是哪一条"（pointer-events: none，见 app.css） -->
     <div v-if="touchGhost" class="pe-touch-ghost" :style="touchGhostStyle">{{ touchGhost.text }}</div>

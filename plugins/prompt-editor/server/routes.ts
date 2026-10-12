@@ -26,6 +26,7 @@ import {
 import { PRESETS_KIND, presetExportDoc, readExportIds, readPresetImport } from './exportdoc.js';
 import { registerBlockCategoryRoutes } from './routes-block-categories.js';
 import { registerBlockPresetRoutes } from './routes-block-presets.js';
+import { registerLlmRoutes } from './routes-llm.js';
 import { registerTranslateRoutes } from './routes-translate.js';
 import { registerTagRoutes } from './routes-tags.js';
 import { readJson, writeJson } from './store.js';
@@ -196,7 +197,7 @@ export function registerRoutes(ctx: PluginContext): void {
     if (!stored.structure.some((meta) => meta.id === blockId)) {
       // 结构写入还没落地（新建区块时两次请求可能乱序）：先垫一条默认属性。
       // 宁可多一个空区块，也不丢条目 —— 下一次结构写入会按结构把它清掉。
-      stored.structure.push({ id: blockId, title: '', color: DEFAULT_COLOR, mode: 'tag', collapsed: false, enabled: true });
+      stored.structure.push({ id: blockId, title: '', color: DEFAULT_COLOR, mode: 'tag', collapsed: false, enabled: true, ai: false });
     }
     stored.items[blockId] = sanitizeItems(raw);
     writeJson(draftFile, rawFromStored(stored));
@@ -220,6 +221,7 @@ export function registerRoutes(ctx: PluginContext): void {
 
   const translateRoutes = registerTranslateRoutes({ routes, space, badRequest, log });
   registerTagRoutes({ routes, space, badRequest, log, tags: translateRoutes.tags });
+  registerLlmRoutes({ routes, space, badRequest, log, tags: translateRoutes.tags });
 
   ctx.effect(() => () => {
     // 词库是长持的 SQLite 连接：重挂 = 新闭包，不关就是句柄 + WAL 文件泄漏

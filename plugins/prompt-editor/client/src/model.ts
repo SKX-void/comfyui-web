@@ -11,6 +11,10 @@
  *    在 tag 模式下粘贴 `a, b, c` 会变成三个块，自然语言模式下同理按句号断句。
  */
 
+import { splitByMode } from './split.ts';
+
+export { splitByMode, splitSentences, splitTags } from './split.ts';
+
 export type Mode = 'tag' | 'text';
 
 export interface Item {
@@ -55,6 +59,8 @@ export interface Block {
    * 条目自己的 `enabled` 不受影响（整块不用时条目连看都看不到，动它没有意义）。
    */
   enabled: boolean;
+  /** LLM 辅助（D27）：AI 创建 / 可改的块；普通手建块为 false */
+  ai: boolean;
   items: Item[];
 }
 
@@ -118,7 +124,7 @@ export function newItem(text = ''): Item {
 }
 
 export function newBlock(title = '新区块', color = BLOCK_COLORS[0]!, mode: Mode = 'tag'): Block {
-  return { id: newId(), title, color, mode, collapsed: false, enabled: true, items: [] };
+  return { id: newId(), title, color, mode, collapsed: false, enabled: true, ai: false, items: [] };
 }
 
 /** 首屏的三块：只是"能立刻开始写"的起手式，标题和风格随便改 */
@@ -132,63 +138,6 @@ export function starterDoc(): Doc {
 /** 深拷贝：只为了喂给 fetch 与结构化克隆无关，JSON 往返对我们这种纯数据足够 */
 export function cloneDoc(doc: Doc): Doc {
   return JSON.parse(JSON.stringify(doc)) as Doc;
-}
-
-// ===========================================================================
-// 切分：两种模式各一条规则
-// ===========================================================================
-
-/**
- * tag 切分：只在**括号深度 0** 的逗号处切，`(a, b:1.2)` 是一个块。
- * 转义 `\,` 连下一个字符一起吃进当前段（与 anima-plus 的提示词整理同款规则）。
- */
-export function splitTags(text: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let buf = '';
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i]!;
-    if (ch === '\\') {
-      buf += ch + (text[i + 1] ?? '');
-      i += 1;
-      continue;
-    }
-    if (ch === '(' || ch === '[' || ch === '{') depth += 1;
-    else if (ch === ')' || ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
-    if (ch === ',' && depth === 0) {
-      parts.push(buf);
-      buf = '';
-      continue;
-    }
-    buf += ch;
-  }
-  parts.push(buf);
-  return parts.map((part) => part.trim()).filter((part) => part !== '');
-}
-
-/**
- * 自然语言切分：在**英文句号**处断句，句号留在前一句里。
- * 只认「句号 + 空白 / 结尾」，所以 `1.5`、`v1.2` 这类不会被切开；
- * `e.g.` 这种缩写会被当成句尾 —— 图像提示词里几乎不出现，不为它加特例。
- */
-export function splitSentences(text: string): string[] {
-  const parts: string[] = [];
-  let buf = '';
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i]!;
-    buf += ch;
-    const next = text[i + 1];
-    if (ch === '.' && (next === undefined || /\s/.test(next))) {
-      parts.push(buf);
-      buf = '';
-    }
-  }
-  if (buf !== '') parts.push(buf);
-  return parts.map((part) => part.trim()).filter((part) => part !== '');
-}
-
-export function splitByMode(text: string, mode: Mode): string[] {
-  return mode === 'tag' ? splitTags(text) : splitSentences(text);
 }
 
 /**

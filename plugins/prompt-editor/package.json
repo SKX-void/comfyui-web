@@ -1,6 +1,6 @@
 {
   "name": "@comfyui-web/prompt-editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "提示词编写 tab（不负责绘图）：区块式工作区 + tag/自然语言两种切分视图 + 纯文本输出；预设库与草稿存在插件自己的空间里",
   "type": "module",
@@ -63,6 +63,68 @@
         "min": 1000,
         "max": 30000,
         "description": "单次请求的超时。局域网里自建翻译服务可以调小。"
+      },
+      {
+        "key": "llm.enabled",
+        "type": "boolean",
+        "label": "启用 LLM 辅助",
+        "default": false,
+        "description": "总闸：关掉时 /llm/* 一律 403（LLM_DISABLED）。协议只做 OpenAI-compatible 非流式 chat + tool calling。"
+      },
+      {
+        "key": "llm.baseUrl",
+        "type": "string",
+        "label": "LLM baseUrl",
+        "default": "",
+        "description": "OpenAI-compatible 服务的 baseUrl，例如 https://api.example.com/v1。留空表示未配置。"
+      },
+      {
+        "key": "llm.model",
+        "type": "string",
+        "label": "LLM 模型",
+        "default": "",
+        "description": "模型名（由服务商定义）。"
+      },
+      {
+        "key": "llm.apiKey",
+        "type": "string",
+        "label": "LLM apiKey",
+        "default": "",
+        "description": "只存在插件后端的 settings.json 里，永不下发到浏览器。"
+      },
+      {
+        "key": "llm.timeoutMs",
+        "type": "number",
+        "label": "LLM 单轮超时（毫秒）",
+        "default": 60000,
+        "min": 1000,
+        "max": 300000,
+        "description": "单轮 chat completion 的超时；整个 agent loop 另按 轮数+1 倍做总超时兜底。"
+      },
+      {
+        "key": "llm.maxCallsPerDay",
+        "type": "number",
+        "label": "LLM 每日调用上限",
+        "default": 200,
+        "min": 0,
+        "max": 100000,
+        "description": "一次 /llm/generate 提交 = 1 次；内部多轮 tool call 不另计。0 = 禁用生成。"
+      },
+      {
+        "key": "llm.newBlockColor",
+        "type": "string",
+        "label": "AI 新建块颜色",
+        "default": "#6ea8fe",
+        "description": "AI 新建区块的默认色板值。"
+      },
+      {
+        "key": "llm.maxToolRounds",
+        "type": "number",
+        "label": "LLM 工具轮数上限",
+        "default": 12,
+        "min": 1,
+        "max": 100,
+        "description": "agent loop 最多跑几轮 function calling，超出即带着已写内容收尾。"
       }
     ]
   },

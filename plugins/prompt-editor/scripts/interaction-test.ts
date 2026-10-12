@@ -332,8 +332,14 @@ Object.defineProperty(globalThis, 'fetch', {
 
     if (method === 'GET' && path.endsWith('/settings')) {
       return reply({
-        settings: { provider: 'youdao-demo', autoTranslate: false, maxCallsPerDay: 2000, timeoutMs: 8000 },
-        usage: { date: '2026-01-01', calls: 7 },
+        settings: {
+          provider: 'youdao-demo', autoTranslate: false, maxCallsPerDay: 2000, timeoutMs: 8000, minIntervalMs: 6000,
+          llm: {
+            enabled: false, provider: 'openai-compatible', baseUrl: '', model: '', apiKey: '',
+            timeoutMs: 60000, maxCallsPerDay: 200, newBlockColor: '#6ea8fe', maxToolRounds: 12,
+          },
+        },
+        usage: { date: '2026-01-01', calls: 7, llmCalls: 0 },
         tagCount: Object.keys(fakeTags).length,
         providers: [{ id: 'youdao-demo', label: '有道体验版（免费、无需 key）', fields: [] }],
       });
@@ -1140,7 +1146,9 @@ if (autoBox !== null) {
   dispatch(autoBox, new window.Event('change'));
   await nextTick();
 }
-const saveBtn = (pickAll('.pe-panel .pe-actions button') as HTMLButtonElement[])[0] as HTMLButtonElement;
+const saveBtn = (pickAll('.pe-panel .pe-actions button') as HTMLButtonElement[]).find(
+  (one) => (one.textContent ?? '').trim() === '保存',
+) as HTMLButtonElement;
 const markSettings = calls.length;
 saveBtn.click();
 await settle();

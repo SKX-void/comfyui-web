@@ -161,6 +161,14 @@ const plugin = (await import(artifact('client.js').href)).default as {
     'PUT /tags/categories',
     'PUT /tags/categories/order',
     'DELETE /tags/categories/entries',
+    'POST /llm/generate',
+    'GET /llm/blocks',
+    'GET /llm/blocks/:id',
+    'PUT /llm/blocks/:id',
+    'POST /llm/blocks',
+    'DELETE /llm/blocks/:id',
+    'GET /llm/prompts',
+    'PUT /llm/prompts',
   ];
   const registered = tables.at(-1) ?? []; // 宿主最终留下的是最后领的那张表
   check(
@@ -286,9 +294,9 @@ console.log('拖拽：块内排序 + 跨块搬家（只认类型相同的块）'
 const dragDoc = (): Doc => ({
   version: 1,
   blocks: [
-    { id: 'b1', title: '质量', color: '#6ea8fe', mode: 'tag', collapsed: false, enabled: true, items: [item('a'), item('b'), item('c')] },
-    { id: 'b2', title: '主体', color: '#4ac38a', mode: 'tag', collapsed: false, enabled: true, items: [item('x'), item('y')] },
-    { id: 'b3', title: '场景', color: '#f2b84b', mode: 'text', collapsed: false, enabled: true, items: [item('A girl.')] },
+    { id: 'b1', title: '质量', color: '#6ea8fe', mode: 'tag', collapsed: false, enabled: true, ai: false, items: [item('a'), item('b'), item('c')] },
+    { id: 'b2', title: '主体', color: '#4ac38a', mode: 'tag', collapsed: false, enabled: true, ai: false, items: [item('x'), item('y')] },
+    { id: 'b3', title: '场景', color: '#f2b84b', mode: 'text', collapsed: false, enabled: true, ai: false, items: [item('A girl.')] },
   ],
 });
 const texts = (d: Doc, id: string) => d.blocks.find((b) => b.id === id)?.items.map((i) => i.text) ?? [];
@@ -363,11 +371,12 @@ const doc: Doc = {
       mode: 'tag',
       collapsed: false,
       enabled: true,
+      ai: false,
       items: [item('masterpiece'), item('best quality', false)],
     },
-    { id: 'b2', title: '主体', color: '#4ac38a', mode: 'tag', collapsed: false, enabled: true, items: [item('1girl'), item('solo')] },
-    { id: 'b3', title: '场景', color: '#f2b84b', mode: 'text', collapsed: false, enabled: true, items: [item('A girl. She runs.')] },
-    { id: 'b4', title: '空的', color: '#ff7b72', mode: 'tag', collapsed: false, enabled: true, items: [item('   ')] },
+    { id: 'b2', title: '主体', color: '#4ac38a', mode: 'tag', collapsed: false, enabled: true, ai: false, items: [item('1girl'), item('solo')] },
+    { id: 'b3', title: '场景', color: '#f2b84b', mode: 'text', collapsed: false, enabled: true, ai: false, items: [item('A girl. She runs.')] },
+    { id: 'b4', title: '空的', color: '#ff7b72', mode: 'tag', collapsed: false, enabled: true, ai: false, items: [item('   ')] },
   ],
 };
 check(
@@ -399,12 +408,12 @@ check(
   '自然语言块：每句话各自一行',
   renderOutput({
     version: 1,
-    blocks: [{ id: 'b', title: '场景', color: '#fff', mode: 'text', collapsed: false, enabled: true, items: [item('a cat sits.'), item('a dog runs.')] }],
+    blocks: [{ id: 'b', title: '场景', color: '#fff', mode: 'text', collapsed: false, enabled: true, ai: false, items: [item('a cat sits.'), item('a dog runs.')] }],
   }) === 'a cat sits.\na dog runs.',
   JSON.stringify(
     renderOutput({
       version: 1,
-      blocks: [{ id: 'b', title: '场景', color: '#fff', mode: 'text', collapsed: false, enabled: true, items: [item('a cat sits.'), item('a dog runs.')] }],
+      blocks: [{ id: 'b', title: '场景', color: '#fff', mode: 'text', collapsed: false, enabled: true, ai: false, items: [item('a cat sits.'), item('a dog runs.')] }],
     }),
   ),
 );
@@ -1459,6 +1468,26 @@ check('越界收敛到范围内', (() => {
 })());
 check('用量跨天清零', sanitizeUsage({ date: '2000-01-01', calls: 999 }, '2026-01-01').calls === 0);
 check('当天用量保留', sanitizeUsage({ date: '2026-01-01', calls: 12 }, '2026-01-01').calls === 12);
+check('LLM 用量跨天清零', sanitizeUsage({ date: '2000-01-01', calls: 1, llmCalls: 999 }, '2026-01-01').llmCalls === 0);
+check('当天 LLM 用量保留', sanitizeUsage({ date: '2026-01-01', calls: 1, llmCalls: 12 }, '2026-01-01').llmCalls === 12);
+check(
+  'LLM 段默认关闭、其余字段收敛到默认',
+  (() => {
+    const s = sanitizeSettings(null);
+    return (
+      s.llm.enabled === false &&
+      s.llm.provider === 'openai-compatible' &&
+      s.llm.timeoutMs === 60000 &&
+      s.llm.maxCallsPerDay === 200 &&
+      s.llm.maxToolRounds === 12 &&
+      s.llm.newBlockColor === '#6ea8fe'
+    );
+  })(),
+);
+check('LLM 段越界收敛到范围内', (() => {
+  const s = sanitizeSettings({ llm: { enabled: 'yes', timeoutMs: 1, maxCallsPerDay: 999999, maxToolRounds: 0 } });
+  return s.llm.enabled === false && s.llm.timeoutMs === 1000 && s.llm.maxCallsPerDay === 100000 && s.llm.maxToolRounds === 1;
+})());
 
 /** 有道体验版的 stub：记下每次发出的 q，按 map 回译文 */
 function youdaoStub(map: Record<string, string>, { ok = true, errorCode = '0' } = {}) {
@@ -1856,6 +1885,132 @@ console.log('区块库：预设单块的存储与路由');
     '分类到达上限后再建：400 且不动盘上那份',
     (await call('POST /block-categories', { body: { name: '多出来的' } })).status === 400 && stored().categories.length === server.LIMITS.blockCategories,
   );
+
+  fs.rmSync(spaceDir, { recursive: true, force: true });
+}
+
+// LLM 路由：总闸 / 读写门禁 / 模板。generate 那条会真调大模型，这里不碰 ——
+// CRUD 与门禁是"没有模型也能验"的那一半（toolkit 与 agent loop 靠纯函数拆分，见 server/llm.ts）。
+console.log('LLM 路由：总闸与区块读写');
+{
+  const spaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-llm-'));
+  const handlers: Record<string, (request: unknown, reply: unknown) => unknown> = {};
+  const record =
+    (method: string) =>
+    (routePath: string, handler: (request: unknown, reply: unknown) => unknown): void => {
+      handlers[`${method} ${routePath}`] = handler;
+    };
+  const reply = (): { status: number; body: unknown; code: (n: number) => unknown; send: (b: unknown) => unknown } => ({
+    status: 200,
+    body: null,
+    code(this: { status: number }, n: number) {
+      this.status = n;
+      return this;
+    },
+    send(this: { body: unknown }, body: unknown) {
+      this.body = body;
+      return this;
+    },
+  });
+  const helpers = {
+    routes: { get: record('GET'), post: record('POST'), put: record('PUT'), delete: record('DELETE') },
+    space: { packageName: 'x', root: spaceDir, resolve: (f: string) => path.join(spaceDir, f) },
+    badRequest: (r: { code: (n: number) => { send: (b: unknown) => unknown } }, message: string) =>
+      r.code(400).send({ error: { code: 'BAD_REQUEST', message } }),
+    log: () => {},
+    tags: () => ({ lookup: () => null }),
+  };
+  server.registerLlmRoutes(helpers as unknown as Parameters<typeof server.registerLlmRoutes>[0]);
+
+  const call = async (key: string, request: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
+    const r = reply();
+    const returned = await handlers[key]?.({ params: {}, body: null, ...request }, r);
+    return { ...r, body: r.body ?? returned ?? null } as unknown as Record<string, unknown>;
+  };
+  const errorCode = (body: unknown): string => (body as { error?: { code?: string } })?.error?.code ?? '';
+
+  check('总闸关着：/llm/blocks 403 LLM_DISABLED', (await call('GET /llm/blocks')).status === 403 && errorCode((await call('GET /llm/blocks')).body) === 'LLM_DISABLED');
+  check('总闸关着：/llm/prompts 403 LLM_DISABLED', (await call('GET /llm/prompts')).status === 403);
+
+  const settingsOn = {
+    provider: 'youdao-demo',
+    autoTranslate: true,
+    maxCallsPerDay: 2000,
+    timeoutMs: 8000,
+    minIntervalMs: 6000,
+    llm: {
+      enabled: true,
+      provider: 'openai-compatible',
+      baseUrl: 'https://api.example.com/v1',
+      model: 'm',
+      apiKey: 'k',
+      timeoutMs: 60000,
+      maxCallsPerDay: 200,
+      newBlockColor: '#6ea8fe',
+      maxToolRounds: 12,
+    },
+  };
+  fs.writeFileSync(path.join(spaceDir, 'settings.json'), JSON.stringify(settingsOn));
+
+  check('空草稿：块列表空', ((await call('GET /llm/blocks')).body as { blocks?: unknown[] }).blocks?.length === 0);
+
+  const created = await call('POST /llm/blocks', {
+    body: {
+      blocks: [
+        { title: '质量', content: 'masterpiece, best quality' },
+        { title: '场景', mode: 'text', content: 'A girl. She runs.' },
+      ],
+    },
+  });
+  const createdList = (created.body as { created?: { id: string; itemCount: number }[] }).created ?? [];
+  check('批量新建：两个 id、摘要 itemCount 对', createdList.length === 2 && createdList.every((one) => one.itemCount === 2));
+  const stored = (): { blocks: { id: string; ai: boolean; color: string }[]; items: Record<string, unknown[]> } =>
+    JSON.parse(fs.readFileSync(path.join(spaceDir, 'draft.json'), 'utf8')) as never;
+  check('新建的块带 ai:true、颜色取 settings.llm.newBlockColor', stored().blocks.every((one) => one.ai === true && one.color === '#6ea8fe'));
+
+  const listed = (await call('GET /llm/blocks')).body as { blocks?: { title: string; itemCount: number; items?: unknown }[] };
+  check('列表给摘要不带条目', listed.blocks?.length === 2 && listed.blocks[0]?.title === '质量' && listed.blocks.every((one) => one.items === undefined));
+
+  const firstId = createdList[0]?.id ?? '';
+  const byId = (await call('GET /llm/blocks/:id', { params: { id: firstId } })).body as { block?: { content?: string; ai?: boolean } };
+  check('按 id 取单块：content 按模式拼好、ai 标记在', byId.block?.content === 'masterpiece, best quality' && byId.block?.ai === true);
+  check('按名字取单块', ((await call('GET /llm/blocks/:id', { params: { id: '场景' } })).body as { block?: { mode?: string } }).block?.mode === 'text');
+
+  check('改 mode 不带 content：400', (await call('PUT /llm/blocks/:id', { params: { id: firstId }, body: { mode: 'text' } })).status === 400);
+
+  const updated = (await call('PUT /llm/blocks/:id', { params: { id: firstId }, body: { title: '质量改', content: 'a, b' } })).body as { block?: { title?: string } };
+  check('PUT：标题变了、内容重切成两条', updated.block?.title === '质量改' && stored().items[firstId]?.length === 2);
+
+  check('新建重名不拦（只有按名寻址才 409）', (((await call('POST /llm/blocks', { body: { blocks: [{ title: '场景', content: 'x' }] } })).body as { created?: unknown[] }).created ?? []).length === 1);
+  const ambiguous = await call('GET /llm/blocks/:id', { params: { id: '场景' } });
+  check(
+    '按名寻址撞重名：409 + 候选',
+    ambiguous.status === 409 &&
+      errorCode(ambiguous.body) === 'AMBIGUOUS' &&
+      ((ambiguous.body as { error?: { candidates?: unknown[] } }).error?.candidates?.length ?? 0) === 2,
+  );
+
+  const deleted = (await call('DELETE /llm/blocks/:id', { params: { id: firstId } })).body as { ok?: boolean };
+  check('删除 AI 块：结构移除 + 条目清掉', deleted.ok === true && stored().blocks.length === 2 && stored().items[firstId] === undefined);
+
+  fs.writeFileSync(
+    path.join(spaceDir, 'draft.json'),
+    JSON.stringify({
+      version: 1,
+      blocks: [{ id: 'human-1', title: '人类块', color: '#6ea8fe', mode: 'tag', collapsed: false, enabled: true, ai: false }],
+      items: {},
+    }),
+  );
+  check(
+    '非 AI 块：PUT 403 NOT_AI_BLOCK',
+    (await call('PUT /llm/blocks/:id', { params: { id: 'human-1' }, body: { content: 'a' } })).status === 403 &&
+      errorCode((await call('PUT /llm/blocks/:id', { params: { id: 'human-1' }, body: { content: 'a' } })).body) === 'NOT_AI_BLOCK',
+  );
+
+  const prompts = (await call('GET /llm/prompts')).body as { prompts?: unknown[] };
+  check('默认模板随首次读取写盘（bundled 那份）', (prompts.prompts ?? []).length >= 1 && fs.existsSync(path.join(spaceDir, 'llm-prompts.json')));
+  const putPrompts = (await call('PUT /llm/prompts', { body: { prompts: [{ name: '我的模板', template: '把 {{instruction}} 写进 {{workspace}}' }] } })).body as { prompts?: { id: string; name: string }[] };
+  check('PUT /llm/prompts 全量替换并落盘', putPrompts.prompts?.length === 1 && putPrompts.prompts[0]?.name === '我的模板');
 
   fs.rmSync(spaceDir, { recursive: true, force: true });
 }

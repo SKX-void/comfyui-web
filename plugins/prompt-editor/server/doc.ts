@@ -33,6 +33,11 @@ export interface BlockMeta {
   collapsed: boolean;
   /** 不使用：整块不进输出。前端 renderOutput 按它跳过整块 */
   enabled: boolean;
+  /**
+   * 这块是不是 LLM 写的 / 可被 LLM 直接改写：只有 `ai === true` 的块才是 /llm/generate
+   * 的写目标（见 routes-llm.ts 的写门禁）。老草稿没有这个字段 → false。
+   */
+  ai: boolean;
 }
 
 export interface Block extends BlockMeta {
@@ -109,6 +114,8 @@ export function sanitizeBlockMeta(block: Record<string, unknown>, fallbackMode: 
     // 两个都按"缺省最宽松"收敛：手写一份预设时不该因为漏字段就整块被吞掉 / 被折叠起来
     collapsed: block.collapsed === true,
     enabled: block.enabled !== false,
+    // LLM 标记缺省 false：老草稿 / 人建的块都不是 LLM 可写目标
+    ai: block.ai === true,
   };
 }
 

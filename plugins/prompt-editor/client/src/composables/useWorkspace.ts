@@ -63,6 +63,7 @@ export function useWorkspace(flash: (message: string) => void) {
       ...block,
       collapsed: block.collapsed === true,
       enabled: block.enabled !== false,
+      ai: block.ai === true,
     }));
   }
 
@@ -117,13 +118,14 @@ export function useWorkspace(flash: (message: string) => void) {
 
   function persistStructure(): void {
     draftState.value = 'saving';
-    const blocks = doc.blocks.map(({ id, title, color, mode, collapsed, enabled }) => ({
+    const blocks = doc.blocks.map(({ id, title, color, mode, collapsed, enabled, ai }) => ({
       id,
       title,
       color,
       mode,
       collapsed,
       enabled,
+      ai,
     }));
     void saveDraftStructure(blocks)
       .then(() => mark('saved'))

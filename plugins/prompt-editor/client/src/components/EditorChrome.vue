@@ -20,6 +20,7 @@ const emit = defineEmits<{
   (e: 'open-lib'): void;
   (e: 'open-block-library'): void;
   (e: 'open-translate'): void;
+  (e: 'open-ai'): void;
   (e: 'clear'): void;
 }>();
 
@@ -31,6 +32,7 @@ const sheetItems: { label: string; run: () => void }[] = [
   { label: '词库…', run: () => emit('open-lib') },
   { label: '区块库…', run: () => emit('open-block-library') },
   { label: '翻译…', run: () => emit('open-translate') },
+  { label: 'AI…', run: () => emit('open-ai') },
   { label: '清空工作区', run: () => emit('clear') },
 ];
 
@@ -71,6 +73,7 @@ function onKeydown(event: KeyboardEvent): void {
       <button @click="emit('open-lib')">词库…</button>
       <button @click="emit('open-block-library')">区块库…</button>
       <button @click="emit('open-translate')">翻译…</button>
+      <button @click="emit('open-ai')">AI…</button>
       <button @click="emit('clear')">清空</button>
     </div>
 
