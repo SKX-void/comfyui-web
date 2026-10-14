@@ -197,11 +197,13 @@ function togglePick(): void {
         <option v-for="chat in chats" :key="chat.id" :value="chat.id">{{ chat.title }}（{{ chat.turns }} 轮）</option>
       </select>
       <span v-else class="pe-ai-empty-hint">还没有对话</span>
-      <button class="pe-btn-mini" @click="newChat">新对话</button>
-      <button v-if="activeId !== ''" class="pe-btn-mini" @click="removeChat">
-        {{ confirmDelete ? '确认删除' : '删除' }}
-      </button>
-      <button class="pe-btn-mini" @click="emit('open-settings')">设置</button>
+      <div class="pe-ai-head-actions">
+        <button class="pe-btn-mini" @click="newChat">新对话</button>
+        <button v-if="activeId !== ''" class="pe-btn-mini" @click="removeChat">
+          {{ confirmDelete ? '确认删除' : '删除' }}
+        </button>
+        <button class="pe-btn-mini" @click="emit('open-settings')">设置</button>
+      </div>
     </header>
 
     <p v-if="disabled" class="pe-note">
@@ -219,10 +221,12 @@ function togglePick(): void {
           <p class="pe-ai-reply">{{ turn.reply === '' ? '（这次没有回复）' : turn.reply }}</p>
           <p class="pe-ai-action">
             {{ turn.action }}
-            <span v-if="turn.aborted"> · 达到轮数上限，提前收工</span>
-            <span v-if="turn.error"> · 出错：{{ turn.error.message }}</span>
+            <span v-if="turn.aborted" class="pe-ai-aborted">达到轮数上限，提前收工</span>
           </p>
+          <!-- 出错单独一行：跟"做了什么"挤在同一个 chip 里，两种颜色会读成一句话 -->
+          <p v-if="turn.error" class="pe-ai-error-chip">出错：{{ turn.error.message }}</p>
           <div v-for="suggestion in turn.suggestions" :key="suggestion.blockId" class="pe-ai-suggestion">
+            <span class="pe-ai-tag">建议</span>
             <span class="pe-ai-suggestion-text">
               <b>{{ blockTitle(suggestion.blockId) }}</b
               >：{{ suggestion.content }}
@@ -288,200 +292,4 @@ function togglePick(): void {
   </section>
 </template>
 
-<style scoped>
-.pe-ai {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  padding: 10px 12px 12px;
-  border: 1px solid var(--line, #2e333d);
-  border-radius: 8px;
-  background: var(--panel, #1b1e24);
-}
-
-.pe-ai-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.pe-ai-title {
-  font-size: 13px;
-}
-
-.pe-ai-empty-hint {
-  color: var(--muted, #9aa3b2);
-  font-size: 12px;
-}
-
-.pe-ai-select {
-  flex: 1;
-  min-width: 120px;
-}
-
-.pe-btn-mini {
-  border: 1px solid var(--line, #2e333d);
-  border-radius: 6px;
-  background: var(--panel-2, #22262e);
-  color: inherit;
-  font: inherit;
-  font-size: 12px;
-  padding: 3px 8px;
-  cursor: pointer;
-}
-
-.pe-btn-mini:hover:not(:disabled) {
-  border-color: var(--accent, #6ea8fe);
-}
-
-.pe-btn-mini:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.pe-ai-log {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 46vh;
-  overflow-y: auto;
-  padding-right: 2px;
-}
-
-.pe-ai-turn {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-}
-
-.pe-ai-user {
-  margin: 0;
-  align-self: flex-end;
-  max-width: 88%;
-  padding: 5px 9px;
-  border-radius: 8px 8px 2px 8px;
-  background: var(--panel-2, #22262e);
-  font-size: 13px;
-  white-space: pre-wrap;
-}
-
-.pe-ai-reply {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
-
-.pe-ai-action {
-  margin: 0;
-  color: var(--muted, #9aa3b2);
-  font-size: 12px;
-}
-
-.pe-ai-suggestion {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 1px dashed var(--line, #2e333d);
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-.pe-ai-suggestion-text {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.pe-ai-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-top: 1px solid var(--line, #2e333d);
-  padding-top: 10px;
-}
-
-.pe-ai-textarea {
-  resize: vertical;
-  font: inherit;
-}
-
-.pe-ai-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pe-ai-label,
-.pe-ai-check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted, #9aa3b2);
-  font-size: 12px;
-}
-
-.pe-ai-blocks {
-  font-size: 12px;
-  color: var(--muted, #9aa3b2);
-}
-
-.pe-ai-blocks summary {
-  cursor: pointer;
-}
-
-.pe-ai-blocks .pe-ai-check {
-  display: flex;
-  padding: 2px 0;
-  color: inherit;
-}
-
-.pe-ai-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.pe-input {
-  border: 1px solid var(--line, #2e333d);
-  border-radius: 6px;
-  background: var(--panel-2, #22262e);
-  color: inherit;
-  font: inherit;
-  padding: 5px 8px;
-}
-
-.pe-note {
-  margin: 0;
-  color: var(--muted, #9aa3b2);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.pe-error {
-  margin: 0;
-  color: var(--danger, #ff6b6b);
-  font-size: 12px;
-}
-
-.pe-btn {
-  border: 1px solid var(--accent, #6ea8fe);
-  border-radius: 6px;
-  background: var(--panel-2, #22262e);
-  color: inherit;
-  font: inherit;
-  padding: 5px 14px;
-  cursor: pointer;
-}
-
-.pe-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-</style>
+<style scoped src="./ai-chat-card.css"></style>

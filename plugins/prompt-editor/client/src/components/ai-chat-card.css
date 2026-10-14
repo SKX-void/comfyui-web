@@ -1,0 +1,339 @@
+/**
+ * AI 辅助卡片（D28）的样式：对话区 = 两列气泡（右 = 人，左 = AI）+ 元信息 chip。
+ *
+ * 单独成文件只为守住 300 行（同 block-card.css / tag-library-panel.css），没有别的原因。
+ * 气泡那个 2px 的圆角就是"谁在说"的全部信息 —— 别再往上叠头像或角色标签。
+ */
+
+.pe-ai {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 10px;
+  background: var(--panel, #1b1e24);
+}
+
+.pe-ai-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--line, #2e333d);
+}
+
+.pe-ai-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* 标题前的小圆点：这张卡是"跟 AI 说话"的地方，给个一眼能认的标记 */
+.pe-ai-title::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #6ea8fe);
+  box-shadow: 0 0 6px rgba(110, 168, 254, 0.8);
+}
+
+.pe-ai-empty-hint {
+  color: var(--muted, #9aa3b2);
+  font-size: 12px;
+}
+
+/* 头部的会话选择器吃剩余宽度（模板/推理强度那两个在 .pe-ai-row 里，按内容给宽） */
+.pe-ai-select {
+  min-width: 120px;
+}
+
+.pe-ai-head .pe-ai-select {
+  flex: 0 1 320px;
+}
+
+.pe-ai-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.pe-btn-mini {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  background: var(--panel-2, #22262e);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.pe-btn-mini:hover:not(:disabled) {
+  border-color: var(--accent, #6ea8fe);
+  background: rgba(110, 168, 254, 0.14);
+}
+
+.pe-btn-mini:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 对话区：比卡片底色暗一档的"凹槽"，滚动条出来时不会和卡片边框糊在一起 */
+.pe-ai-log {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 46vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line, #2e333d) transparent;
+}
+
+.pe-ai-log::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pe-ai-log::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--line, #2e333d);
+}
+
+.pe-ai-log::-webkit-scrollbar-thumb:hover {
+  background: #3b4250;
+}
+
+.pe-ai-log::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pe-ai-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+/* 轮与轮之间的发丝线：长对话里"这句是新的一轮"比什么都重要 */
+.pe-ai-turn + .pe-ai-turn {
+  border-top: 1px solid var(--line, #2e333d);
+  padding-top: 14px;
+}
+
+/* 人说的话：右对齐 + 品牌色浅底（AI 那边是中性灰，两边的颜色差就是"谁在说"） */
+.pe-ai-user {
+  align-self: flex-end;
+  max-width: 82%;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(110, 168, 254, 0.32);
+  border-radius: 10px 10px 2px 10px;
+  background: rgba(110, 168, 254, 0.16);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pe-ai-reply {
+  align-self: flex-start;
+  max-width: 96%;
+  margin: 0;
+  padding: 8px 11px;
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 10px 10px 10px 2px;
+  background: var(--panel-2, #22262e);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 动作摘要：chip 而不是一行灰字 —— 它跟正文不是一回事 */
+.pe-ai-action {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 0;
+  padding: 2px 9px;
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted, #9aa3b2);
+  font-size: 12px;
+}
+
+/* 主题里没有 warning 色：提前收工就地取一个琥珀，别让它混进"正常完成"里 */
+.pe-ai-aborted {
+  color: #d9a13b;
+}
+
+/* 出错自己占一行：和"做了什么"挤进同一个 chip，两种颜色会被读成一句话 */
+.pe-ai-error-chip {
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 0;
+  padding: 2px 9px;
+  border: 1px solid rgba(255, 123, 114, 0.4);
+  border-radius: 999px;
+  background: rgba(255, 123, 114, 0.12);
+  color: var(--danger, #ff7b72);
+  font-size: 12px;
+}
+
+/* 建议：还没落到工作区的东西，用虚线 + 淡底跟实心的块区分开 */
+.pe-ai-suggestion {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px dashed rgba(110, 168, 254, 0.45);
+  border-radius: 8px;
+  background: rgba(110, 168, 254, 0.07);
+  font-size: 12px;
+}
+
+.pe-ai-tag {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(110, 168, 254, 0.18);
+  color: var(--accent, #6ea8fe);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.pe-ai-suggestion-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pe-ai-suggestion-text b {
+  color: var(--fg, #e6e8ec);
+  font-weight: 600;
+}
+
+.pe-ai-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--line, #2e333d);
+  padding-top: 10px;
+}
+
+.pe-ai-textarea {
+  min-height: 62px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.pe-ai-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pe-ai-label,
+.pe-ai-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted, #9aa3b2);
+  font-size: 12px;
+}
+
+.pe-ai-blocks {
+  color: var(--muted, #9aa3b2);
+  font-size: 12px;
+}
+
+.pe-ai-blocks summary {
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.pe-ai-blocks summary:hover {
+  color: var(--fg, #e6e8ec);
+}
+
+.pe-ai-blocks .pe-ai-check {
+  padding: 2px 0 2px 4px;
+  color: inherit;
+}
+
+.pe-ai-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pe-input {
+  border: 1px solid var(--line, #2e333d);
+  border-radius: 6px;
+  background: var(--panel-2, #22262e);
+  color: inherit;
+  font: inherit;
+  padding: 5px 8px;
+}
+
+.pe-input:focus-visible {
+  border-color: var(--accent, #6ea8fe);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.18);
+}
+
+.pe-note {
+  margin: 0;
+  color: var(--muted, #9aa3b2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 开场白（还没开过话头时）居中，别贴着左上角像一句报错 */
+.pe-ai-log > .pe-note {
+  padding: 16px 8px;
+  text-align: center;
+}
+
+.pe-error {
+  margin: 0;
+  color: var(--danger, #ff7b72);
+  font-size: 12px;
+}
+
+/* 主按钮（发送）：实心品牌色 —— 一张卡里只该有一个这样的按钮 */
+.pe-btn {
+  border: 1px solid var(--accent, #6ea8fe);
+  border-radius: 6px;
+  background: var(--accent, #6ea8fe);
+  color: #10131a;
+  font: inherit;
+  font-weight: 600;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+.pe-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.pe-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
