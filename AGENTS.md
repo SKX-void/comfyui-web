@@ -33,14 +33,22 @@ pnpm -r typecheck
 
 ## 这个环境的坑（都踩过）
 
-- **bash 输出会被吞**：可能产生大量输出的命令（build/typecheck/curl 循环）必须
-  `setsid nohup <cmd> > /tmp/x.log 2>&1 < /dev/null &`，然后读 `/tmp/x.log`。
+- **bash 输出会被吞**：可能产生大量输出的命令（build/typecheck/curl 循环）按优先级选：
+  ① 原生后台 job —— `run_in_background` 起、`job_output` 读、`job_kill` 停（**唯一能跨调用停掉的**）；
+  ② `setsid nohup <cmd> > /tmp/x.log 2>&1 < /dev/null &`，然后读 `/tmp/x.log`。
+- **control-web（面板 `:8790`）在这个沙箱里只能读**：`cw` 随 control-web skill 分发、**不在 PATH**，
+  `cw ls` / `cw logs <名>` 可用（看别人在沙箱外起的 job），面板能看全机进程与端口归属；
+  但 `cw run` / `cw exec` 起不来 —— 服务端不代执行时它退回沙箱内起进程，要写
+  `/app/control-web/data/logs/`（工作区外）→ `Permission denied`。起进程仍走上面两条。
 - **`tsx watch` 会盯整仓，必须带 `--exclude`**：cordis 启动时会在「`baseUrl` 往上最近的那个
   `package.json`」旁写 `.cordis/resolve.mjs`。现在 `baseUrl` 是 `tabs/`，于是它落在**仓库根** ——
   不排除就是每 2s 重启一次的活锁（宿主永远起不来）；改 `tabs/`、`data/` 也会连带重启宿主。
   `pnpm dev:host` 已经排除 `.cordis/data/dist/tabs/web`：改 `src/` 才重启，改 tab 由人点「重新扫描」生效。
-- **跨 bash 调用起的后台进程杀不掉**（PID namespace 限制）：验证请"同一次调用内起进程 + kill"，
-  或换个空闲端口再起，别指望后面 `kill` 掉它。
+- **`setsid nohup` 起的后台进程跨 bash 调用杀不掉**（PID namespace 限制）：验证请"同一次调用内起进程 + kill"，
+  或换个空闲端口再起，别指望后面 `kill` 掉它；要「起了还能停」就用原生后台 job（`job_kill`）。
+- **容器 pids 上限 512**：`pnpm build` 的并行插件构建峰值 ~470+，偶尔撞顶 —— esbuild 报
+  `runtime: failed to create new OS thread (… errno=11)`，`pnpm verify` 的 build 步就红。
+  与代码无关（别去查源码），重跑常能过；要稳就 `pnpm -r --workspace-concurrency=1 --filter "./plugins/*" build`。
 - 端口：宿主 `8087`，外壳 vite dev **固定 5173**（`strictPort`，被占就直接失败；换端口用 `COMFYUI_WEB_DEV_PORT`），`/api`、`/plugins` 由它代理到宿主。
 - 生产态宿主**自己就能送前端**（`dist/app/web`），不需要 vite；但改了 `apps/web` 要重新 `pnpm build:web`。
   交付物是 `dist/` 整包（D18）：`node dist/app/server.mjs` 就能跑，`repoRoot` = `dist/`。
