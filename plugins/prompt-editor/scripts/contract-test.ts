@@ -101,10 +101,16 @@ const {
   translateTexts,
 } = server;
 
-const plugin = (await import(artifact('client.js').href)).default as {
-  tabs?: { id: string; title: string; order: number }[];
-  routes?: { path: string; component: unknown }[];
+const clientArtifact = (await import(artifact('client.js').href)) as {
+  default: {
+    tabs?: { id: string; title: string; order: number }[];
+    routes?: { path: string; component: unknown }[];
+  };
+  /** 具名导出只给测试用（见 client/index.ts）：md 渲染器 */
+  renderMarkdown: (source: string) => string;
 };
+const plugin = clientArtifact.default;
+const { renderMarkdown } = clientArtifact;
 
 // ── 3. 服务端装配：apply() 挂到宿主上的路由必须一条不少 ──────────────────────
 // 假 ctx 照宿主的语义来：`ctx.routes.for(id)` **每调用一次就换一张新表**
@@ -2331,6 +2337,59 @@ console.log('LLM 路由：总闸与区块读写');
   );
 
   fs.rmSync(spaceDir, { recursive: true, force: true });
+}
+
+// AI 卡片的回复是模型现写的 md：渲染器在插件自己的产物里（零依赖），口径与 anima-plus 那份一致。
+console.log('AI 卡片：回复按 md 渲染（零依赖）');
+{
+  check('产物具名导出 renderMarkdown', typeof renderMarkdown === 'function');
+  const scripthtml = renderMarkdown('<script>alert(1)</script>');
+  check(
+    'HTML 被转义（回复里写标签也只会显示成文本）',
+    scripthtml.includes('&lt;script&gt;') && !scripthtml.includes('<script'),
+    scripthtml,
+  );
+  check('javascript: 链接被挡下', !renderMarkdown('[x](javascript:alert(1))').includes('<a '));
+  check('相对链接不生成 <a>（浏览器里没有意义）', !renderMarkdown('[readme](./readme.md)').includes('<a '));
+  check(
+    'http 链接渲染成新窗口打开的可点链接',
+    /<a href="https:\/\/example\.com\/a" target="_blank" rel="noreferrer">文档<\/a>/.test(
+      renderMarkdown('[文档](https://example.com/a)'),
+    ),
+    renderMarkdown('[文档](https://example.com/a)'),
+  );
+  check(
+    '标题 / 列表 / 粗体 / 行内码 / 代码块 都渲染',
+    renderMarkdown('### 改了这些').includes('<h3>改了这些</h3>') &&
+      renderMarkdown('- 质量块\n- 场景块').includes('<ul>') &&
+      renderMarkdown('**质量块**').includes('<strong>质量块</strong>') &&
+      renderMarkdown('`set_block`').includes('<code>set_block</code>') &&
+      renderMarkdown('```\n1girl\n```').includes('<pre><code>'),
+  );
+  // 转义在分类之前：`>` 到分类这一步已经是 `&gt;`，照 `^>` 匹配永远不中（浏览器实测踩到过）
+  check(
+    '引用渲染成 blockquote（不是一行字面 `&gt;`）',
+    renderMarkdown('> 只动了你勾选的块').includes('<blockquote>只动了你勾选的块</blockquote>'),
+    renderMarkdown('> 只动了你勾选的块'),
+  );
+  check(
+    '表格渲染成 table',
+    renderMarkdown('| 块 | 动作 |\n| --- | --- |\n| 质量 | 改写 |').includes('<td>改写</td>'),
+  );
+  check('隐藏 HTML 注释', !renderMarkdown('a\n<!-- 内部提示 -->\nb').includes('内部提示'));
+
+  // 接线：回复那个 div 必须把 renderMarkdown 的结果塞进 innerHTML —— 写成 {{ }} 文本插值就退化回纯文本
+  const bundle = fs.readFileSync(artifact('client.js'), 'utf8');
+  const at = bundle.indexOf('pe-ai-reply pe-ai-md');
+  check(
+    '回复走 v-html + renderMarkdown（不是文本插值）',
+    at >= 0 && /innerHTML:\s*\w+\(\w+\)\(/.test(bundle.slice(at, at + 120)),
+    at < 0 ? '产物里找不到 pe-ai-md' : bundle.slice(at, at + 120).replace(/\s+/g, ' '),
+  );
+  check(
+    '回复为空时仍是那句人话（没渲染成一堆空标签）',
+    bundle.includes('（这次没有回复）'),
+  );
 }
 
 // 内置区块库：`assets/block-library.json` 是 WeiLin 存档预处理来的（scripts/build-blocks.ts），

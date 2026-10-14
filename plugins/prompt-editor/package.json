@@ -1,6 +1,6 @@
 {
   "name": "@comfyui-web/prompt-editor",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "private": true,
   "description": "提示词编写 tab（不负责绘图）：区块式工作区 + tag/自然语言两种切分视图 + 纯文本输出；预设库与草稿存在插件自己的空间里",
   "type": "module",

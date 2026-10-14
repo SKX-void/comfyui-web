@@ -30,6 +30,12 @@ function injectStylesheet(): void {
 
 injectStylesheet();
 
+/**
+ * 具名导出：md 渲染器，**只给契约测试用**（宿主只认 default 导出）。
+ * 放在产物里测，才能挡住"源码改了、产物没跟上"。
+ */
+export { renderMarkdown } from './src/md';
+
 export default {
   tabs: [{ id: 'prompt-editor', title: '提示词编辑器', order: 3 }],
   routes: [{ path: '', component: PromptEditorView }],

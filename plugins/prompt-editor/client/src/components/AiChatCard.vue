@@ -21,6 +21,7 @@ import {
   type LlmChatSummary,
   type LlmTurn,
 } from '../api-llm-chat';
+import { renderMarkdown } from '../md';
 import type { Block } from '../model';
 
 const props = defineProps<{ blocks: Block[]; version?: number; enabled: boolean }>();
@@ -218,7 +219,10 @@ function togglePick(): void {
         </p>
         <article v-for="(turn, index) in turns" :key="`${turn.at}-${index}`" class="pe-ai-turn">
           <p class="pe-ai-user">{{ turn.instruction }}</p>
-          <p class="pe-ai-reply">{{ turn.reply === '' ? '（这次没有回复）' : turn.reply }}</p>
+          <!-- 回复是模型现写的 md：走 renderMarkdown（先转义再套标签）渲染。
+               人说的那句保持原样 —— 他敲的是提示词，`*` `#` 是内容不是格式 -->
+          <p v-if="turn.reply === ''" class="pe-ai-reply">（这次没有回复）</p>
+          <div v-else class="pe-ai-reply pe-ai-md" v-html="renderMarkdown(turn.reply)"></div>
           <p class="pe-ai-action">
             {{ turn.action }}
             <span v-if="turn.aborted" class="pe-ai-aborted">达到轮数上限，提前收工</span>
