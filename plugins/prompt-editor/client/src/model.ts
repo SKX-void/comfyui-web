@@ -96,8 +96,20 @@ export const BLOCK_COLORS = [
   '#9aa3b2',
 ];
 
+/** 随机字节：`crypto.getRandomValues()` 在非安全上下文里是 undefined，才退回 `Math.random` */
+function randomBytes(length: number): Uint8Array {
+  const bytes = new Uint8Array(length);
+  const source = (globalThis as { crypto?: Crypto }).crypto;
+  if (typeof source?.getRandomValues === 'function') {
+    source.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return bytes;
+}
+
 /**
- * 条目 / 区块的 id。
+ * 条目 / 预设 / 提示词段的 id（uuid v4）。
  *
  * **不能直接用 `crypto.randomUUID()`**：它和 `crypto.subtle` 一样只在**安全上下文**
  * （https / localhost）里存在，而本插件经常就是局域网 http 打开的（`http://10.x.x.x:5180`）——
@@ -106,17 +118,23 @@ export const BLOCK_COLORS = [
  * 连它都没有（极老环境）才退回 `Math.random` —— id 只需要在本机文档内唯一。
  */
 export function newId(): string {
-  const bytes = new Uint8Array(16);
-  const source = (globalThis as { crypto?: Crypto }).crypto;
-  if (typeof source?.getRandomValues === 'function') {
-    source.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
-  }
+  const bytes = randomBytes(16);
   bytes[6] = (bytes[6]! & 0x0f) | 0x40; // version 4
   bytes[8] = (bytes[8]! & 0x3f) | 0x80; // variant 10xx
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+const BLOCK_ID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
+
+/**
+ * 区块 id：`b` + 6 位 base36 —— 与服务端 `server/doc.ts` 的 `newBlockId()` 同款。
+ *
+ * 短是**给 LLM 看的**：服务端把 id 直接写进 system 提示词，模型得逐字复述它才算"命中"，
+ * 36 位 uuid 抄错一位就是一次白跑。条目 id 仍走 `newId()`：条目不进提示词。
+ */
+export function newBlockId(): string {
+  return `b${Array.from(randomBytes(6), (byte) => BLOCK_ID_ALPHABET[byte % BLOCK_ID_ALPHABET.length]).join('')}`;
 }
 
 export function newItem(text = ''): Item {
@@ -124,7 +142,7 @@ export function newItem(text = ''): Item {
 }
 
 export function newBlock(title = '新区块', color = BLOCK_COLORS[0]!, mode: Mode = 'tag'): Block {
-  return { id: newId(), title, color, mode, collapsed: false, enabled: true, ai: false, items: [] };
+  return { id: newBlockId(), title, color, mode, collapsed: false, enabled: true, ai: false, items: [] };
 }
 
 /** 首屏的三块：只是"能立刻开始写"的起手式，标题和风格随便改 */

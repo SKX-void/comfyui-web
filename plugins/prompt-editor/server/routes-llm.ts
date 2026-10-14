@@ -8,10 +8,8 @@
  * - 工具写即时落盘：每次 set_block 都先现读草稿、改完立刻写盘，中途失败不回滚。
  * - 多轮对话在 `routes-llm-chats.ts`，与这里共用 `llm-run` 的内核。
  */
-import { randomUUID } from 'node:crypto';
-
 import { DRAFT_FILE, LIMITS, LLM_PROMPTS_FILE } from './constants.js';
-import { rawFromStored, storedFromRaw, text, type BlockMeta, type Stored } from './doc.js';
+import { freeBlockId, rawFromStored, storedFromRaw, text, type BlockMeta, type Stored } from './doc.js';
 import { createLlmRunner, joinBlockContent } from './llm-run.js';
 import { LLM_PROMPTS_VERSION, loadLlmPrompts, sanitizeLlmPrompt } from './llm-prompts.js';
 import { buildItems } from './llm-toolkit.js';
@@ -146,7 +144,7 @@ export function registerLlmRoutes({ routes, space, badRequest, log, tags }: LlmR
       if (title === '' || content === '') continue;
       const mode = raw.mode === 'text' ? 'text' : 'tag';
       const meta: BlockMeta = {
-        id: randomUUID(),
+        id: freeBlockId(stored.structure),
         title,
         color: runner.color(),
         mode,

@@ -9,7 +9,7 @@
  * 某个区块编辑完只动它自己的条目（O(该区块条目数)）。
  * 整份 doc 一起写的话，改一个字就要把全文档重新序列化+传一遍，放大太厉害。
  */
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { LIMITS, isMode, type Mode } from './constants.js';
 import { asRecord, isRecord, remap } from './util.js';
@@ -92,6 +92,37 @@ function id(value: unknown): string {
   return typeof value === 'string' && value !== '' ? value.slice(0, 64) : randomUUID();
 }
 
+const BLOCK_ID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
+const BLOCK_ID_DIGITS = 6;
+
+/**
+ * 区块 id：`b` + 6 位 base36（约 22 亿种）。
+ *
+ * 短是**给 LLM 看的**：`describeWorkspace()` 把 id 直接写进 system，模型得在 `set_block` /
+ * `suggest` 里逐字复述它 —— 36 位 uuid 抄错一位就是一次「区块 xxx 不存在」的白跑。
+ * 条目 id 不走这里：条目从不进提示词，改短省不到 token，只会把唯一性换成概率。
+ */
+export function newBlockId(): string {
+  const bytes = randomBytes(BLOCK_ID_DIGITS);
+  let id = 'b';
+  for (const byte of bytes) id += BLOCK_ID_ALPHABET[byte % BLOCK_ID_ALPHABET.length];
+  return id;
+}
+
+/** 建块取 id：先跟现有结构查重（撞上就再摇一个；22 亿的空间里循环基本只跑一次） */
+export function freeBlockId(structure: readonly BlockMeta[]): string {
+  const taken = new Set(structure.map((meta) => meta.id));
+  for (;;) {
+    const id = newBlockId();
+    if (!taken.has(id)) return id;
+  }
+}
+
+/** 区块 id 的收敛：老草稿 / 预设里是什么就留什么（存量 uuid 不迁移） */
+function blockId(value: unknown): string {
+  return typeof value === 'string' && value !== '' ? value.slice(0, 64) : newBlockId();
+}
+
 export function sanitizeItems(input: unknown): Item[] {
   return (Array.isArray(input) ? input.slice(0, LIMITS.items) : [])
     .filter(isRecord)
@@ -107,7 +138,7 @@ export function sanitizeItems(input: unknown): Item[] {
 
 export function sanitizeBlockMeta(block: Record<string, unknown>, fallbackMode: Mode): BlockMeta {
   return {
-    id: id(block.id),
+    id: blockId(block.id),
     title: text(block.title, LIMITS.title),
     color: text(block.color, LIMITS.color),
     mode: isMode(block.mode) ? block.mode : fallbackMode,

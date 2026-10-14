@@ -833,7 +833,11 @@ comfyui-web/
 - **区块与权限**：`BlockMeta` 增 `ai:boolean`（默认 false，不升 version），**块头那颗「AI」按钮**（`BlockHeader.vue`，
   挨着「不使用」开关）就是它的唯一人工入口 —— 点一下把块交给 AI、再点收回，走 `structure-changed` 落盘；读=全部块可见；
   LLM 写工具改/删只限 `ai===true` 且 id 在本次 `blockIds` 内；HTTP 的 `PUT/DELETE /llm/blocks/:id` 只限 `ai===true`；
-  建= `allowCreate`（默认开）。`set_block` 高层操作 `{id,title,mode,content}`：后端 `splitByMode(content,mode)`
+  建= `allowCreate`（默认开）。区块 id = `b` + 6 位 base36（`server/doc.ts` 的 `newBlockId`，建块时 `freeBlockId`
+  与现有结构查重；前端 `client/src/model.ts` 同款）：id 是模型要在 `set_block`/`suggest` 里**逐字复述**的东西，
+  36 位 uuid 抄错一位就是一次「区块 xxx 不存在」的白跑；条目 id 仍是 uuid（条目从不进提示词，改短省不到 token、
+  只把唯一性换成概率），**存量草稿/预设里的 uuid 一律不迁移**（chat turn 存着 changed/created/suggestion 的 id，
+  重写会让历史建议失效）。`set_block` 高层操作 `{id,title,mode,content}`：后端 `splitByMode(content,mode)`
   生成条目（新 id、`enabled:true`、译文即时查词库命中填 `dict`/`import`、未命中留空），过 `sanitize`+`LIMITS`
   落草稿、原禁用条目保留；`suggest` 工具 `{blockId,content}` 无写门禁、不落盘，随 `/llm/generate` 返回
   `suggestions`，前端展示+[应用]（应用走人类路径 `PUT /draft/blocks/:id/items`）。

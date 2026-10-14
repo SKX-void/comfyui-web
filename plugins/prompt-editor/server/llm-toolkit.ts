@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { LIMITS } from './constants.js';
-import { sanitizeItems, text, type BlockMeta, type Item, type Stored } from './doc.js';
+import { freeBlockId, sanitizeItems, text, type BlockMeta, type Item, type Stored } from './doc.js';
 import { splitByMode } from './split.js';
 import type { LlmToolKit, LlmToolOutcome } from './llm.js';
 import type { Settings } from './settings.js';
@@ -65,7 +65,7 @@ export function makeToolkit(args: {
         }
         const mode = input.mode === 'text' ? 'text' : 'tag';
         const meta: BlockMeta = {
-          id: randomUUID(),
+          id: freeBlockId(stored.structure),
           title,
           color: args.settings.llm.newBlockColor,
           mode,

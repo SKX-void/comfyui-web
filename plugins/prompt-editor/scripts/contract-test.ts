@@ -31,7 +31,10 @@ import {
   canDropItem,
   countItems,
   moveItem,
+  newBlock,
+  newBlockId,
   newId,
+  newItem,
   reflow,
   renderOutput,
   splitSentences,
@@ -589,6 +592,8 @@ console.log('id 生成（局域网 http = 非安全上下文）');
 // `crypto.randomUUID` 只在安全上下文（https / localhost）存在 —— 部署常常是 http://10.x.x.x，
 // 所以这里把两种降级路径都跑一遍：有 getRandomValues、连 crypto 都没有。
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+/** 区块 id：`b` + 6 位 base36 —— 模型要在 set_block/suggest 里逐字复述的东西，短就是它的全部意义 */
+const BLOCK_ID = /^b[0-9a-z]{6}$/;
 const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
 const fakeCrypto = (value: unknown): void => {
   Object.defineProperty(globalThis, 'crypto', { value, configurable: true, writable: true });
@@ -617,6 +622,9 @@ try {
   if (cryptoDescriptor === undefined) delete (globalThis as Record<string, unknown>).crypto;
   else Object.defineProperty(globalThis, 'crypto', cryptoDescriptor);
 }
+
+check('区块 id = b + 6 位 base36（模型要逐字复述它）', BLOCK_ID.test(newBlockId()) && BLOCK_ID.test(newBlock().id), newBlock().id);
+check('条目 id 仍是 uuid（条目从不进提示词）', UUID_V4.test(newItem().id), newItem().id);
 
 // ── 翻译：掩码 / 词库 / 设置 / 编排（provider 用 stub，不碰真网）───────────────
 
@@ -2120,6 +2128,7 @@ console.log('LLM 路由：总闸与区块读写');
   });
   const createdList = (created.body as { created?: { id: string; itemCount: number }[] }).created ?? [];
   check('批量新建：两个 id、摘要 itemCount 对', createdList.length === 2 && createdList.every((one) => one.itemCount === 2));
+  check('LLM 建的块 id 也是短 id（模型回头要复述它）', createdList.every((one) => BLOCK_ID.test(one.id)), createdList.map((one) => one.id).join(','));
   const stored = (): { blocks: { id: string; ai: boolean; color: string }[]; items: Record<string, unknown[]> } =>
     JSON.parse(fs.readFileSync(path.join(spaceDir, 'draft.json'), 'utf8')) as never;
   check('新建的块带 ai:true、颜色取 settings.llm.newBlockColor', stored().blocks.every((one) => one.ai === true && one.color === '#6ea8fe'));
