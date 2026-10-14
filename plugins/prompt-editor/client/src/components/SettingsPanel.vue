@@ -50,9 +50,9 @@ const expanded = ref(true);
         <nav class="pe-settings-nav">
           <template v-for="node in sections" :key="node.id">
             <button class="pe-nav-group" :aria-expanded="expanded" @click="expanded = !expanded">
-              <span>{{ node.label }}</span>
               <ChevronDown v-if="expanded" :size="14" />
               <ChevronRight v-else :size="14" />
+              <span>{{ node.label }}</span>
             </button>
             <template v-if="expanded">
               <button
@@ -158,11 +158,10 @@ const expanded = ref(true);
   color: var(--accent, #6ea8fe);
 }
 
-/* 分组行：不是叶子，点它只展开/收起 —— 所以它没有「选中」态 */
+/* 分组行：不是叶子，点它只展开/收起 —— 所以它没有「选中」态；展开标志在左，像正经的树 */
 .pe-nav-group {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 4px;
   width: 100%;
   border: none;
@@ -177,13 +176,17 @@ const expanded = ref(true);
   cursor: pointer;
 }
 
+.pe-nav-group svg {
+  flex: none;
+}
+
 .pe-nav-group:hover {
   color: var(--accent, #6ea8fe);
 }
 
-/* 树里的子节点：缩进一级 */
+/* 树里的子节点：缩进到分组标签那一列（8 内边距 + 14 箭头 + 4 间距） */
 .pe-nav-child {
-  padding-left: 20px;
+  padding-left: 26px;
   font-size: 11px;
 }
 

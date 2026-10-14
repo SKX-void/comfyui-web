@@ -50,6 +50,8 @@ export const LIMITS = {
   chats: 50,
   llmTurns: 100,
   llmHistoryTurns: 12,
+  /** 自定义请求头条数（网关一般只要一两个，给足余量又不至于让人往里塞整页东西） */
+  llmHeaders: 16,
 };
 
 /** 区块风格：tag = 逗号分隔的标签流 · text = 自然语言句子 */

@@ -23,9 +23,30 @@ const draft = ref<LlmSettings>({
   maxCallsPerDay: 200,
   newBlockColor: '#6ea8fe',
   maxToolRounds: 12,
+  headers: {},
 });
 /** 新 key 的输入框：单向流向（非空才发出去，发完就清空），从不从后端回填 */
 const apiKey = ref('');
+/** 请求头的编辑形态：一行一个「名字: 值」（比让人编 JSON 少一半出错机会） */
+const headersText = ref('');
+
+function formatHeaders(headers: Record<string, string>): string {
+  return Object.entries(headers)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join('\n');
+}
+
+function parseHeaders(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    const at = line.indexOf(':');
+    if (at <= 0) continue;
+    const name = line.slice(0, at).trim();
+    const value = line.slice(at + 1).trim();
+    if (name !== '' && value !== '') out[name] = value;
+  }
+  return out;
+}
 const usageLlmCalls = ref(0);
 const busy = ref(false);
 const error = ref('');
@@ -35,6 +56,7 @@ onMounted(async () => {
   try {
     const payload = await fetchSettings();
     draft.value = payload.settings.llm;
+    headersText.value = formatHeaders(draft.value.headers);
     usageLlmCalls.value = payload.usage.llmCalls;
   } catch (err) {
     error.value = `读设置失败：${(err as Error).message}`;
@@ -48,8 +70,12 @@ async function put(nextKey: string | null, okHint: string): Promise<void> {
   hint.value = '';
   try {
     // 空串 = 服务端"不改动"，所以输入框空着保存不会把已存的 key 擦掉
-    const saved = await saveSettings({ llm: { ...draft.value, apiKey: nextKey } });
+    const saved = await saveSettings({
+      llm: { ...draft.value, headers: parseHeaders(headersText.value), apiKey: nextKey },
+    });
     draft.value = saved.llm;
+    // 回填的是后端收敛后的那份（非法名/禁改头会被丢掉），不是本地刚敲的那串
+    headersText.value = formatHeaders(saved.llm.headers);
     apiKey.value = ''; // 保存即清空：这一框从不留 key
     hint.value = okHint;
     emit('saved');
@@ -111,6 +137,20 @@ async function put(nextKey: string | null, okHint: string): Promise<void> {
     </p>
   </div>
 
+  <div class="pe-field">
+    <label>请求头（一行一个，写成「名字: 值」）</label>
+    <textarea
+      v-model="headersText"
+      class="pe-input pe-textarea"
+      rows="3"
+      placeholder="x-opencode-header: 值&#10;x-another: 值"
+    ></textarea>
+    <p class="pe-note">
+      随每次 chat 请求发出去（有的网关强制要求某个头）。这里存的是**配置**、面板上看得见；
+      密钥请放上面的 apiKey —— 它只写不读。空行、以及不是「名字: 值」的行会被忽略。
+    </p>
+  </div>
+
   <p v-if="error !== ''" class="pe-error">{{ error }}</p>
   <p v-else-if="hint !== ''" class="pe-hint">{{ hint }}</p>
 
@@ -158,6 +198,15 @@ async function put(nextKey: string | null, okHint: string): Promise<void> {
 
 .pe-input-num {
   width: 96px;
+}
+
+.pe-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
 }
 
 /* key 的"有没有"提示：跟着输入框排在同一行 */

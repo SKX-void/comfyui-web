@@ -108,6 +108,7 @@ export async function runLlmAgent(options: LlmAgentOptions): Promise<LlmAgentOut
           timeoutMs: options.llm.timeoutMs,
           messages,
           reasoning: options.reasoning,
+          headers: options.llm.headers,
           tools: LLM_TOOLS,
         },
         options.fetchImpl,

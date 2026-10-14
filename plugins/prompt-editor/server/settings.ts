@@ -5,10 +5,11 @@
  * （`data/plugins/<包名>/settings.json`）。字段的**形状**仍写在 package.json 的
  * plugin.settings 里（界面从宿主清单端点取）。
  *
- * `llm` 段与翻译段并排：LLM 的凭据（apiKey）同样只住在后端文件里，`GET /settings`
- * 会原样回给前端（key 只写不读？不 —— 见下方注释：回显打码，前端只拿它判断"配没配"）。
+ * `llm` 段与翻译段并排：LLM 的凭据（apiKey）只住在后端文件里 —— `GET /settings` 回的是
+ * `llmSettingsView()`（没有 apiKey，只有一个 `apiKeySet` 布尔），浏览器永远拿不到 key 本体。
+ * 自定义请求头（`llm.headers`）是**配置**不是凭据，照常回给前端（要放密钥就放 apiKey）。
  */
-import { DEFAULT_COLOR, MIN_INTERVAL_MS_DEFAULT } from './constants.js';
+import { DEFAULT_COLOR, LIMITS, MIN_INTERVAL_MS_DEFAULT } from './constants.js';
 import { PROVIDERS } from './providers.js';
 import { asRecord, clampInt } from './util.js';
 
@@ -35,6 +36,8 @@ export interface LlmSettings {
   newBlockColor: string;
   /** 一次生成里最多让模型调几轮工具 */
   maxToolRounds: number;
+  /** 自定义请求头：随每次 chat 请求发出去（有的网关强制要某个头，如 opencode 系） */
+  headers: Record<string, string>;
 }
 
 export interface Settings {
@@ -89,8 +92,32 @@ export const DEFAULT_SETTINGS: Settings = {
     maxCallsPerDay: 200,
     newBlockColor: DEFAULT_COLOR,
     maxToolRounds: 12,
+    headers: {},
   },
 };
+
+/** 合法的头名（RFC 7230 token）；带冒号/空格的写法一律丢掉 */
+const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+/** fetch 不让改的这几个：留着它们会让请求在 undici 里直接抛，不如存的时候就丢 */
+const HEADER_DENY = new Set(['host', 'content-length', 'connection', 'transfer-encoding']);
+
+/** 请求头收敛：丢非法名/禁改头/非字符串/空值，条数与长度封顶 */
+function sanitizeHeaders(input: unknown): Record<string, string> {
+  const raw = asRecord(input);
+  if (raw === null) return {};
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(raw)) {
+    if (Object.keys(out).length >= LIMITS.llmHeaders) break;
+    const key = name.trim();
+    if (key === '' || key.length > 64 || !HEADER_NAME.test(key)) continue;
+    if (HEADER_DENY.has(key.toLowerCase())) continue;
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed === '') continue;
+    out[key] = trimmed.slice(0, 400);
+  }
+  return out;
+}
 
 function sanitizeLlmSettings(input: unknown): LlmSettings {
   const raw = asRecord(input) ?? {};
@@ -105,6 +132,7 @@ function sanitizeLlmSettings(input: unknown): LlmSettings {
     maxCallsPerDay: clampInt(raw.maxCallsPerDay, 0, 100000, fallback.maxCallsPerDay),
     newBlockColor: typeof raw.newBlockColor === 'string' ? raw.newBlockColor.slice(0, 32) : fallback.newBlockColor,
     maxToolRounds: clampInt(raw.maxToolRounds, 1, 100, fallback.maxToolRounds),
+    headers: sanitizeHeaders(raw.headers),
   };
 }
 

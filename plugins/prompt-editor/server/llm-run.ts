@@ -130,6 +130,8 @@ export function createLlmRunner(deps: {
       toolkit,
       history,
     });
+    // 上游报错必须落到宿主日志里：前端只拿到一句话，没有日志就只剩"接口 400"可查
+    if (outcome.error !== undefined) log(`LLM 调用失败：${outcome.error.code} ${outcome.error.message}`);
 
     return {
       ok: true,

@@ -1486,7 +1486,8 @@ check(
       s.llm.timeoutMs === 60000 &&
       s.llm.maxCallsPerDay === 200 &&
       s.llm.maxToolRounds === 12 &&
-      s.llm.newBlockColor === '#6ea8fe'
+      s.llm.newBlockColor === '#6ea8fe' &&
+      Object.keys(s.llm.headers).length === 0
     );
   })(),
 );
@@ -1501,6 +1502,57 @@ check('LLM 段越界收敛到范围内', (() => {
 })());
 
 check('推理档位只认 off/low/high', isLlmReasoning('low') && isLlmReasoning('high') && !isLlmReasoning('medium') && !isLlmReasoning(1));
+
+// 上游 400 的错误体没有 message 时（opencode zen 只回 `{"model":...}`），原文必须带回来 ——
+// 否则前端只剩「模型接口返回 HTTP 400」，这个 400 查不动。
+await (async () => {
+  const badGateway = (async () => ({ ok: false, status: 400, text: async () => '{"model":"m"}' })) as unknown as Parameters<
+    typeof server.openAiCompatibleChat
+  >[1];
+  let message = '';
+  try {
+    await server.openAiCompatibleChat(
+      {
+        baseUrl: 'https://example.invalid/v1',
+        apiKey: 'k',
+        model: 'm',
+        timeoutMs: 1000,
+        messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'off',
+      },
+      badGateway,
+    );
+  } catch (error) {
+    message = (error as Error).message;
+  }
+  check('上游错误体没有 message：原文带回来', message === '模型接口返回 HTTP 400：{"model":"m"}');
+})();
+
+// ── 自定义请求头：网关强制要的头得能配，但名字/值不能随便进（fetch 会为禁改头直接抛） ──
+check('LLM 请求头：非法名 / 禁改头 / 非字符串 / 空值都被丢掉', (() => {
+  const headers = sanitizeSettings({
+    llm: {
+      headers: { 'x-good': ' 值 ', 'bad name': 'v', 'x-empty': '', host: 'evil', 'content-length': '1', 'x-num': 7 },
+    },
+  }).llm.headers;
+  return (
+    headers['x-good'] === '值' &&
+    headers['bad name'] === undefined &&
+    headers['x-empty'] === undefined &&
+    headers.host === undefined &&
+    headers['content-length'] === undefined &&
+    headers['x-num'] === undefined &&
+    Object.keys(headers).length === 1 &&
+    Object.keys(sanitizeSettings({ llm: { headers: 'nope' } }).llm.headers).length === 0
+  );
+})());
+check('LLM 请求头：条数与长度封顶', (() => {
+  const many: Record<string, string> = {};
+  for (let i = 0; i < 40; i += 1) many[`x-${i}`] = 'v';
+  const capped = sanitizeSettings({ llm: { headers: many } }).llm.headers;
+  const long = sanitizeSettings({ llm: { headers: { 'x-long': 'a'.repeat(500) } } }).llm.headers['x-long'];
+  return Object.keys(capped).length === 16 && long?.length === 400;
+})());
 
 // ── key 只写不读（D27）：离开后端的那份永远没有 apiKey，写进来的空串 = 不改动 ──
 check('key 只写不读：view 里没有 apiKey，只有 apiKeySet', (() => {
@@ -2051,6 +2103,7 @@ console.log('LLM 路由：总闸与区块读写');
       maxCallsPerDay: 200,
       newBlockColor: '#6ea8fe',
       maxToolRounds: 12,
+      headers: { 'x-opencode-header': 'yes' },
     },
   };
   fs.writeFileSync(path.join(spaceDir, 'settings.json'), JSON.stringify(settingsOn));
@@ -2195,9 +2248,11 @@ console.log('LLM 路由：总闸与区块读写');
     thinking?: { type?: string };
   };
   const sent: SentBody[] = [];
+  const sentHeaders: Record<string, string>[] = [];
   const realFetch = globalThis.fetch;
-  globalThis.fetch = (async (_url: string, init: { body: string }) => {
+  globalThis.fetch = (async (_url: string, init: { body: string; headers: Record<string, string> }) => {
     sent.push(JSON.parse(init.body) as SentBody);
+    sentHeaders.push(init.headers);
     return {
       ok: true,
       status: 200,
@@ -2226,12 +2281,20 @@ console.log('LLM 路由：总闸与区块读写');
     );
     check('回放历史：system 在最前、本次 user 在最后', secondSent[0]?.role === 'system' && secondSent.at(-1)?.content === '再短一点');
     check(
-      '推理档位：请求体两个字段都显式发（缺省 off、本次 high）',
+      '推理档位：off 不发 reasoning_effort（网关不认这个字面值，整包 400），只发 thinking.disabled；high 两个字段都发',
       sent.length === 2 &&
-        sent[0]?.reasoning_effort === 'off' &&
+        sent[0]?.reasoning_effort === undefined &&
         sent[0]?.thinking?.type === 'disabled' &&
         sent[1]?.reasoning_effort === 'high' &&
         sent[1]?.thinking?.type === 'enabled',
+    );
+    check(
+      '请求头：settings 里配的自定义头随请求发出去（默认头还在）',
+      sentHeaders.length === 2 &&
+        sentHeaders[0]?.['x-opencode-header'] === 'yes' &&
+        sentHeaders[1]?.['x-opencode-header'] === 'yes' &&
+        sentHeaders[0]?.['content-type'] === 'application/json' &&
+        sentHeaders[0]?.['authorization'] === 'Bearer k',
     );
   } finally {
     globalThis.fetch = realFetch;

@@ -64,6 +64,8 @@ export interface LlmSettings {
   maxCallsPerDay: number;
   newBlockColor: string;
   maxToolRounds: number;
+  /** 自定义请求头：随每次 chat 请求发（配置，不是凭据；密钥请放 apiKey） */
+  headers: Record<string, string>;
 }
 
 /** 写方向的 LLM 段：apiKey 非空 = 换新的，`null` = 清掉，不带 / 空串 = 不动后端那份 */
