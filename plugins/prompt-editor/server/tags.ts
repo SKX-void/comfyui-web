@@ -75,6 +75,17 @@ export interface TagLookup {
 }
 
 /**
+ * agent 侧要的词库形状：搜词 + 取共现邻居（D32）。
+ * 同 `TagLookup` 的理由：`llm-toolkit.ts` 不认数据库，契约测试塞个假的就能测工具行为。
+ * 返回**整行**是故意的 —— 裁字段是工具自己的事（喂给模型的每一段都是 token）；
+ * `TagDb` 天然满足这个形状，不需要适配层。
+ */
+export interface TagSearch {
+  query(options: TagQuery): TagQueryResult;
+  cooccur(text: unknown, limit?: number): TagListEntry[];
+}
+
+/**
  * 面板搜索列：正名键 + 小写译文 + 别名键，用换行拼成**一列**。
  *
  * 拼一列是为了让面板那条查询只做一次 LIKE（三个字段分别 LIKE 的话，每行要跑三次匹配

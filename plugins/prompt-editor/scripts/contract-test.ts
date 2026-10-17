@@ -1500,22 +1500,38 @@ check(
       s.llm.timeoutMs === 60000 &&
       s.llm.maxCallsPerDay === 200 &&
       s.llm.maxToolRounds === 12 &&
+      s.llm.tagSearch === false &&
       s.llm.newBlockColor === '#6ea8fe' &&
       Object.keys(s.llm.headers).length === 0
     );
   })(),
 );
 check('LLM 段越界收敛到范围内', (() => {
-  const s = sanitizeSettings({ llm: { enabled: 'yes', timeoutMs: 1, maxCallsPerDay: 999999, maxToolRounds: 0 } });
+  const s = sanitizeSettings({ llm: { enabled: 'yes', timeoutMs: 1, maxCallsPerDay: 999999, maxToolRounds: 0, tagSearch: 'yes' } });
   return (
     s.llm.enabled === false &&
     s.llm.timeoutMs === 1000 &&
     s.llm.maxCallsPerDay === 100000 &&
-    s.llm.maxToolRounds === 1
+    s.llm.maxToolRounds === 1 &&
+    s.llm.tagSearch === false
   );
 })());
 
 check('推理档位只认 off/low/high', isLlmReasoning('low') && isLlmReasoning('high') && !isLlmReasoning('medium') && !isLlmReasoning(1));
+
+// 查库开关（D32）：工具表按开关装配，开关状态另有一句 system 通知（模板删不掉的那句）
+check(
+  '查库关着：工具表只有写工具，system 通知说明本次不许查',
+  server.llmTools(false).length === 2 &&
+    server.llmTools(false).every((one) => one.function.name !== 'search_tags') &&
+    server.tagSearchNotice(false).includes('不可用'),
+);
+check(
+  '查库开着：工具表多一个 search_tags，通知说库外照写',
+  server.llmTools(true).length === 3 &&
+    server.llmTools(true).some((one) => one.function.name === 'search_tags') &&
+    server.tagSearchNotice(true).includes('库外'),
+);
 
 // 上游 400 的错误体没有 message 时（opencode zen 只回 `{"model":...}`），原文必须带回来 ——
 // 否则前端只剩「模型接口返回 HTTP 400」，这个 400 查不动。
@@ -2076,13 +2092,19 @@ console.log('LLM 路由：总闸与区块读写');
       return this;
     },
   });
+  /** 词库桩（D32）：默认"什么都没有"；查库工具那条用例会把 tagStub 换成有命中的那份 */
+  let tagStub: Record<string, unknown> = {
+    lookup: () => null,
+    query: () => ({ tags: [], total: 0 }),
+    cooccur: () => [],
+  };
   const helpers = {
     routes: { get: record('GET'), post: record('POST'), put: record('PUT'), delete: record('DELETE') },
     space: { packageName: 'x', root: spaceDir, resolve: (f: string) => path.join(spaceDir, f) },
     badRequest: (r: { code: (n: number) => { send: (b: unknown) => unknown } }, message: string) =>
       r.code(400).send({ error: { code: 'BAD_REQUEST', message } }),
     log: () => {},
-    tags: () => ({ lookup: () => null }),
+    tags: () => tagStub,
   };
   server.registerLlmRoutes(helpers as unknown as Parameters<typeof server.registerLlmRoutes>[0]);
   server.registerLlmChatRoutes(helpers as unknown as Parameters<typeof server.registerLlmChatRoutes>[0]);
@@ -2261,6 +2283,7 @@ console.log('LLM 路由：总闸与区块读写');
     messages: { role: string; content: string | null }[];
     reasoning_effort?: string;
     thinking?: { type?: string };
+    tools?: { function: { name: string } }[];
   };
   const sent: SentBody[] = [];
   const sentHeaders: Record<string, string>[] = [];
@@ -2311,6 +2334,12 @@ console.log('LLM 路由：总闸与区块读写');
         sentHeaders[0]?.['content-type'] === 'application/json' &&
         sentHeaders[0]?.['authorization'] === 'Bearer k',
     );
+    check(
+      '查库关着（默认）：工具表只有两个写工具，system 末尾另起一句说明本次不许查',
+      (sent[0]?.tools ?? []).length === 2 &&
+        (sent[0]?.tools ?? []).every((one) => one.function.name !== 'search_tags') &&
+        String(sent[0]?.messages[0]?.content ?? '').includes('词库查询本次不可用'),
+    );
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -2335,6 +2364,93 @@ console.log('LLM 路由：总闸与区块读写');
     ((await call('DELETE /llm/chats/:id', { params: { id: chatId } })).body as { ok?: boolean }).ok === true &&
       (((await call('GET /llm/chats')).body as { chats?: unknown[] }).chats ?? []).length === 0,
   );
+
+  // 查库工具（D32）：开关打开后工具表里多一个 search_tags，模型自己决定何时查 ——
+  // 一轮 tool call = 多一次 provider 往返，工具结果必须真的回到第二轮请求的上下文里（成对结构）。
+  const llmOn = (extra: Record<string, unknown>): string =>
+    JSON.stringify({ ...settingsOn, llm: { ...settingsOn.llm, ...extra } });
+  const scripted = (rounds: SentBody[], toolArgs: Record<string, unknown>): void => {
+    globalThis.fetch = (async (_url: string, init: { body: string }) => {
+      rounds.push(JSON.parse(init.body) as SentBody);
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            choices: [
+              {
+                message:
+                  rounds.length === 1
+                    ? {
+                        content: null,
+                        tool_calls: [
+                          { id: 'call-1', type: 'function', function: { name: 'search_tags', arguments: JSON.stringify(toolArgs) } },
+                        ],
+                      }
+                    : { content: '好，按库里的写法改。' },
+              },
+            ],
+          }),
+      };
+    }) as unknown as typeof globalThis.fetch;
+  };
+  const toolResult = (rounds: SentBody[]): string =>
+    String((rounds[1]?.messages ?? []).find((one) => one.role === 'tool')?.content ?? '');
+
+  fs.writeFileSync(path.join(spaceDir, 'settings.json'), llmOn({ tagSearch: true }));
+  tagStub = {
+    lookup: () => null,
+    query: () => ({
+      tags: [
+        { key: 'long hair', en: 'long hair', zh: '长发', categories: ['头发'], aliases: ['longhair'], source: 'import', hot: 100, updatedAt: 0 },
+      ],
+      total: 1,
+    }),
+    cooccur: () => [
+      { key: 'ponytail', en: 'ponytail', zh: '马尾', categories: [], aliases: [], source: 'import', hot: 0, updatedAt: 0 },
+    ],
+  };
+  const hitSent: SentBody[] = [];
+  scripted(hitSent, { query: '长发', includeRelated: true });
+  try {
+    const chat = (await call('POST /llm/chats', { body: {} })).body as { chat?: { id: string } };
+    const answered = (await call('POST /llm/chats/:id/messages', {
+      params: { id: chat.chat?.id ?? '' },
+      body: { instruction: '把长发写进质量块' },
+    })).body as { turn?: { reply?: string; toolCalls?: number } };
+    check(
+      '查库开着：工具表多一个 search_tags，system 换成"可用"那份通知',
+      (hitSent[0]?.tools ?? []).some((one) => one.function.name === 'search_tags') &&
+        String(hitSent[0]?.messages[0]?.content ?? '').includes('词库查询可用'),
+    );
+    check(
+      'search_tags 命中：正名 / 中文 / 分类 / 共现邻居都回给模型，这一轮记进 toolCalls',
+      toolResult(hitSent).includes('long hair') &&
+        toolResult(hitSent).includes('长发') &&
+        toolResult(hitSent).includes('头发') &&
+        toolResult(hitSent).includes('ponytail') &&
+        answered.turn?.toolCalls === 1 &&
+        answered.turn?.reply === '好，按库里的写法改。',
+    );
+
+    // 没命中才是模型的常态：必须明确说"库不是白名单"，否则它会改成保守写法或干脆不写
+    tagStub = { lookup: () => null, query: () => ({ tags: [], total: 0 }), cooccur: () => [] };
+    const missSent: SentBody[] = [];
+    scripted(missSent, { query: 'garter belt', includeRelated: true });
+    await call('POST /llm/chats/:id/messages', { params: { id: chat.chat?.id ?? '' }, body: { instruction: '再加个吊袜带' } });
+    const miss = JSON.parse(toolResult(missSent) === '' ? '{}' : toolResult(missSent)) as {
+      ok?: boolean;
+      matches?: unknown[];
+      related?: string[];
+      note?: string;
+    };
+    check(
+      'search_tags 没命中：matches 空、不给共现邻居、明说"不是白名单"',
+      miss.ok === true && miss.matches?.length === 0 && miss.related?.length === 0 && (miss.note ?? '').includes('不是白名单'),
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 
   fs.rmSync(spaceDir, { recursive: true, force: true });
 }

@@ -7,13 +7,13 @@
  */
 import { DRAFT_FILE, LIMITS, SETTINGS_FILE, USAGE_FILE } from './constants.js';
 import { rawFromStored, storedFromRaw, text, type BlockMeta, type Stored } from './doc.js';
-import { runLlmAgent } from './llm.js';
+import { llmTools, runLlmAgent, tagSearchNotice } from './llm.js';
 import type { LlmMessage } from './llm-providers.js';
 import { composePrompt, loadLlmPrompts } from './llm-prompts.js';
 import { buildItems, describeWorkspace, makeToolkit, type LlmStats } from './llm-toolkit.js';
 import { isLlmReasoning, sanitizeSettings, sanitizeUsage, type Settings } from './settings.js';
 import { readJson, writeJson } from './store.js';
-import type { TagLookup } from './tags.js';
+import type { TagLookup, TagSearch } from './tags.js';
 import type { PluginSpace } from './types.js';
 import { asRecord } from './util.js';
 
@@ -49,10 +49,16 @@ export interface LlmRunner {
   loadDraft(): Stored;
 }
 
+/**
+ * 词库依赖：翻译要 `lookup`，agent 查词要 `query`/`cooccur`（D32）。
+ * 真实现是 `tagdb.ts` 的 `TagDb`，天然满足两条 —— 这里只声明"要什么"，不认数据库。
+ */
+export type LlmTagSource = TagLookup & TagSearch;
+
 export function createLlmRunner(deps: {
   space: PluginSpace;
   log: (message: string) => void;
-  tags: () => TagLookup;
+  tags: () => LlmTagSource;
 }): LlmRunner {
   const { space, log, tags } = deps;
   const settingsFile = space.resolve(SETTINGS_FILE);
@@ -114,6 +120,7 @@ export function createLlmRunner(deps: {
       stats,
       saveDraft,
       buildItems: (content, mode) => buildItems(content, mode, tags),
+      tagSearch: tags(),
     });
 
     const composition = composePrompt(
@@ -121,14 +128,18 @@ export function createLlmRunner(deps: {
       { workspace: describeWorkspace(stored, writableIds, joinBlockContent), instruction },
       log,
     );
+    // 查库开关的状态由后端拼在模板之后（D32）：模板归用户、删得掉，这句删不掉
+    const system = [composition.system, tagSearchNotice(settings.llm.tagSearch)].filter((part) => part !== '').join('\n\n');
     const outcome = await runLlmAgent({
       llm: settings.llm,
       reasoning,
-      system: composition.system,
+      system,
+      tools: llmTools(settings.llm.tagSearch),
       extras: composition.extras,
       user: instruction,
       toolkit,
       history,
+      log,
     });
     // 上游报错必须落到宿主日志里：前端只拿到一句话，没有日志就只剩"接口 400"可查
     if (outcome.error !== undefined) log(`LLM 调用失败：${outcome.error.code} ${outcome.error.message}`);

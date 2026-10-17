@@ -23,6 +23,7 @@ const draft = ref<LlmSettings>({
   maxCallsPerDay: 200,
   newBlockColor: '#6ea8fe',
   maxToolRounds: 12,
+  tagSearch: false,
   headers: {},
 });
 /** 新 key 的输入框：单向流向（非空才发出去，发完就清空），从不从后端回填 */
@@ -134,6 +135,19 @@ async function put(nextKey: string | null, okHint: string): Promise<void> {
     <p class="pe-note">
       一次「生成」提交算 1 次调用（内部多轮 tool call 不另计）；今天已用 {{ usageLlmCalls }} 次。
       0 = 禁用生成（配额耗尽）。
+    </p>
+  </div>
+
+  <div class="pe-field">
+    <label>
+      <input v-model="draft.tagSearch" type="checkbox" />
+      允许 AI 查词库
+    </label>
+    <p class="pe-note">
+      开 = 工具表里多一个 search_tags，由模型自己决定何时查：能查库内正名 / 中文 / 分类与共现邻居
+      （同一个意思往往只有个别写法被画图模型认，写 tag 块前核对一次能少走弯路）；关 = 这个工具根本
+      不出现，并在 system 里告诉它本次不许查。查一次 = 多一次 provider 往返，常见标签它本来就认识 ——
+      默认关，觉得它老写不生效的近义写法时再打开。
     </p>
   </div>
 

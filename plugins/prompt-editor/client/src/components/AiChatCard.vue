@@ -225,6 +225,8 @@ function togglePick(): void {
           <div v-else class="pe-ai-reply pe-ai-md" v-html="renderMarkdown(turn.reply)"></div>
           <p class="pe-ai-action">
             {{ turn.action }}
+            <!-- 链式调用的唯一可见痕迹：一轮 tool call = 后端多一次 provider 往返，前端只拿得到总次数 -->
+            <span v-if="turn.toolCalls > 0" class="pe-ai-tools">工具调用 {{ turn.toolCalls }} 次</span>
             <span v-if="turn.aborted" class="pe-ai-aborted">达到轮数上限，提前收工</span>
           </p>
           <!-- 出错单独一行：跟"做了什么"挤在同一个 chip 里，两种颜色会读成一句话 -->

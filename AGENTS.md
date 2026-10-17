@@ -36,10 +36,12 @@ pnpm -r typecheck
 - **bash 输出会被吞**：可能产生大量输出的命令（build/typecheck/curl 循环）按优先级选：
   ① 原生后台 job —— `run_in_background` 起、`job_output` 读、`job_kill` 停（**唯一能跨调用停掉的**）；
   ② `setsid nohup <cmd> > /tmp/x.log 2>&1 < /dev/null &`，然后读 `/tmp/x.log`。
-- **control-web（面板 `:8790`）在这个沙箱里只能读**：`cw` 随 control-web skill 分发、**不在 PATH**，
-  `cw ls` / `cw logs <名>` 可用（看别人在沙箱外起的 job），面板能看全机进程与端口归属；
-  但 `cw run` / `cw exec` 起不来 —— 服务端不代执行时它退回沙箱内起进程，要写
-  `/app/control-web/data/logs/`（工作区外）→ `Permission denied`。起进程仍走上面两条。
+- **control-web（面板 `:8790`）**：`cw` 在 PATH（`/usr/local/bin/cw`，随 control-web skill 分发）。
+  `cw ls` 只认自己起的 job —— 看不到别人终端里的进程（找那种用 `ps` / `/proc`）；面板能看全机进程与端口归属。
+  `cw run` / `cw exec` **在这台机器上能起**（实测 `cw run probe 'echo hi'` → `(服务端 spawn · 未沙箱)`，
+  `cw logs probe` → `hi`）：面板已开代执行，进程不落在文件沙箱里。**起进程的默认配方仍是上面两条**
+  （原生后台 job 优先；cw 的独有价值是命名进程 + 命名日志 + 按进程组杀）；
+  若哪天面板没配「agent 可写的日志目录」，cw 会明说原因并回落到原生后台 job —— 不会伪装成"起不来"。
 - **`tsx watch` 会盯整仓，必须带 `--exclude`**：cordis 启动时会在「`baseUrl` 往上最近的那个
   `package.json`」旁写 `.cordis/resolve.mjs`。现在 `baseUrl` 是 `tabs/`，于是它落在**仓库根** ——
   不排除就是每 2s 重启一次的活锁（宿主永远起不来）；改 `tabs/`、`data/` 也会连带重启宿主。

@@ -35,7 +35,7 @@ export {
   sanitizePromptSegment,
 } from './llm-prompts.js';
 export { LlmError, openAiCompatibleChat } from './llm-providers.js';
-export { LLM_TOOLS, runLlmAgent } from './llm.js';
+export { llmTools, runLlmAgent, tagSearchNotice } from './llm.js';
 export { buildItems, describeWorkspace, makeToolkit } from './llm-toolkit.js';
 export { createLlmRunner, joinBlockContent } from './llm-run.js';
 export {

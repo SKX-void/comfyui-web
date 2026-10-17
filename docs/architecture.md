@@ -77,6 +77,8 @@
 | D28 | LLM 多轮对话 | **对话是卡片不是弹层；历史只回放纯文本**：会话存 `llm-chats.json`（`ctx.space`，`LIMITS.chats=50`/`llmTurns=100`），接口 `GET/POST /llm/chats`、`GET/DELETE /llm/chats/:id`、`POST /llm/chats/:id/messages`；生成内核抽成 `server/llm-run.ts` 的 `createLlmRunner()`，`/llm/generate` 与对话消息共用同一份总闸/配额/可写范围/模板插值/落盘语义（一次性入口 = 没有历史的 `run()`）；历史回放最近 `LIMITS.llmHistoryTurns=12` 轮、**只回放 user+assistant 纯文本**（assistant 那句附「本轮动作」），不回放 `tool_calls`/`tool` 消息；前端 AI 卡片 `AiChatCard.vue` 是 `.pe-body` 的第三个孩子 —— 桌面上 grid 自动落到"工作区下面"那一格，手机上是「工作区 / AI / 输出」三视图之一；总闸关着时卡片**一个请求都不发** | 对话是"边聊边看块变化"的活儿：弹层盖住工作区就看不见 AI 刚写进去的东西，所以卡片化；手机上卡片与工作区平行（各自一屏）才不互相挤。历史只给纯文本是因为 `tool_calls` 与 `tool` 结果是**成对结构**，按"最近 N 轮"截断必然切坏配对、provider 直接 400。内核必须共用：两套生成路径各写一份总闸/配额，早晚漂移。见 §14.10 |
 | D29 | LLM 推理强度三档 + 大模型不做翻译 | **推理强度是单次请求的参数，不是设置**：`off` / `low` / `high` 三档住在 AI 卡片（与模板选择、`allowCreate` 同一排，不落盘，缺省 `off`），随请求体 `reasoning` 传给后端；**`reasoning_effort` 只在 low/high 时发**（`off` 发了网关会整包 400），`thinking: { type: off→'disabled'、low/high→'enabled' }` 每次都发，映射只写在 `server/llm-providers.ts` 一处，`isLlmReasoning()` 白名单收敛（认不出的值、没传 = `off`）。**大模型不承担翻译职责**：LLM 从不生成中文 —— `Item.translation` 一律来自词库命中（`llm-toolkit.ts` 里 `hit.zh`）或翻译接口，默认模板明写「content 只用英文，不要输出译文」；机器翻译链路（词库 + provider 现翻 + 自动译）**全部保留** | 各家网关的思考开关字段名不统一（`reasoning_effort` / `thinking.type`），两个都发才能同时喂到两类网关；但 `reasoning_effort` 的**档位字面值不是公共词汇** —— opencode zen 认 `low`/`high`，收到 `off` 直接 400（错误体还只有 `{"model":...}`，读不到原因），所以 `off` 改成**省略 `reasoning_effort`、只发 `thinking.type:'disabled'`**（实测这样确实关掉了思考），映射只改那一处。翻译与 LLM 是两条独立能力：译文要"准且可复核"，词库有 32 万条对照 + 人工校对层 + 信任级别，让模型现场翻既慢又不可复核。见 §14.11 |
 | D30 | 提示词预设 = 有序分段（SillyTavern 式拼接） | **一份预设不再是一整串，而是一列可开关、可排序、带角色的分段**：`LlmPrompt = {id,name,segments:[{id,name,content,enabled,role}]}`（`role ∈ system/user/assistant`），落盘 `llm-prompts.json` 升到 `version:2`；生成时 `composePrompt()` 把**启用的段按顺序**拼起来 —— `system` 段用空行接成一条 system 消息，`user`/`assistant` 段各成一条消息、按顺序排在 history 与本次指令之间（`runLlmAgent` 的 `extras`）；`{{变量}}` 插值按段各做一次；旧的「一份大字符串」（`template`）读到即当成单段 `system`（不写回，用户下次保存才落新格式）；空白段保存时被丢掉；管理界面 = 顶栏「设置…」→ 左侧栏 `AI`（**纯分组节点**，点它只展开/收起）下的叶子「提示词」（`LlmPromptsFields.vue`：预设增删、分段开关/上下挪/角色/正文，`恢复默认` = 存空列表让后端下次读回落产物默认） | 用户要的是 SillyTavern 那种「多层拼接」：真实用法里角色设定、工具规则、few-shot 示例、变量注入是**各自独立**的层，改一层不该动别的；一整串只能整段替换，也没法临时关掉一段做对照。角色分流让 few-shot 示例（user/assistant 对）能真的以消息形式进上下文，而不是硬塞进 system 文本里 —— 这也是 provider 侧最不容易走样的形态。见 §14.12 |
+| D31 | 提示词槽位纪律（易变内容不进 system 段） | **按"变不变"分配槽位，不按"像不像指令"**：`composePrompt()` 把 `role: system` 的段拼进**最前面那一条** system 消息，所以**每轮都会变的内容（工作区快照、本轮指令）一律不许放 system 段** —— 它是 prompt 前缀缓存的分叉点，落在 system 里会让它后面的全部内容（回放的 ≤12 轮历史 + 指令）每轮按未命中重算；易变内容一律用 `user`/`assistant` 段（→ `extras`，`runLlmAgent()` 排在 history **之后**、本次指令之前 = SillyTavern 世界书的 `@Depth 1` 槽：每轮现算、只插一份、不落盘）。`assets/llm/llm-prompts.json` 默认预设随之改成 3 段（角色 / 工具规则 = `system`；工作区快照 = `user`），并删掉重复的「用户指令」段（`options.user` 已经发过一次）。`runLlmAgent()` 加逐轮日志（提交行 + 每轮 `工具名(参数摘要)` / 收尾），AI 卡片显示 `工具调用 N 次` | 快照放 system 是**看不见的 4~5 倍 input 计费**：一轮 2.5k token 的对话，理想命中 ≈ 0.5k 等效 token，被砸掉后 ≈ 2.5k（cache read 按 0.1× 估）。位置不改变快照自己的成本（它是**变量**，每轮必付全价），值钱的是让它**别挡住后面的历史** —— 历史才是随轮数增长的那一项。**不做**：把快照写进 turn 当历史回放（append-only 前缀最优，但 `llmHistoryTurns=12` 会让每轮背上 12 份过期快照，亏约 15 倍）；depth 0（快照放指令之后，每轮多命中一条 `instr` ≈ 50~100 token，但把数据放在任务之后）；按需读/索引化（工作区总量被画图模型的 prompt 预算反向约束，快照天然只有几百 token 量级）。见 §14.13 |
+| D32 | agent 查词库（`search_tags`）+ 开关 | **查词是模型自己决定的可选动作，开关默认关**：`server/tags.ts` 加窄口 `TagSearch{query, cooccur}`（`TagDb` 天然满足，不需要适配层），`llm-run.ts` 的依赖类型变成 `LlmTagSource = TagLookup & TagSearch`；`llm.ts` 的 `LLM_TOOLS` 拆成不导出的 `WRITE_TOOLS` + `llmTools(allowTagSearch)`，关掉时 `search_tags` **根本不在工具表里**；`search_tags{query, includeRelated?}` 回 `{ok, matches ≤8（正名/中文/首个分类/前 3 个别名）, more, related ≤10}`，一条都不命中时附 `note` 明说"库只是参考、不是白名单"；开关 `llm.tagSearch`（默认 `false`）的**状态由后端拼在模板之后**（`system = 模板的 system 段 + tagSearchNotice(on)`）—— 模板归用户、删得掉，这句删不掉；文案只跟开关有关（静态），所以它待在 system 前缀里不砸缓存（D31） | 词库是"哪个写法真被画图模型认"的对照表：同一个意思往往只有个别正名生效，近义写法整段不生效，而这正是模型自己的先验最不可靠的地方 —— 也是最该查库的一刻（写 tag 块之前）。做成**工具**而不是每轮预注入词表：注入要按工作区规模烧 token，且大部分轮次用不上，"查不查"只有模型知道，所以给工具不给规则。默认关：常见标签它本来就认识，查一次 = 多一次 provider 往返（仍只算 1 次用量，`maxToolRounds` 兜底）。关掉时**同时**撤工具与播状态 —— 只说"工具不在表里"不够，模型会反复尝试已消失的能力。见 §14.14 |
 
 ## 3. 系统结构与职责边界
 
@@ -911,7 +913,7 @@ comfyui-web/
   `LlmPromptSegment{id,name,content,enabled,role}`（`role` 白名单 `system|user|assistant`，认不出当 `system`）；
   `sanitizePromptSegment()` 丢掉空白段、`content` 截 `LIMITS.translation`；`sanitizeLlmPrompt()` 兼容旧格式
   （`template` 字符串 → 单段 system），落盘 `{version: LLM_PROMPTS_VERSION = 2, prompts}`；
-  `assets/llm/llm-prompts.json` 换成 4 段（角色 / 工具规则 / 工作区快照 / 用户指令），旧的空间文件读到即迁移。
+  `assets/llm/llm-prompts.json` 换成分段默认（初版 4 段；D31 之后是 3 段 —— 见 §14.13），旧的空间文件读到即迁移。
 - **组装**：`composePrompt(prompt, {workspace, instruction}, log)` 只取启用段、逐段插值、按顺序拼 ——
   `system` 段以空行相接，`user`/`assistant` 段进 `extras`；`runLlmAgent()` 的 messages =
   `[system?, ...history, ...extras, user]`，且 **system 为空时整条不发**（有的 provider 会 400）。
@@ -928,10 +930,52 @@ comfyui-web/
   读回来仍是分段且落盘 `version:2`；新增纯函数断言：旧格式迁移成单段 system、拼接只取启用段、
   user/assistant 段各成一条消息并插值（未知变量置空）、角色白名单。浏览器实测：设置左侧栏分组行 `AI`（无选中态、
   点它只展开/收起）+ 叶子 `['模型与限额','提示词']`、默认正文是「模型与限额」、
-  默认 4 段（角色/工具规则/工作区快照/用户指令）、关掉一段+改名保存后落盘 `enabled:false`、上移一位后顺序变化、
+  默认 4 段（角色/工具规则/工作区快照/用户指令；D31 之后默认改成 3 段，见 §14.13）、关掉一段+改名保存后落盘 `enabled:false`、上移一位后顺序变化、
   关掉再开读回同一套、AI 卡片模板下拉跟着改名、无 pageerror。图标实测（`@lucide/vue`）：齿轮 15×15、
   展开箭头 14×14（stroke 2px、fill none）、关闭 16×16、段按钮（上移/下移/删除）14×14；箭头在标签左侧
   （caret x=343 < 标签 x=361），叶子文字与分组标签同一列（都在 x=361）。
+
+### 14.13 D31 的落点（槽位纪律 + 快照 @Depth 1）
+
+- **默认预设**：`assets/llm/llm-prompts.json` 3 段 —— 角色 / 工具规则（`role: system`）、工作区快照（`role: user`）。
+  **用户空间那份不会自动跟**：`loadLlmPrompts()` 只在空间文件一份都没有时才回落到打包默认，已在用的部署要在
+  设置 → AI → 提示词 点一次「恢复默认」（= `PUT /llm/prompts` 存空列表），或手工把「工作区快照」段角色改成 `user`、
+  删掉「用户指令」段。
+- **消息形态**（桩 fetch 实测）：`["system","user","assistant","user","user"]` = system(角色+规则) → history →
+  快照 → 本轮指令；同一次提交内第 2..N 轮的请求以第 1 轮的全部消息为前缀（实测公共前缀 5 条）——
+  **提交内多轮吃满缓存**，被砸掉的只有"轮与轮之间"那一段。
+- **逐轮日志**：`runLlmAgent()` 收 `log`（由 `llm-run.ts` 注入宿主 log），打 `LLM 提交：system N 字、历史 M 条、
+  模板段 K 条、上限 R 轮` / `LLM 第 i 轮：set_block({...})`（参数压成一行、截 120 字）/ `LLM 第 i 轮：收尾回复（N 字）`
+  / 超时与轮数用尽 —— 一次提交只有一个 HTTP 响应，链式调用（i 次 tool call = i+1 次 provider 往返）在别处看不见。
+- **卡片**：`AiChatCard.vue` 的 action chip 里 `工具调用 N 次`（`toolCalls > 0` 才显示，`.pe-ai-tools` 比 chip 底色暗一档）。
+- **验收**：`pnpm --filter @comfyui-web/prompt-editor typecheck`（vue-tsc 无输出）；`node scripts/contract-test.ts`
+  ✅（默认模板断言是"分段 ≥2"，3 段不受影响）；`pnpm --filter @comfyui-web/prompt-editor build` 后产物里
+  `server.js` 含提交行与逐轮日志（中文字面量被 esbuild 转成 `\uXXXX` **大写十六进制**，grep 要按转义搜）、`client.js` 含「工具调用」、
+  打包资产 `workspace.role = user` 且无 `instruction` 段；桩 fetch 跑 `runLlmAgent`：往返 2 次、角色序列如上、公共前缀 5 条。
+
+### 14.14 D32 的落点（agent 查词库 + 开关）
+
+- **窄口**：`server/tags.ts` 加 `TagSearch{ query(TagQuery): TagQueryResult; cooccur(text, limit?) }` —— 与 `TagLookup`
+  同理（`llm-toolkit.ts` 不认数据库，契约测试塞个假的就能测）；返回**整行**是故意的，裁字段是工具自己的事；
+  `TagDb` 天然满足它（**没有适配层**）。`llm-run.ts` 的依赖类型是 `LlmTagSource = TagLookup & TagSearch`
+  （`routes-llm.ts` / `routes-llm-chats.ts` 的同名字段跟着放宽），接的仍是 `translateRoutes.tags`（= `TagDb`）。
+- **装配**：`llm.ts` 的 `LLM_TOOLS` → 不导出的 `WRITE_TOOLS`（set_block / suggest）+ `llmTools(allowTagSearch)`；
+  `runLlmAgent()` 多收一个 `tools` 入参（由 `llm-run.ts` 按 `settings.llm.tagSearch` 装配）。工具的字段裁剪与
+  条数上限（`SEARCH_MATCHES=8` / `SEARCH_RELATED=10`）写在 `llm-toolkit.ts` 的 `searchTags()` 里，共现邻居取
+  第一条命中（搜索是模糊的，"最像想查的那个"按面板同一套排序排在第一）；空 `query` 直接回 `ok:false`。
+- **开关与送达**：`LlmSettings.tagSearch`（默认 `false`，`raw.x === true` 收敛，`sanitizeLlmSettings` 一处）+
+  `package.json` 的 `plugin.settings` 一条 + 设置页「允许 AI 查词库」复选框（`LlmSettingsFields.vue`）。
+  开关状态由后端拼在模板之后（`system = [composition.system, tagSearchNotice(on)].join('\n\n')`），两步文案
+  分别是"可用（建议写 tag 块前核对一次写法；库外照写）"与"本次不可用（直接用你的知识写，不要假装查过库）"。
+- **验收**：`pnpm --filter @comfyui-web/prompt-editor typecheck`（vue-tsc 无输出）；`pnpm --filter
+  @comfyui-web/prompt-editor build` + `node scripts/contract-test.ts` → **359 项全绿**（新增 6 项）：纯函数两条
+  （关 = 工具表 2 个且不含 `search_tags`、通知含"不可用"；开 = 3 个、通知含"库外"），路由桩 fetch 四条 ——
+  关着时请求体 `tools` 里没有 `search_tags` 且 system 末尾是"本次不可用"；开着时第一轮 tool call `search_tags`、
+  第二轮以 `tool` 角色回填正名/中文/分类/共现邻居，且 `turn.toolCalls === 1`（一轮工具调用 = 两次 provider 往返）；
+  词库桩换成空库时工具结果 `matches: []`、`related: []`、`note` 含"不是白名单"。产物与宿主：
+  `grep -c '允许 AI 查词库' tabs/prompt-editor/client.js` → 1、`server.js` 含 `search_tags`，
+  `curl -s localhost:8087/api/plugins` 里 prompt-editor `phase: active` 且 `plugin.settings` 有 `llm.tagSearch`。
+  浏览器实测（面板勾选 → 保存 → 模型真的去查）仍待人工确认。
 
 其余实施细节（每条功能的落地过程、验收证据）见
 [`docs/archive/v2-implementation-notes.md`](./archive/v2-implementation-notes.md)。

@@ -115,6 +115,7 @@ const settings = ref<Settings>({
     maxCallsPerDay: 200,
     newBlockColor: '#6ea8fe',
     maxToolRounds: 12,
+    tagSearch: false,
     headers: {},
   },
 });

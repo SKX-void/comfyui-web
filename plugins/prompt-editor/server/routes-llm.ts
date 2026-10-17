@@ -10,11 +10,10 @@
  */
 import { DRAFT_FILE, LIMITS, LLM_PROMPTS_FILE } from './constants.js';
 import { freeBlockId, rawFromStored, storedFromRaw, text, type BlockMeta, type Stored } from './doc.js';
-import { createLlmRunner, joinBlockContent } from './llm-run.js';
+import { createLlmRunner, joinBlockContent, type LlmTagSource } from './llm-run.js';
 import { LLM_PROMPTS_VERSION, loadLlmPrompts, sanitizeLlmPrompt } from './llm-prompts.js';
 import { buildItems } from './llm-toolkit.js';
 import { readJson, writeJson } from './store.js';
-import type { TagLookup } from './tags.js';
 import type { PluginRoutes, PluginSpace, RouteReply } from './types.js';
 import { asRecord, isRecord } from './util.js';
 
@@ -23,7 +22,7 @@ export interface LlmRouteHelpers {
   space: PluginSpace;
   badRequest: (reply: RouteReply, message: string) => unknown;
   log: (message: string) => void;
-  tags: () => TagLookup;
+  tags: () => LlmTagSource;
 }
 
 export function registerLlmRoutes({ routes, space, badRequest, log, tags }: LlmRouteHelpers): void {

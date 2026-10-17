@@ -15,8 +15,7 @@ import {
   saveLlmChats,
   summarizeChat,
 } from './llm-chats.js';
-import { createLlmRunner } from './llm-run.js';
-import type { TagLookup } from './tags.js';
+import { createLlmRunner, type LlmTagSource } from './llm-run.js';
 import type { PluginRoutes, PluginSpace, RouteReply } from './types.js';
 import { asRecord } from './util.js';
 
@@ -25,7 +24,7 @@ export interface LlmChatRouteHelpers {
   space: PluginSpace;
   badRequest: (reply: RouteReply, message: string) => unknown;
   log: (message: string) => void;
-  tags: () => TagLookup;
+  tags: () => LlmTagSource;
 }
 
 export function registerLlmChatRoutes({ routes, space, badRequest, log, tags }: LlmChatRouteHelpers): void {

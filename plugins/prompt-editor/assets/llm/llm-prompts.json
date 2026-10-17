@@ -22,16 +22,9 @@
         {
           "id": "workspace",
           "name": "工作区快照",
-          "role": "system",
+          "role": "user",
           "enabled": true,
           "content": "工作区快照：\n{{workspace}}"
-        },
-        {
-          "id": "instruction",
-          "name": "用户指令",
-          "role": "system",
-          "enabled": true,
-          "content": "用户指令：\n{{instruction}}"
         }
       ],
       "updatedAt": 0

@@ -64,6 +64,8 @@ export interface LlmSettings {
   maxCallsPerDay: number;
   newBlockColor: string;
   maxToolRounds: number;
+  /** 允不允许模型自己查词库（D32）：开 = 工具表里多一个 search_tags */
+  tagSearch: boolean;
   /** 自定义请求头：随每次 chat 请求发（配置，不是凭据；密钥请放 apiKey） */
   headers: Record<string, string>;
 }

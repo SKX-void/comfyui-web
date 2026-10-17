@@ -36,6 +36,11 @@ export interface LlmSettings {
   newBlockColor: string;
   /** 一次生成里最多让模型调几轮工具 */
   maxToolRounds: number;
+  /**
+   * 允不允许模型自己查词库（D32）：开 = 工具表里多一个 `search_tags`。
+   * 关着更省 —— 常见标签模型本来就认识，查一次是白花一次往返与 token。
+   */
+  tagSearch: boolean;
   /** 自定义请求头：随每次 chat 请求发出去（有的网关强制要某个头，如 opencode 系） */
   headers: Record<string, string>;
 }
@@ -92,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
     maxCallsPerDay: 200,
     newBlockColor: DEFAULT_COLOR,
     maxToolRounds: 12,
+    tagSearch: false,
     headers: {},
   },
 };
@@ -132,6 +138,7 @@ function sanitizeLlmSettings(input: unknown): LlmSettings {
     maxCallsPerDay: clampInt(raw.maxCallsPerDay, 0, 100000, fallback.maxCallsPerDay),
     newBlockColor: typeof raw.newBlockColor === 'string' ? raw.newBlockColor.slice(0, 32) : fallback.newBlockColor,
     maxToolRounds: clampInt(raw.maxToolRounds, 1, 100, fallback.maxToolRounds),
+    tagSearch: raw.tagSearch === undefined ? fallback.tagSearch : raw.tagSearch === true,
     headers: sanitizeHeaders(raw.headers),
   };
 }

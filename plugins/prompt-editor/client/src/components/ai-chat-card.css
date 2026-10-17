@@ -255,6 +255,11 @@
   color: #d9a13b;
 }
 
+/* 比 chip 底色再暗一档：这是"怎么做到的"，不是"做了什么" */
+.pe-ai-tools {
+  color: #7f8899;
+}
+
 /* 出错自己占一行：和"做了什么"挤进同一个 chip，两种颜色会被读成一句话 */
 .pe-ai-error-chip {
   align-self: flex-start;

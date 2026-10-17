@@ -1,5 +1,5 @@
 /**
- * LLM 写工具的落盘实现（D27）：set_block / suggest + 工作区快照描述。
+ * LLM 写工具的落盘实现（D27）：set_block / suggest + 工作区快照描述；查库工具 search_tags（D32）。
  *
  * 拆出来的原因：路由文件只做"接口形状与装配"，这里做"工具怎么改草稿"，
  * 两边都压进一个文件会超过 300 行上限。
@@ -11,7 +11,7 @@ import { freeBlockId, sanitizeItems, text, type BlockMeta, type Item, type Store
 import { splitByMode } from './split.js';
 import type { LlmToolKit, LlmToolOutcome } from './llm.js';
 import type { Settings } from './settings.js';
-import type { TagLookup } from './tags.js';
+import type { TagEntry, TagLookup, TagSearch } from './tags.js';
 
 export interface LlmStats {
   changed: string[];
@@ -46,6 +46,7 @@ export function makeToolkit(args: {
   stats: LlmStats;
   saveDraft: (stored: Stored) => void;
   buildItems: (content: string, mode: string) => Item[];
+  tagSearch: TagSearch;
 }): LlmToolKit {
   return {
     async setBlock(input): Promise<LlmToolOutcome> {
@@ -105,7 +106,41 @@ export function makeToolkit(args: {
       args.stats.suggestions.push({ blockId, content });
       return { content: JSON.stringify({ ok: true, suggested: blockId }) };
     },
+
+    async searchTags(input): Promise<LlmToolOutcome> {
+      const query = text(input.query, LIMITS.name);
+      if (query === '') return { content: JSON.stringify({ ok: false, error: 'query 不能为空' }) };
+      const found = args.tagSearch.query({ q: query, limit: SEARCH_MATCHES });
+      const matches = found.tags.map(tagBrief);
+      // 共现邻居取第一条命中：搜索是模糊的，"最像想查的那个"就排在第一（面板同一套排序）
+      const best = found.tags[0];
+      const related =
+        input.includeRelated === true && best !== undefined
+          ? args.tagSearch.cooccur(best.en, SEARCH_RELATED).map((one) => one.en)
+          : [];
+      return {
+        content: JSON.stringify({
+          ok: true,
+          matches,
+          more: found.total > matches.length,
+          related,
+          // 一条都没命中时得把"库外不是禁区"再说一遍：这正是模型最容易改成保守写法的一刻
+          ...(matches.length === 0
+            ? { note: '库内没有匹配：换个更常见的说法再查，或者直接照你的判断写（词库只是参考，不是白名单）' }
+            : {}),
+        }),
+      };
+    },
   };
+}
+
+/** 一次查询回给模型的最大条数：工具结果直接进上下文，条数就是 token 预算 */
+const SEARCH_MATCHES = 8;
+const SEARCH_RELATED = 10;
+
+/** 一条命中压成模型真正用得上的几项：正名（要照抄的写法）、中文、首个分类、头几个别名 */
+function tagBrief(entry: TagEntry): Record<string, unknown> {
+  return { tag: entry.en, zh: entry.zh, category: entry.categories[0] ?? '', aliases: entry.aliases.slice(0, 3) };
 }
 
 export function describeWorkspace(
