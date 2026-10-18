@@ -20,7 +20,7 @@ export type Mode = 'tag' | 'text';
 export interface Item {
   id: string;
   text: string;
-  /** 双击禁用：条目留在文档里但不进输出（WeiLin 的 isHidden） */
+  /** 禁用（条目尾部那颗「禁」）：条目留在文档里但不进输出（WeiLin 的 isHidden） */
   enabled: boolean;
   /** 翻译位（下一步接入数据源）：这里只存结果，空串 = 没翻译 */
   translation: string;
@@ -55,7 +55,7 @@ export interface Block {
    */
   collapsed: boolean;
   /**
-   * 不使用：整块不进输出 —— 和条目双击禁用是同一个语义，只是范围是整块。
+   * 不使用：整块不进输出 —— 和条目尾部那颗「禁」是同一个语义，只是范围是整块。
    * 条目自己的 `enabled` 不受影响（整块不用时条目连看都看不到，动它没有意义）。
    */
   enabled: boolean;
@@ -262,7 +262,7 @@ export function renderOutput(doc: Doc): string {
 
 /**
  * 条目数：**整块「不使用」的那些不算** —— 右侧统计得跟"有多少内容在参与"对得上。
- * 块内被双击禁用的条目照旧算（它们是文档里看得见的条目，只是不进输出）。
+ * 块内被禁用的条目照旧算（它们是文档里看得见的条目，只是不进输出）。
  */
 export function countItems(doc: Doc): number {
   return doc.blocks.reduce((n, block) => (block.enabled ? n + block.items.length : n), 0);

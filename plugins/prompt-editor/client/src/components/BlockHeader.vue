@@ -108,7 +108,7 @@ function toggleAi(): void {
       placeholder="区块标题"
       @change="emit('structure-changed')"
     />
-    <!-- 不使用：整块进不进输出 —— 和条目双击禁用是同一件事，只是范围是整块。
+    <!-- 不使用：整块进不进输出 —— 和条目尾部那颗「禁」是同一件事，只是范围是整块。
          拨动开关（不是文字按钮）：它管的是"这一块参不参与"，比"怎么排版"更外一层，所以放在风格开关左边 -->
     <button
       class="pe-block-use"

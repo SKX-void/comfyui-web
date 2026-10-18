@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 一个条目（tag 块 / 句子块）的上格：单击改名、双击禁用。
+ * 一个条目（tag 块 / 句子块）的上格：单击改名；禁用 / 删除在尾部的按钮组里（见 template）。
  * 下格（译文）在 ItemTranslationCell —— 两格共享同一个 item，各管各的编辑态。
  *
  * 拖动不在这里做：组件不声明 drag* 事件，父级的 `@dragstart` 等会**透传到根元素**上，
@@ -56,7 +56,7 @@ function cancel(): void {
   editing.value = false;
 }
 
-/** 双击禁用/启用：顺手退出编辑态，免得"刚点开的输入框"和禁用态叠在一起 */
+/** 尾部那颗「禁 / 启」：顺手退出编辑态，免得"刚点开的输入框"和禁用态叠在一起 */
 function toggle(): void {
   editing.value = false;
   emit('toggle');
@@ -79,9 +79,8 @@ function onGripPointerDown(event: PointerEvent): void {
       class="pe-chip"
       :class="{ 'pe-chip-off': !item.enabled, 'pe-chip-dragging': dragging }"
       :draggable="!editing"
-      title="单击改名 · 双击禁用 · 可拖动排序（触屏拖 ⠿ 把手）"
+      title="单击改名 · 可拖动排序（触屏拖 ⠿ 把手）"
       @click="startEdit"
-      @dblclick.stop="toggle"
     >
       <span class="pe-chip-grip" title="拖动排序" @click.stop @pointerdown="onGripPointerDown">⠿</span>
       <input
@@ -97,8 +96,8 @@ function onGripPointerDown(event: PointerEvent): void {
       <span v-else class="pe-chip-text">{{ item.text }}</span>
 
       <!--
-        触屏（hover: none）：双击禁用不成立，所以换成明摆着的按钮。
-        宽屏上藏起来 —— 那儿双击更顺手，多一排按钮只是噪音。
+        尾部按钮组：禁用/启用 + 删除，**常显**，各自占一块点击区。
+        原来「×」悬停才出现、禁用又兼在双击上 —— 两块点击区都和"单击改名"叠着，误触就出在这儿。
       -->
       <span class="pe-chip-tools">
         <button
@@ -108,9 +107,8 @@ function onGripPointerDown(event: PointerEvent): void {
         >
           {{ item.enabled ? '禁' : '启' }}
         </button>
+        <button class="pe-chip-tool pe-chip-tool-del" title="删除这一条" @click.stop="emit('remove')">×</button>
       </span>
-
-      <button class="pe-chip-btn pe-chip-btn-del" title="删除" @click.stop="emit('remove')">×</button>
     </span>
 
     <ItemTranslationCell
@@ -192,39 +190,12 @@ function onGripPointerDown(event: PointerEvent): void {
   line-height: 1;
 }
 
-.pe-chip-btn {
-  border: none;
-  background: transparent;
-  color: var(--muted, #9aa3b2);
-  cursor: pointer;
-  font-size: 11px;
-  line-height: 1;
-  padding: 2px 3px;
-  border-radius: 4px;
-  opacity: 0;
-  /* 悬停才出现的东西不该占着点击位：opacity 只是看不见，挡在 chip 上照样点得到（误删就是这么来的） */
-  visibility: hidden;
-}
-
-.pe-chip:hover .pe-chip-btn {
-  visibility: visible;
-  opacity: 1;
-}
-
-.pe-chip-btn:hover {
-  background: var(--line, #2e333d);
-  color: var(--fg, #e6e8ec);
-}
-
-.pe-chip-btn-del:hover {
-  color: var(--danger, #ff7b72);
-}
-
-/* 触屏专属的那一排（禁用 / 启用）：默认不显示，见下面的 hover: none */
+/* 尾部按钮组：常显。它和「单击改名」各占各的点击区，别再把按钮藏进 chip 的点击区里 */
 .pe-chip-tools {
-  display: none;
+  display: inline-flex;
   flex: none;
   gap: 2px;
+  margin-left: 2px;
 }
 
 .pe-chip-tool {
@@ -235,42 +206,44 @@ function onGripPointerDown(event: PointerEvent): void {
   font: inherit;
   font-size: 11px;
   line-height: 1;
-  padding: 5px 6px;
+  padding: 4px 6px;
   cursor: pointer;
 }
 
-@media (hover: none), (pointer: coarse), (max-width: 720px) {
-  .pe-chip-tools {
-    display: inline-flex;
-  }
+.pe-chip-tool:hover {
+  border-color: var(--accent, #6ea8fe);
+  color: var(--fg, #e6e8ec);
+}
 
+.pe-chip-tool-del:hover {
+  border-color: var(--danger, #ff7b72);
+  color: var(--danger, #ff7b72);
+}
+
+@media (hover: none), (pointer: coarse), (max-width: 720px) {
   .pe-chip-grip {
     display: inline-flex;
   }
 
-  /* 「×」和这一排原来只在悬停时出现（opacity: 0）—— 触摸屏上不悬停，等于没有删除入口。
-     顺手把它们撑到指头点得准：它们原来只有 19×21 */
-  .pe-chip-btn,
+  /* 指头点得准：它们原来只有 19×21 */
   .pe-chip-tool {
-    visibility: visible;
-    opacity: 1;
     min-width: 28px;
     min-height: 28px;
     padding: 5px 6px;
   }
 
   /* 删除在触屏上要一眼认出来：加个危险色边框，再和旁边的按钮隔开一点，别误按 */
-  .pe-chip-btn-del {
+  .pe-chip-tool-del {
     min-width: 30px;
     min-height: 30px;
-    border: 1px solid var(--danger, #ff7b72);
+    border-color: var(--danger, #ff7b72);
     color: var(--danger, #ff7b72);
     font-size: 16px;
     margin-left: 4px;
   }
 }
 
-/* 窄桌面窗口（鼠标）：上面那排触屏按钮照给，但 ⠿ 把手不显示 —— 鼠标还是拖整条 chip */
+/* 窄桌面窗口（鼠标）：尾部按钮照常，但 ⠿ 把手不显示 —— 鼠标还是拖整条 chip */
 @media (hover: hover) and (pointer: fine) {
   .pe-chip-grip {
     display: none;

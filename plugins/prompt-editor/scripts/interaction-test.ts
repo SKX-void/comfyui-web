@@ -722,6 +722,9 @@ const chips = (blockIndex: number): string[] =>
     (el) => el.textContent?.trim() ?? '',
   );
 const blockOf = (index: number): HTMLElement => pickAll('.pe-block')[index] as HTMLElement;
+/** 第 blockIndex 块、第 chipIndex 条尾部那颗「禁 / 启」（删除的 `×` 是它后面那颗） */
+const chipToggle = (blockIndex: number, chipIndex: number): HTMLButtonElement =>
+  blockOf(blockIndex).querySelectorAll('.pe-chip')[chipIndex]?.querySelector('.pe-chip-tool') as HTMLButtonElement;
 /** 第 blockIndex 块、第 chipIndex 条的**译文格**里现在显示什么（编辑中是输入框，这里不取） */
 const cellText = (blockIndex: number, chipIndex: number): string =>
   (blockOf(blockIndex).querySelectorAll('.pe-chip-translation .pe-chip-text')[chipIndex]?.textContent ?? '').trim();
@@ -1016,8 +1019,8 @@ if (rename !== null) {
   check('失焦提交改名', chips(0)[0] === 'masterpiece v2', chips(0)[0]);
 }
 
-console.log('双击禁用：条目留在块里但不进输出');
-dispatch(blockOf(0).querySelectorAll('.pe-chip')[1] as HTMLElement, new window.MouseEvent('dblclick', { bubbles: true }));
+console.log('尾部「禁」：条目留在块里但不进输出');
+chipToggle(0, 1).click();
 await nextTick();
 check('禁用态挂在条目上', blockOf(0).querySelectorAll('.pe-chip-off').length === 1);
 check('被禁用的条目不出现在输出里', !output().includes('best quality'), JSON.stringify(output()));
@@ -1216,7 +1219,7 @@ check(
 console.log('整块「译」：逐条发、已有译文的与禁用的一条都不发');
 // 用第二块测：它还没有译文（自动译是按块排队的，前面只排空过第一块）
 const block1Chips = chips(1).length;
-dispatch(blockOf(1).querySelectorAll('.pe-chip')[1] as HTMLElement, new window.MouseEvent('dblclick', { bubbles: true }));
+chipToggle(1, 1).click();
 await nextTick();
 check('前置条件：第二块有一条被禁用', blockOf(1).querySelectorAll('.pe-chip-off').length === 1);
 const markBlock = translateBatches.length;
