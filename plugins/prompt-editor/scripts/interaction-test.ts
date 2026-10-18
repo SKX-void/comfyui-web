@@ -1381,7 +1381,7 @@ const settleLib = async (): Promise<void> => {
 dispatch(blockOf(0), new window.MouseEvent('click', { bubbles: true }));
 await nextTick();
 const markLib = calls.length;
-(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+topBtn('词库').click();
 await settleLib();
 check(
   '打开面板拉一次词库列表',
@@ -1641,7 +1641,7 @@ check('关掉后面板不在了', pick('.pe-lib-row') === null);
 console.log('词库面板：空库 → 提示 + 手动导入内置词库');
 // 真·空库（把假词库清空）。导入只在这里发生，而且只有点了按钮才会发生
 for (const key of Object.keys(fakeTags)) delete fakeTags[key];
-(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+topBtn('词库').click();
 await settleLib();
 // 编辑模式把「插入」藏起来了，所以它不能粘着：重开面板 = 回到"能插"的状态
 check(
@@ -1696,7 +1696,7 @@ await nextTick();
 // 产物里没有内置表（手写丢进 tabs/ 的目录、没跑过 build:plugins）：按钮不该画，且要说清楚怎么补
 for (const key of Object.keys(fakeTags)) delete fakeTags[key];
 bundledAvailable = false;
-(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+topBtn('词库').click();
 await settleLib();
 check(
   '产物里没有内置词库：不画按钮，写清楚先 pnpm build:plugins',
@@ -1710,7 +1710,7 @@ resetFakeTags();
 
 console.log('词库面板：拖拽改分类（拖到左边分类上 = 换成那一个）');
 // 上一行 resetFakeTags() 把假词库恢复成种子（4 条），面板是关着的 —— 重新打开
-(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+topBtn('词库').click();
 await settleLib();
 const navBtn = (name: string): HTMLElement =>
   catPicks().find((one) => (one.textContent ?? '').trim().startsWith(name)) as HTMLElement;
@@ -1792,7 +1792,7 @@ await nextTick();
 resetFakeTags();
 
 console.log('词库面板：分类级管理（新建 / 改名 / 删除）');
-(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+topBtn('词库').click();
 await settleLib();
 // 面板每次打开都回到浏览模式，所以要等它开起来再开编辑模式
 await editModeOn();
@@ -1897,7 +1897,7 @@ await nextTick();
 resetFakeTags();
 
 console.log('词库面板：分类排序 + 清空分类内容');
-(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+topBtn('词库').click();
 await settleLib();
 await editModeOn();
 const catRow = (name: string): HTMLElement | null =>
@@ -1994,7 +1994,7 @@ await settleLib();
 check('恢复种子（这一段是唯一真删词条的）', libNames().length === 4, `${libNames().join('|')} · 分类 ${catLabels().join('|')}`);
 
 console.log('词库面板：六点手柄 + 拖拽排序 + 拖拽时左侧高亮');
-(pickAll('.pe-top .pe-actions button')[2] as HTMLButtonElement).click();
+topBtn('词库').click();
 await settleLib();
 const rowKeys = (): string[] =>
   pickAll<HTMLElement>('.pe-lib-row .pe-lib-en').map((one) => (one.textContent ?? '').trim());
@@ -2309,7 +2309,7 @@ console.log('区块库：存一块 / 插入 / 改名 / 删除');
     [...blockOf(blockIndex).querySelectorAll('.pe-chip:not(.pe-chip-off) > .pe-chip-text')]
       .map((el) => (el.textContent ?? '').trim())
       .filter((text) => text !== '');
-  const blkLibBtn = pickAll('.pe-top .pe-actions button')[3] as HTMLButtonElement;
+  const blkLibBtn = topBtn('区块库');
   check('表头有「区块库…」入口', (blkLibBtn.textContent ?? '').includes('区块库') === true, blkLibBtn.textContent ?? '');
   blkLibBtn.click();
   await settle();

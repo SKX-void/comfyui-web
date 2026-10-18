@@ -248,6 +248,9 @@ check('区块里有添加输入框', html.includes('添加 tag'));
 check('渲染出输出区与复制按钮', html.includes('输出') && html.includes('复制'));
 check('输出为空时给出提示', html.includes('左边写点什么'));
 check('渲染出新建区块按钮', html.includes('+ 新建区块'));
+// 入口只有两处（工作区末尾那颗内联按钮 + 手机的底部条）；顶栏那排再挂一颗就是第三个入口
+const topBar = /<header class="pe-top"[^>]*>([\s\S]*?)<\/header>/.exec(html)?.[1] ?? '';
+check('顶栏不再挂「新建区块」', topBar !== '' && !topBar.includes('新建区块'), topBar.slice(0, 120));
 check('渲染出预设库入口', html.includes('预设库'));
 
 // ── 4. 切分 / 重切 / 输出 ─────────────────────────────────────────────────────

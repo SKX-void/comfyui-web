@@ -2,7 +2,7 @@
 /**
  * 编辑器的「外壳」：顶栏 + 手机专属的三件套（视图切换 / 底部操作条 / 更多面板）。
  *
- * 为什么要单独一个组件：宽屏能平铺六个按钮，手机上那一行会挤成两行还点不准，
+ * 为什么要单独一个组件：宽屏能平铺五个按钮，手机上那一行会挤成两行还点不准，
  * 底部又够不着 —— 布局差得太远，索性让「操作入口」按视口分两套，状态与业务留在 App。
  *
  * 两条媒体查询的分工（别混）：
@@ -69,11 +69,11 @@ function onKeydown(event: KeyboardEvent): void {
     <span v-if="notice !== ''" class="pe-notice">{{ notice }}</span>
 
     <!--
-      宽屏：六个动作平铺（最后那颗齿轮图标 = 分节设置的唯一入口）。**顺序与文案别动** ——
-      scripts/interaction-test.ts 按索引点它们（[2] 词库、[3] 区块库），契约测试还断言了「+ 新建区块」这个字符串。
+      宽屏：五个动作平铺（最后那颗齿轮图标 = 分节设置的唯一入口）。**顺序与文案别动** ——
+      scripts/interaction-test.ts 的 topBtn() 按文字找它们。
+      「新建区块」不在这一排：工作区末尾那颗内联按钮就是它（手机上归底部条），三处入口是噪音。
     -->
     <div class="pe-actions">
-      <button @click="emit('add-block')">新建区块</button>
       <button @click="emit('open-preset')">预设库…</button>
       <button @click="emit('open-lib')">词库…</button>
       <button @click="emit('open-block-library')">区块库…</button>
