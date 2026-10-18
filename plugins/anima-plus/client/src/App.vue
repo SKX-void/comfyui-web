@@ -32,6 +32,7 @@ const { workflow, values, models, stateNote, fatalError, fail, loadWorkflow, sav
 const {
   status,
   submitting,
+  savingState,
   queue,
   queueCount,
   recentAssets,
@@ -41,6 +42,7 @@ const {
   clearing,
   assetThumbUrl,
   submit,
+  saveState,
   cancel,
   reuse,
   clearHistory,
@@ -51,6 +53,8 @@ const {
 
 // 队列在跑**不锁**表单：提交一回来就能改参数接着排下一条（这是这个插件排队能力的关键）
 const canSubmit = computed(() => !!workflow.value && !submitting.value && depsReady.value);
+// 存快照不看依赖：它只写自己空间里的 JSON，ComfyUI 缺节点时照样该能用（跨插件基底不该被出图环境卡住）
+const canSaveState = computed(() => !!workflow.value && !savingState.value);
 
 async function bootstrap(): Promise<void> {
   try {
@@ -214,11 +218,17 @@ onUnmounted(() => {
           <button class="btn primary" :disabled="!canSubmit" @click="submit">
             {{ submitting ? '提交中…' : '加入队列' }}
           </button>
+          <!-- 只写快照、不出图：prompt-editor 的跨插件调用拿快照当参数基底，不该为它先排一条真任务 -->
+          <button
+            class="btn"
+            :disabled="!canSaveState"
+            title="只把当前参数写进参数快照（last-state.json），不排队、不出图 —— prompt-editor 的跨插件调用读它拿参数基底"
+            @click="saveState"
+          >
+            {{ savingState ? '保存中…' : '保存状态' }}
+          </button>
           <span v-if="!depsReady" class="actions-hint bad">
             缺节点 {{ currentDeps?.missing.join('、') }} —— 装好并重启 ComfyUI 后即可生成
-          </span>
-          <span v-else class="actions-hint">
-            提交完就能接着改参数、再排下一条（在途上限＝设置里的「队列深度」）
           </span>
         </div>
 

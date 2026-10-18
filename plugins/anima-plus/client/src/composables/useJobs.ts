@@ -33,6 +33,8 @@ export function useJobs(
 ) {
   /** 只在 POST /api/jobs 那一下为 true —— 队列在跑不影响它，表单要一直能改 */
   const submitting = ref(false);
+  /** 只在 PUT /api/state 那一下为 true。与 submitting 分开：存快照不碰 ComfyUI，缺依赖也能存 */
+  const savingState = ref(false);
   const errorMessage = ref<string | null>(null);
 
   const queue = ref<QueueJob[]>([]);
@@ -181,6 +183,28 @@ export function useJobs(
   }
 
   /**
+   * 只写参数快照（`last-state.json`），不建作业。
+   *
+   * 为什么要有这颗按钮：prompt-editor 的跨插件调用拿快照当参数基底（D24，只能走 HTTP 读），
+   * 而写快照原先只有 submit() 一条路 —— "想让编辑器拿到基底"就得先真排一条任务出去。
+   *
+   * 与 submit() 的差别只有一处：**不抽随机种子**。种子是"这次跑用的那个数"，没跑就没有它；
+   * 抽一个写回表单只会让界面上的数和实际发生的事对不上（编辑器那边开着随机时本来就是自己抽）。
+   */
+  async function saveState(): Promise<void> {
+    if (!workflow.value) return;
+    savingState.value = true;
+    errorMessage.value = null;
+    try {
+      // saveLastState 自己吞异常（存不上不该拦住别的），成没成看日志与 stateNote
+      await saveLastState(normalizeValues(workflow.value.inputs, values.value));
+      pushLog('已保存当前参数到快照（未排队）');
+    } finally {
+      savingState.value = false;
+    }
+  }
+
+  /**
    * 取消一条任务。在跑的打断当前执行，排队的从 ComfyUI 队列里摘掉（服务端按上游队列判断，
    * 不靠本地状态猜 —— WS 掉线时本地会以为还在排队，其实已经在跑）。
    */
@@ -260,6 +284,7 @@ export function useJobs(
   return {
     status,
     submitting,
+    savingState,
     queue: queueRows,
     queueCount: computed(() => queue.value.length),
     recentAssets,
@@ -269,6 +294,7 @@ export function useJobs(
     clearing,
     assetThumbUrl,
     submit,
+    saveState,
     cancel,
     reuse,
     clearHistory,

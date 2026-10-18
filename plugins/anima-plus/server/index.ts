@@ -151,7 +151,7 @@ export async function apply(ctx: PluginContext, legacySettings?: PluginSettings)
     warn(`${msg} ${meta === undefined ? '' : JSON.stringify(meta)}`),
   );
 
-  // 上次提交的参数快照（`<space>/last-state.json`）：每次点「开始生成」覆盖一次。
+  // 上次提交的参数快照（`<space>/last-state.json`）：点「加入队列」/「保存状态」覆盖一次。
   // 内存里不留副本 —— 它就是"刷新页面要回填的那一份"，直接以文件为准（读盘只在页面加载时）。
   const lastState = new LastStateStore(space, (msg, meta) =>
     warn(`${msg} ${meta === undefined ? '' : JSON.stringify(meta)}`),

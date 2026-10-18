@@ -199,7 +199,7 @@ export async function plan(text: string): Promise<CrossCallPlanResult> {
   if (state.savedAt === null || state.savedAt === undefined || Object.keys(values).length === 0) {
     return {
       ok: false,
-      detail: `${TARGET_ID} 还没有「最后一次状态」：先去那边按一次「开始出图」，跨域调用才有参数基底`,
+      detail: `${TARGET_ID} 还没有「最后一次状态」：先去那边点一次「保存状态」（只写快照、不出图），跨域调用才有参数基底`,
     };
   }
   return { ok: true, plan: buildPlan(values, text) };

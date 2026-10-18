@@ -3085,7 +3085,12 @@ console.log('跨域调用（输出 → anima-plus）');
   (pick('.pe-cross-refresh') as HTMLButtonElement).click();
   await settle();
   check('没有「最后一次状态」时按钮禁用', runButton().disabled === true);
-  check('并且说清了为什么', panelText('.pe-cross-hint').includes('最后一次状态'), panelText('.pe-cross-hint'));
+  check(
+    '并且说清了为什么（点名对方那颗「保存状态」）',
+    panelText('.pe-cross-hint').includes('最后一次状态') &&
+      panelText('.pe-cross-hint').includes('保存状态'),
+    panelText('.pe-cross-hint'),
+  );
 
   // 对方没装载（或没点重扫）：同样禁用，但原因是另一回事
   fakePlugins = fakePlugins.filter((one) => one.id !== 'anima-plus');

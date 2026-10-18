@@ -195,6 +195,7 @@ check('前端订阅的是全局流（一条连接盯全部任务）', js.include
 check('前端不再给每个任务各开一条流', !/jobs\/\$\{[^}]*\}\/events/.test(js));
 check('队列行有样式（.queue-item 进了产物 CSS）', /\.queue-item/.test(css));
 check('按钮文案是「加入队列」', js.includes('加入队列'));
+check('旁边有「保存状态」（只写快照、不排队）', js.includes('保存状态'));
 check(
   '排队的取消是从上游队列里摘（POST /queue {"delete":…}）',
   /'\/queue'/.test(comfySrc) && /delete:\s*promptIds/.test(comfySrc),

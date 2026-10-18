@@ -24,7 +24,7 @@
 | `pnpm-workspace.yaml`（根） | pnpm（workspace + `storeDir`） | 环境 | ✅ | ✅ |
 | `data/host.json`（偏好段：`tabOrder` / `home` / `tabAliases` / `homeLabel` / `globals` / `disabled` / `keepAlive`） | 宿主 core 插件（`apps/server/src/host-settings.ts`）；`GET /api/ui`、`PUT /api/plugins/:id/enabled` | 用户 | ❌ 走设置页（`disabled` 由启停开关写、`keepAlive` 由「切走不卸载」勾选写；手改也行，重扫后生效） | ❌ |
 | `data/plugins/<包名>/…` | 各插件自己（如 tab 的 `settings.json`） | 用户 / 运行期 | ❌ 走插件自己的设置界面 | ❌ |
-| `data/plugins/<包名>/last-state.json` | anima-plus 自己（`plugins/anima-plus/server/state.ts`；`GET/PUT /api/p/anima-plus/api/state`）；prompt-editor 的跨域调用也**用同一条 PUT** 写它（D24，见 §14.6） | 运行期 | ✅ 纯 JSON（点「开始生成」自动写，手改或删掉也行） | ❌ |
+| `data/plugins/<包名>/last-state.json` | anima-plus 自己（`plugins/anima-plus/server/state.ts`；`GET/PUT /api/p/anima-plus/api/state`）；prompt-editor 的跨域调用也**用同一条 PUT** 写它（D24，见 §14.6） | 运行期 | ✅ 纯 JSON（点「加入队列」/「保存状态」自动写，手改或删掉也行） | ❌ |
 | `data/plugins/<包名>/presets.json`·`draft.json`·`tags.db`·`settings.json`·`usage.json`·`llm-prompts.json`·`llm-chats.json` | prompt-editor 自己（`plugins/prompt-editor/server/`；`GET/PUT /api/p/prompt-editor/*`） | 运行期 | ✅ 预设库 / 草稿 / 设置 / 用量是纯 JSON（草稿分"组结构 + 条目"两段，编辑时按改动粒度增量写）；**`tags.db` = 词库，SQLite**（一张表两用：翻译按 en/别名命中、面板按分类分组，另有 `tag_cooccur` 存共现邻居），进库的要么是你手改 / 点「机」存的（`source:'user'`），要么是导入的 —— 机翻表 `source:'import'`、人工词表 `source:'builtin'`，**来源也是信任级别**：重导机翻盖不掉人工、两者都盖不掉手改的 —— 两条入口：面板的「导入内置词库」按钮（一次导两层：产物自带的 `assets/danbooru-zh.csv` + `weilin-zh.csv`，再灌 `cooccur.tsv`）与 `scripts/import-tags.ts`（任意 CSV，`--source` / `--keep-placeholders` / `--cooccur`）；下划线在**导入这一层**折成空格（booru 的 `long_hair` 与我们的 `long hair` 落成同一个键）；分类是**两级**（`categories.parent`：机翻表的 4 大类 → 22 小类，人工表那 11 大类 → 128 小类）；现翻结果只进会话缓存；老 `tags.json` / `dict.json` 读到即自动迁进 `tags.db`、来源文件改名成 `*.migrated`（原件保留）；`settings.json` = provider 与护栏（每日上限、超时、两次调用最小间隔）+ `llm` 段（总闸 `enabled`、OpenAI-compatible `baseUrl`/`model`/`apiKey`（key **只写不读**：`GET /settings` 只回 `apiKeySet`，空串 = 不改动、`null` = 清除）、`timeoutMs`/`maxCallsPerDay`/`newBlockColor`/`maxToolRounds`/`tagSearch`（允不允许模型自己查词库，D32）/`headers`（自定义请求头：一行一个「名字: 值」，随每次 chat 请求发、可覆盖默认的 `content-type`/`authorization`，网关强制要求的头就填这儿；面板上看得见，密钥请放 `apiKey`），默认关；推理强度 `off`/`low`/`high` **不在这里** —— 它是单次请求的参数，住 AI 卡片，见 D29）；`usage.json` = 当日调用次数（翻译 `calls` 与 LLM `llmCalls` 各记各的）；`llm-prompts.json` = LLM 提示词预设（D30：一份预设 = 有序分段，每段可开关/排序/选角色，像 SillyTavern 的 prompt manager；用户可编辑，删掉回到产物默认）；`llm-chats.json` = LLM 多轮对话（会话 + 每轮的指令/回复/动作摘要，D28，删掉等于清空对话记录）。删掉＝回到首屏三个空区块 / 空词库 / 默认设置 | ❌ |
 | `plugins/<pkg>/package.json` 的 `plugin.settings[]` | 宿主 → `GET /api/plugins` → 插件自己的设置界面 | 包 | ✅（改包） | ✅ |
 | `.gitattributes`（只剩 `docs/img/`） | git / git-lfs 自己读（决定哪些资产以指针入库）；**作用域就该在资产所在目录** | 包 | ✅（改包；加/改规则见 `plugins/prompt-editor/README.md` 的资产表） | ✅ |
@@ -116,7 +116,8 @@
 - **`data/plugins/<包名>/`** —— 每个插件的私有空间（SQLite、缓存、缩略图、设置…），核不解析内容；
   空间按**包名**分配（`@comfyui-web+anima-plus`）。删它 = 重置该插件的运行期数据。
 - **`data/plugins/<包名>/last-state.json`**（anima-plus）—— 上次提交的出图参数快照（**运行期状态**，不是配置：
-  所以它不进 `settings.json`，也不触发重挂）。点「开始生成」覆盖一次，页面加载时回填；删掉 = 回到模板默认值。
+  所以它不进 `settings.json`，也不触发重挂）。点「加入队列」覆盖一次（队列卡上那颗「保存状态」只写快照、不排队，
+是给 prompt-editor 备基底用的），页面加载时回填；删掉 = 回到模板默认值。
   两个写入口都走同一条 PUT：anima-plus 自己的提交，以及 prompt-editor 的跨域调用（D24）——
   后者在提交前先读它当参数基底，没有这份文件就禁用按钮（不猜模板默认值）。
 

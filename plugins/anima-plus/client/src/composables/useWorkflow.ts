@@ -66,7 +66,7 @@ function formatMoment(iso: string | null): string {
 }
 
 /**
- * 回填上次提交的参数（每次点「开始生成」写一次，见 `submit()`）。
+ * 回填上次提交的参数（点「加入队列」/「保存状态」各写一次，见 `submit()` / `saveState()`）。
  *
  * 读不到**不是错误**：快照本来就可能还没写过（第一次用），工作流默认值照用就行。
  * 所以这里只记一条日志，不设 fatalError。

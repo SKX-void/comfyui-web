@@ -198,7 +198,7 @@ export const api = {
   autocompleteTags: (q: string) =>
     request<{ items: TagItem[] }>(`/api/tags/autocomplete?q=${encodeURIComponent(q)}`),
 
-  // --- 上次提交的参数（每次点「开始生成」记一次；刷新页面回填） ---
+  // --- 上次提交的参数（点「加入队列」/「保存状态」记一次；刷新页面回填） ---
 
   getLastState: () => request<LastStatePayload>('/api/state'),
 
