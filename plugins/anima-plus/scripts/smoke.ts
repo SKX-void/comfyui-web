@@ -165,7 +165,13 @@ async function main(): Promise<void> {
   await workflow.load();
   const tpl = workflow.get();
   check('工作流 id / 名称', tpl.def.id === 'txt2img-basic', `${tpl.def.id} · ${tpl.def.name}`);
-  check('工作流声明了 13 个表单输入', (tpl.def.inputs ?? []).length === 13, `count=${(tpl.def.inputs ?? []).length}`);
+  check('工作流声明了 14 个表单输入', (tpl.def.inputs ?? []).length === 14, `count=${(tpl.def.inputs ?? []).length}`);
+
+  // remap 三态：模板里两个 remap 节点常驻，靠 when+const 改 58 的连线引用
+  const modelOf = (remap: string): unknown => renderWorkflow(tpl, { remap }).graph['58']?.inputs.model;
+  check('remap=none 时 Lora堆直连 UNETLoader', JSON.stringify(modelOf('none')) === '["17",0]', JSON.stringify(modelOf('none')));
+  check('remap=remap29b 时经过 2.9B Remap', JSON.stringify(modelOf('remap29b')) === '["62",0]', JSON.stringify(modelOf('remap29b')));
+  check('remap=remap38b 时经过 3.8B Remap', JSON.stringify(modelOf('remap38b')) === '["63",0]', JSON.stringify(modelOf('remap38b')));
 
   const requiredNodes = tpl.def.requirements?.nodes ?? [];
   const missing = requiredNodes.filter((cls) => !Object.values(tpl.graph).some((n) => n.class_type === cls));

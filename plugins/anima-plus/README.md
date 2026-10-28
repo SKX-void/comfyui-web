@@ -22,6 +22,7 @@ WS 收进度 → SSE 推浏览器 → 取图。不依赖 8086，也不依赖任�
 | Enhancer | `AnimaLayerReplayPatcher` | <https://github.com/AdamNizol/ComfyUI-Anima-Enhancer.git> |
 | Comfyroll | `CR Text` | <https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git> |
 | RES4LYF | `ClownsharKSampler_Beta` | <https://github.com/ClownsharkBatwing/RES4LYF.git> |
+| Fens Simple Nodes | `FensAnimaModelRemap29B`、`FensAnimaModelRemap38B` | <https://github.com/Taithrah/ComfyUI_Fens_Simple_Nodes.git> |
 
 ComfyUI 自带（缺了说明版本太老，装插件包解决不了）：`CLIPLoader`、`CLIPTextEncode`、`EmptyLatentImage`、`UNETLoader`、`VAEDecode`、`VAELoader`。
 <!-- deps:end -->

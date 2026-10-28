@@ -57,6 +57,15 @@
         "provides": [
           "ClownsharKSampler_Beta"
         ]
+      },
+      {
+        "name": "Fens Simple Nodes",
+        "url": "https://github.com/Taithrah/ComfyUI_Fens_Simple_Nodes.git",
+        "provides": [
+          "FensAnimaModelRemap29B",
+          "FensAnimaModelRemap38B"
+        ],
+        "note": "把 28 层 Anima LoRA 重映射到 2.9B/3.8B 的层布局（两个类在同一个包里）"
       }
     ],
     "weilin": true
@@ -120,6 +129,31 @@
         "kind": "comfy",
         "folder": "diffusion_models"
       }
+    },
+    {
+      "key": "remap",
+      "label": "LoRA Remap",
+      "type": "select",
+      "required": false,
+      "default": "none",
+      "source": {
+        "kind": "static",
+        "options": [
+          {
+            "label": "不启用（原版）",
+            "value": "none"
+          },
+          {
+            "label": "Anima 2.9B（40 层）",
+            "value": "remap29b"
+          },
+          {
+            "label": "Anima 3.8B（52 层）",
+            "value": "remap38b"
+          }
+        ]
+      },
+      "description": "把下游的 28 层 Anima LoRA 重映射到 2.9B（40 层）/ 3.8B（52 层）的层布局，对其它模型和 LoRA 无影响。只有主模型是 2.9B/3.8B 且用了老 LoRA 时才需要打开。"
     },
     {
       "key": "fileFormat",
@@ -295,6 +329,39 @@
     {
       "target": "57.inputs.quality",
       "from": "quality"
+    },
+    {
+      "target": "58.inputs.model",
+      "const": [
+        "17",
+        0
+      ],
+      "when": {
+        "key": "remap",
+        "equals": "none"
+      }
+    },
+    {
+      "target": "58.inputs.model",
+      "const": [
+        "62",
+        0
+      ],
+      "when": {
+        "key": "remap",
+        "equals": "remap29b"
+      }
+    },
+    {
+      "target": "58.inputs.model",
+      "const": [
+        "63",
+        0
+      ],
+      "when": {
+        "key": "remap",
+        "equals": "remap38b"
+      }
     }
   ],
   "outputs": {

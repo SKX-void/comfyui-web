@@ -6,6 +6,7 @@
 - [Enhancer](https://github.com/AdamNizol/ComfyUI-Anima-Enhancer.git) — AnimaLayerReplayPatcher
 - [Comfyroll](https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git) — CR Text
 - [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF.git) — ClownsharKSampler_Beta
+- [Fens Simple Nodes](https://github.com/Taithrah/ComfyUI_Fens_Simple_Nodes.git) — FensAnimaModelRemap29B、FensAnimaModelRemap38B
 
 其中 ComfyUI 自带（缺了说明 ComfyUI 版本太老，装插件包没用）：CLIPLoader、CLIPTextEncode、EmptyLatentImage、UNETLoader、VAEDecode、VAELoader
 <!-- deps:end -->

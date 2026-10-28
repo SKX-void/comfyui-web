@@ -209,5 +209,29 @@
     "_meta": {
       "title": "WeiLin Lora堆"
     }
+  },
+  "62": {
+    "inputs": {
+      "model": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "FensAnimaModelRemap29B",
+    "_meta": {
+      "title": "Anima 2.9B LoRA Remap (model)"
+    }
+  },
+  "63": {
+    "inputs": {
+      "model": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "FensAnimaModelRemap38B",
+    "_meta": {
+      "title": "Anima 3.8B LoRA Remap (model)"
+    }
   }
 }
