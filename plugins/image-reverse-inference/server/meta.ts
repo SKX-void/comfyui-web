@@ -13,12 +13,24 @@ export const PACKAGE = '@comfyui-web/image-reverse-inference';
 export const UPLOAD_SUBFOLDER = 'image-reverse-inference';
 
 /**
- * 单张图片的字节上限（服务端兜底）。
+ * 宿主 fastify 的 `bodyLimit`（`apps/server/src/index.ts`）。
  *
- * 前端压到 1MB 才发；这里留到 2MB 是因为宿主 fastify 的 `bodyLimit` 是 4MB，
- * 而 base64 会膨胀 4/3 —— 2MB 原图 ≈ 2.7MB JSON，仍在闸门内。
+ * 实测：4,194,304 B 的请求体通过，多 1 字节就 413 `FST_ERR_CTP_BODY_TOO_LARGE`。
+ * 前面若还挂着一层代理，真实上限可能更小（nginx 没配 `client_max_body_size` 时是 1m）——
+ * 那种 413 发生在进 handler 之前，插件的兜底只能按宿主这个值算。
  */
-export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+export const MAX_BODY_BYTES = 4 * 1024 * 1024;
+
+/** data URL 前缀 + JSON 外壳的余量（与 `client/src/compress.ts` 同一口径） */
+const JSON_HEADROOM = 512;
+
+/**
+ * 单张图片的字节上限（服务端兜底）＝ 这个请求体最多能装多大的图。
+ *
+ * base64 会膨胀 4/3：`(4 MiB - 余量) × 3/4 ≈ 3.00 MB` 的图刚好 4 MiB 的 body。
+ * 前端已经按同一公式压过，走到这里还超就说明请求不是本插件的前端发的。
+ */
+export const MAX_IMAGE_BYTES = Math.floor(((MAX_BODY_BYTES - JSON_HEADROOM) * 3) / 4);
 
 /** 反推作业的等待上限：ComfyUI 排队 + 首次加载模型都可能慢 */
 export const INFER_TIMEOUT_MS = 300_000;

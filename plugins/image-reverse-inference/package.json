@@ -1,6 +1,6 @@
 {
   "name": "@comfyui-web/image-reverse-inference",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "图片反推：上传图片 → WD14 Tagger 反推 tags → 输出文本",
   "type": "module",

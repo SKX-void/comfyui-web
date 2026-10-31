@@ -94,6 +94,9 @@ check('可见文案进了产物（开始反推）', js.includes('开始反推'))
 check('样式进了 client.css（.iri-textarea）', css.includes('.iri-textarea'));
 check('样式没把主题色写死（用了 var(--panel)）', css.includes('var(--panel'));
 check('两个阈值是滑动条（range + .iri-range）', js.includes('"range"') && css.includes('.iri-range'));
+// 体积口径是**请求体**（base64 4/3）而不是图片本身：上限由 4 MiB 的 body 换算，缩图走等比
+check('产物里按 body 预算算上限（等比缩）', js.includes('等比缩'), js.includes('等比缩'));
+check('413 会自动减半重压（不是直接甩错）', js.includes('413'));
 // 参数只在本次请求里生效：点反推不该偷偷写盘（挂载时读到的快照会让它看起来"没生效"）
 check('产物里没有参数写盘那条路', !js.includes('/params') && !js.includes('saveParams'));
 
@@ -224,10 +227,21 @@ await handlers.get('POST /infer')({ body: { dataUrl: 'data:image/gif;base64,R0lG
 check('不支持的 mime → 400', badRes.status === 400, String(badRes.status));
 check('400 带可读原因', typeof badRes.payload?.error?.message === 'string', badRes.payload?.error?.message);
 
+// 服务端兜底 = 「4 MiB 的 body 最多装多大的图」≈3.00 MB（见 server/meta.ts）：
+// 4 MiB 的图必然超，必须 400 而不是等 ComfyUI 那跳才炸
 const hugeRes = reply();
-const huge = 'A'.repeat(Math.ceil((3 * 1024 * 1024 * 4) / 3));
+const huge = 'A'.repeat(Math.ceil((4 * 1024 * 1024 * 4) / 3));
 await handlers.get('POST /infer')({ body: { dataUrl: `data:image/webp;base64,${huge}` } }, hugeRes);
-check('超过 2MB 的图 → 400（前端该先压缩）', hugeRes.status === 400, hugeRes.payload?.error?.message);
+check(
+  '超过 body 能装的图 → 400（前端该先等比压缩）',
+  hugeRes.status === 400,
+  hugeRes.payload?.error?.message,
+);
+check(
+  '400 报的是 MB 级的真实上限',
+  /\d\.\d{2}MB/.test(hugeRes.payload?.error?.message ?? ''),
+  hugeRes.payload?.error?.message,
+);
 
 console.log(`\n${failed === 0 ? '全部通过' : `${failed} 项失败`}`);
 process.exit(failed === 0 ? 0 : 1);

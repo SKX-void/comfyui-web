@@ -47,6 +47,17 @@ export interface InferResponse {
   elapsedMs: number;
 }
 
+/** 带状态码的错误：`413` 要单独认出来（请求体上限比假设的小 → 缩一档重试） */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // 无 body 的请求绝不能带 Content-Type：fastify 会拒绝空 JSON body
   const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
@@ -60,9 +71,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       const body = (await res.json()) as { error?: { message?: string } };
       message = body.error?.message ?? message;
     } catch {
-      /* 保持默认信息 */
+      /* 保持默认信息（nginx 挡下的 413 就是 HTML，没有 JSON 可读） */
     }
-    throw new Error(message);
+    throw new ApiError(res.status, message);
   }
   return (await res.json()) as T;
 }

@@ -149,6 +149,9 @@
 - **`nginx.conf`**（根目录）：**conf.d 片段**，只有 `server` 块，没有 `events` / `http` 外壳 —— 不能直接 `nginx -c nginx.conf`。
   `cp nginx.conf /etc/nginx/conf.d/comfyui-web.conf && nginx -t && nginx -s reload`。
   SSE 不缓冲 / 插件产物不缓存 / `/assets/` 长缓存这三件事都注释在文件里。
+- **`client_max_body_size` 必须 ≥ 宿主的 `bodyLimit`（4 MiB，`apps/server/src/index.ts`）**：现在的值是 `5m`,
+  多出的 1 MiB 让撞线时由宿主回 413 而不是 nginx 的 HTML 页。按插件配额定这个数会出事 ——
+  图片走 base64 膨胀 4/3，3 MB 的图就是 ≈4 MB 的 body（旧值 `512k` 就是这么把反推插件堵死的）。
 
 ## 6. 工作流插件：`tabs/<id>/`
 

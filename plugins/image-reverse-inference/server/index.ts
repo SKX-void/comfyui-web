@@ -1,7 +1,7 @@
 /**
  * image-reverse-inference —— 图片反推插件。
  *
- *   浏览器（canvas 压成 webp，≤1MB）→ base64 JSON → 本插件
+ *   浏览器（canvas 压成 webp，装得进请求体）→ base64 JSON → 本插件
  *     → POST ComfyUI /upload/image（multipart，服务端自己组）
  *     → POST /prompt（LoadImage.image = `subfolder/name`，tagger 参数来自设置）
  *     → 轮询 /history → outputs[<tagger>].tags[0] → 返回文本
@@ -16,7 +16,9 @@
  * 宿主 fastify 只注册了 `application/json` 与 `text/plain` 两个 content-type 解析器，
  * 其余（`multipart/form-data` / `image/png` / `application/octet-stream`）在**进 handler 之前**
  * 就被 415 挡掉 —— 插件拿不到原始流，所以前端只能把图编码进 JSON。
- * 代价是 base64 膨胀 4/3，而宿主 bodyLimit 是 4MB：前端压到 1MB、服务端兜底 2MB（meta.ts）。
+ * 代价是 base64 膨胀 4/3，真正常卡人的是**请求体**：宿主 bodyLimit 4 MiB（实测 4,194,305 B 就 413），
+ * 前面挂的代理可能更低（nginx 默认 1m）。前端按 body 字节算预算并等比缩、撞 413 就减半重试，
+ * 服务端兜底上限等于「这个 body 最多装多大的图」（meta.ts 的 `MAX_IMAGE_BYTES`）。
  *
  * ## 服务端源码分文件，交付物是单文件
  *

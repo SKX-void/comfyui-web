@@ -70,8 +70,9 @@ function decodeImage(body: RequestBody): DecodedImage {
   const bytes = Buffer.from((matched[2] ?? '').replace(/\s+/g, ''), 'base64');
   if (bytes.length === 0) throw new BadInput('图片是空的');
   if (bytes.length > MAX_IMAGE_BYTES) {
+    const mb = (n: number): string => `${(n / 1024 / 1024).toFixed(2)}MB`;
     throw new BadInput(
-      `图片 ${Math.round(bytes.length / 1024)}KB 超过上限 ${Math.round(MAX_IMAGE_BYTES / 1024)}KB（前端应先压缩）`,
+      `图片 ${mb(bytes.length)} 超过上限 ${mb(MAX_IMAGE_BYTES)}（前端应先等比压缩）`,
     );
   }
   return { bytes, filename: safeFilename(body.filename, ext) };

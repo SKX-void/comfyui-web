@@ -8,7 +8,7 @@
 - 后端：`server/`（多文件，esbuild 打成单文件）→ `tabs/image-reverse-inference/server.js`
 - 工作流：`workflow.json`（ComfyUI **API 格式**导出）→ 作为运行期资产拷进 tab 根
 
-## 它为什么长这样（两个实测结论，改之前先看）
+## 它为什么长这样（三个实测结论，改之前先看）
 
 **① 图片只能由插件后端上传，浏览器直传必挂。**
 本机 ComfyUI（0.33.0）不带任何 CORS 响应头：带 `Origin` 的 GET 没有
@@ -19,8 +19,24 @@
 **② 前端送的必须是 base64 JSON，不能是 multipart。**
 宿主的 fastify 只注册了 `application/json` 与 `text/plain` 两个解析器，`multipart/form-data`
 与 `application/octet-stream` 在**进 handler 之前**就被 415 挡掉 —— 插件拿不到原始流。
-代价是 base64 膨胀 4/3：宿主 `bodyLimit` 是 4MB，所以前端把图压到 ≤1MB（目标 500KB），
-后端再兜一道 2MB（`server/meta.ts` 的 `MAX_IMAGE_BYTES`）。
+
+**③ 真正的闸门是「请求体字节」，不是图片字节。**
+宿主 `bodyLimit` = **4 MiB**（实测 `4,194,304 B` 通过、多 1 字节就
+`413 FST_ERR_CTP_BODY_TOO_LARGE`）；而 base64 膨胀 4/3，所以
+`(4 MiB − JSON 余量) × 3/4 ≈ 3.00 MB` 的图刚好塞满。体积口径统一按 body 算
+（`client/src/compress.ts` 的 `bodyBytesOf` / `maxImageBytes`），服务端兜底
+`MAX_IMAGE_BYTES` 用同一个公式（`server/meta.ts`）。
+
+前面如果还挂着一层代理，真实上限会比 4 MiB **小**：nginx 没写
+`client_max_body_size` 时默认就是 `1m`，一个 977 KB 的图（body ≈ 1.3 MB）就会被它挡下。
+这种 413 发生在进宿主之前，插件看不见也改不了 —— 两个应对：
+
+- 前端**等比缩**：目标 500 KB，超了就按 `√(目标/现在)` 同时缩两个方向（长边先限 4096），
+  触到下限还超才报错；格式不挑（浏览器能解码就收，统一转 webp）；
+- 撞到 413 就把**请求体预算减半**（4 MiB → 2 → 1 → 512 KiB）重压再发，最多 3 档，
+  所以 nginx 默认 1m 不用改配置也能用；想一劳永逸就给它加
+  `client_max_body_size 5m;`（仓库根的 `nginx.conf` 已经这么设了：比宿主 `bodyLimit`
+  的 4 MiB 略大，撞线时由宿主回 413 而不是 nginx 那张 HTML 错误页）。
 
 ## 接口
 

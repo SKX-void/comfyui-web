@@ -28,7 +28,10 @@
       <div v-else class="iri-hint">
         <strong>拖入图片</strong>
         <span>或点击选择文件</span>
-        <small>上传前自动转 webp：目标 {{ formatBytes(TARGET_BYTES) }}，上限 {{ formatBytes(MAX_BYTES) }}</small>
+        <small>
+          上传前自动转 webp：目标 {{ formatBytes(TARGET_BYTES) }}，图片上限
+          {{ formatBytes(maxImageBytes(bodyBudget)) }}（请求体 {{ formatBytes(bodyBudget) }}）
+        </small>
       </div>
     </section>
 
@@ -106,14 +109,30 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { api, type ModelResponse, type StatusResponse } from './api';
-import { MAX_BYTES, TARGET_BYTES, formatBytes, prepareImage, type PreparedImage } from './compress';
+import { ApiError, api, type ModelResponse, type StatusResponse } from './api';
+import {
+  MAX_BODY_BYTES,
+  TARGET_BYTES,
+  formatBytes,
+  maxImageBytes,
+  prepareImage,
+  type PreparedImage,
+} from './compress';
 import { DEFAULT_PARAMS, toParams } from './params';
 import SettingsPanel from './components/SettingsPanel.vue';
 import type { TaggerParams } from './types';
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const prepared = ref<PreparedImage | null>(null);
+/** 原图先留着：撞到 413 要按更小的预算重新等比缩一遍 */
+const sourceFile = ref<File | null>(null);
+/**
+ * 本次会话里**实测**的请求体上限。
+ *
+ * 默认是宿主 fastify 的 4 MiB；前面那层代理（nginx 默认 `client_max_body_size 1m`）
+ * 比它严时只有发出去才知道 —— 撞 413 就减半，之后都按新值压。
+ */
+const bodyBudget = ref(MAX_BODY_BYTES);
 const preview = ref('');
 const imageInfo = ref('');
 const busy = ref(false);
@@ -167,19 +186,29 @@ async function accept(file: File | undefined): Promise<void> {
   error.value = '';
   tags.value = '';
   try {
-    const result = await prepareImage(file);
-    prepared.value = result;
-    preview.value = result.dataUrl;
-    const scaled = result.width !== 0 && result.rounds > 0 ? `，缩放 ${result.rounds} 轮` : '';
-    imageInfo.value =
-      `${result.filename} · ${result.width}×${result.height} · ` +
-      `${formatBytes(result.originalBytes)} → ${formatBytes(result.bytes)}${scaled}`;
+    showPrepared(await prepareImage(file, bodyBudget.value));
+    sourceFile.value = file;
   } catch (err) {
-    prepared.value = null;
-    preview.value = '';
-    imageInfo.value = '';
+    reset();
     error.value = err instanceof Error ? err.message : String(err);
   }
+}
+
+function showPrepared(result: PreparedImage): void {
+  prepared.value = result;
+  preview.value = result.dataUrl;
+  const scaled = result.rounds > 0 ? `，等比缩 ${result.rounds} 轮` : '';
+  imageInfo.value =
+    `${result.filename} · ${result.width}×${result.height} · ` +
+    `${formatBytes(result.originalBytes)} → ${formatBytes(result.bytes)}` +
+    `（请求体 ${formatBytes(result.bodyBytes)}）${scaled}`;
+}
+
+function reset(): void {
+  prepared.value = null;
+  sourceFile.value = null;
+  preview.value = '';
+  imageInfo.value = '';
 }
 
 function onPick(event: Event): void {
@@ -193,21 +222,44 @@ function onDrop(event: DragEvent): void {
   void accept(event.dataTransfer?.files?.[0]);
 }
 
+/** 413 之后最多缩几档：4 MiB → 2 → 1 → 512 KiB，nginx 默认 1m 两档就够 */
+const MAX_RETRY_ON_413 = 3;
+/** 再小就没有反推的意义了，撞到这个数还 413 就认了 */
+const MIN_BODY_BUDGET = 128 * 1024;
+
 async function run(): Promise<void> {
-  const image = prepared.value;
-  if (image === null || busy.value) return;
+  if (prepared.value === null || busy.value) return;
   busy.value = true;
   error.value = '';
   copied.value = false;
   try {
-    const result = await api.infer({
-      dataUrl: image.dataUrl,
-      filename: image.filename,
-      params: params.value,
-    });
-    tags.value = result.tags;
-    elapsed.value = result.elapsedMs;
-    status.value = await api.status().catch(() => status.value);
+    let image = prepared.value;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const result = await api.infer({
+          dataUrl: image.dataUrl,
+          filename: image.filename,
+          params: params.value,
+        });
+        tags.value = result.tags;
+        elapsed.value = result.elapsedMs;
+        status.value = await api.status().catch(() => status.value);
+        break;
+      } catch (err) {
+        // 413 说明真实请求体上限比我们假设的小（前面挂的代理比宿主严）：
+        // 预算减半、按新预算等比缩完再发，而不是把「Payload Too Large」甩给用户
+        const canRetry =
+          err instanceof ApiError &&
+          err.status === 413 &&
+          attempt < MAX_RETRY_ON_413 &&
+          sourceFile.value !== null &&
+          bodyBudget.value > MIN_BODY_BUDGET;
+        if (!canRetry || sourceFile.value === null) throw err;
+        bodyBudget.value = Math.max(MIN_BODY_BUDGET, Math.floor(bodyBudget.value / 2));
+        image = await prepareImage(sourceFile.value, bodyBudget.value);
+        showPrepared(image);
+      }
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {
