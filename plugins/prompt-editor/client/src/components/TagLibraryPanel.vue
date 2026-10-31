@@ -24,7 +24,8 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'insert', entry: TagEntry): void;
+  /** `blockId` = 顶上「插入到」选的那块。必须带出去 —— 上面那个 props 只是默认值 */
+  (e: 'insert', entry: TagEntry, blockId: string): void;
 }>();
 
 const {
@@ -218,7 +219,7 @@ const knownCategories = computed(() => data.value.categories.map((one) => one.na
             :sortable="sortable"
             :edit-mode="editMode"
             :known-categories="knownCategories"
-            @insert="(one: TagEntry) => emit('insert', one)"
+            @insert="(one: TagEntry) => emit('insert', one, targetId)"
             @start-edit="startEdit"
             @remove="remove"
             @save="saveEdit"

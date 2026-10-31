@@ -1574,6 +1574,31 @@ await settleLib();
 check('同一块里插第二次会被挡下（提示而不是又来一条）', chips(0).length === chipsAfterInsert, chips(0).join('|'));
 check('提示说清是重复了', noticeText().includes('已经有了') === true, noticeText());
 
+// 回归（2026-11 手机上报的）：面板顶上那个「插入到」下拉以前只是摆设 —— 选谁都插进第一块。
+// 原因是 emit('insert', entry) 只带条目，工作区拿 activeBlockId（甚至空串 → blocks[0]）当目标。
+console.log('词库面板：插入到下拉真的决定目标块');
+{
+  const select = pick<HTMLSelectElement>('.pe-lib-target select') as HTMLSelectElement;
+  check(
+    '打开面板时「插入到」默认跟着最后碰过的那块（第一块）',
+    select.value === blockOf(0).dataset.blockId,
+    `${select.value} vs ${blockOf(0).dataset.blockId}`,
+  );
+  check('每一块都在下拉里有一个选项', select.options.length === pickAll('.pe-block').length, String(select.options.length));
+  select.value = blockOf(1).dataset.blockId as string;
+  dispatch(select, new window.Event('change', { bubbles: true }));
+  await nextTick();
+  const secondBefore = chips(1).length;
+  (libRow('depth of field')?.querySelector('.pe-btn') as HTMLButtonElement).click();
+  await settleLib();
+  check(
+    '下拉选的第二块才是真目标',
+    chips(1).length === secondBefore + 1 && chips(1).includes('depth of field'),
+    chips(1).join('|'),
+  );
+  check('第一块没被顺带写进去', chips(0).includes('depth of field') === false, chips(0).join('|'));
+}
+
 console.log('词库面板：改分类 / 别名');
 await editModeOn();
 const ultraRow = libRow('ultra detailed') as HTMLElement;

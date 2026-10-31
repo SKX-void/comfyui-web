@@ -23,7 +23,7 @@ import {
  */
 export function useWorkspace(flash: (message: string) => void) {
   const doc = reactive<Doc>(starterDoc());
-  /** 工作区里最后碰过的块：词库面板「插入到」的默认目标 */
+  /** 工作区里最后碰过的块：词库面板「插入到」的**默认**值（面板改了下拉就按下拉的来） */
   const activeBlockId = ref('');
   const draftState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
@@ -140,9 +140,18 @@ export function useWorkspace(flash: (message: string) => void) {
       .catch(() => mark('error'));
   }
 
-  /** 词库面板里点「插入」：把这条词连译文一起加进目标块 */
-  function insertTagEntry(entry: TagEntry): void {
-    const block = doc.blocks.find((one) => one.id === activeBlockId.value) ?? doc.blocks[0];
+  /**
+   * 词库面板里点「插入」：把这条词连译文一起加进目标块。
+   *
+   * `blockId` 是面板顶上那个「插入到」下拉的当前值 —— **它才是真目标**；
+   * `activeBlockId` 只在没给（或给的那块已经被删掉）时兜底。少这一条就是个哑巴 bug：
+   * 下拉选了第 3 块，词还是进第一块，用户以为选错了地方（2026-11 手机上报的就是这个）。
+   */
+  function insertTagEntry(entry: TagEntry, blockId = ''): void {
+    const block =
+      doc.blocks.find((one) => one.id === blockId) ??
+      doc.blocks.find((one) => one.id === activeBlockId.value) ??
+      doc.blocks[0];
     if (block === undefined) return;
     const same = (a: string): string => a.trim().toLowerCase();
     if (block.items.some((item) => same(item.text) === same(entry.en))) {
