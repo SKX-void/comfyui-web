@@ -1,0 +1,96 @@
+/* 「本次会话」卡片：标题 / 历史表 / 缩略图。共用基元（.card/.btn/.pill/.mono/.dim）来自 ui.css。 */
+h2 {
+  font-size: 14px;
+  margin: 0;
+  color: #cbd5e1;
+}
+/* 跨两列（宽屏）；父级的 .card.wide 也会命中本组件根节点，这里写一份是为了不依赖那个作用域细节 */
+.wide {
+  grid-column: 1 / -1;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #1f2937;
+  vertical-align: middle;
+}
+/* 缩略图：随视口等比缩放 */
+.thumb {
+  width: clamp(44px, 10vw, 72px);
+  height: clamp(44px, 10vw, 72px);
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #1f2937;
+}
+.thumb-link {
+  margin-right: 6px;
+}
+
+/**
+ * 窄屏（手机）：「本次会话」那张表格是横向滚动的主要元凶 —— 任务号/状态/缩略图/按钮的最小
+ * 内容宽度在 360px 屏上必然超过视口，表格不会自己换行，于是把整页撑宽。
+ * 不复制一份 DOM（缩略图会请求两次），而是同一个表格换皮：
+ * 隐藏表头，td 变块，字段名由 td[data-label] 用 ::before 生成 —— 每行就是一张卡片。
+ */
+@media (max-width: 640px) {
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+  .table thead {
+    display: none;
+  }
+  .table tr {
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+  .table tr:last-child {
+    margin-bottom: 0;
+  }
+  .table td {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 3px 0;
+    border-bottom: none;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .table td::before {
+    content: attr(data-label);
+    flex: none;
+    width: 3em;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .table .mono {
+    word-break: break-all;
+  }
+  /* 缩略图行：按中线对齐，去掉 flex gap 之外的多余右间距 */
+  .table td.cell-assets {
+    align-items: center;
+  }
+  .table td.cell-assets .thumb-link {
+    margin-right: 0;
+  }
+  /* 操作行没有字段名，按钮靠右 */
+  .table td.cell-action {
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
+  .table td.cell-action::before {
+    content: none;
+  }
+}

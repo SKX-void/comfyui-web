@@ -1,0 +1,117 @@
+/**
+ * 组件间共用的基元：卡片 / 按钮 / 状态 pill / 排版辅助。
+ *
+ * 本插件的样式一律 `<style scoped>`，而父组件的 scoped 规则**只命中子组件的根节点**，
+ * 进不到子组件模板内部的元素 —— 「本次会话」卡片拆成组件之后，里面的 `.pill` `.btn` `.mono`
+ * 就该由它自己引一份。与其两处各写一遍（迟早走样），不如放这里让两边各自 scoped 导入；
+ * 代价是产物里多一份几百字节。
+ */
+.card {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 网格项默认 min-width:auto = 内容最小宽度，会被里面的宽表格反向撑爆轨道 */
+  min-width: 0;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+/* 卡片头右半边：说明文字 + 操作按钮（窄屏时允许换行，别把标题挤走） */
+.head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.btn {
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn.small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.btn.primary {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  font-weight: 600;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.pill {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+}
+.pill.ok,
+.pill.succeeded {
+  color: #6ee7b7;
+  border-color: #065f46;
+}
+.pill.bad,
+.pill.failed {
+  color: #fca5a5;
+  border-color: #7f1d1d;
+}
+.pill.running,
+.pill.mock {
+  color: #93c5fd;
+  border-color: #1e40af;
+}
+.pill.real {
+  color: #fcd34d;
+  border-color: #78350f;
+}
+.control {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.status-line {
+  font-size: 13px;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.status-line.small {
+  font-size: 12px;
+  color: #94a3b8;
+}
+.dim {
+  color: #64748b;
+}
+.dim.small {
+  font-size: 11px;
+}
+.mono {
+  font-family: ui-monospace, monospace;
+}
+.error {
+  color: #fca5a5;
+  font-size: 13px;
+  margin: 0;
+  white-space: pre-wrap;
+}

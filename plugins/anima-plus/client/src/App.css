@@ -1,59 +1,15 @@
+/* 页面骨架（顶栏 / 栅格 / 提示条）。共用基元见 ui.css。 */
 .page {
   max-width: 1400px;
   margin: 0 auto;
-  /* 同上：边距由宿主外壳提供，这里不重复叠加 */
+  /* 边距由宿主外壳提供，这里不重复叠加 */
   padding: 0;
 }
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-h1 {
-  font-size: 20px;
-  margin: 0;
-}
+/* 页头（标题 / 连通性 / 帮助 / 设置）已经搬进 components/PageHeader.vue */
 h2 {
   font-size: 14px;
   margin: 0;
   color: #cbd5e1;
-}
-.health {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.help-btn {
-  /* 顶到 header 最右：header 是 flex + wrap，左边 h1、中间状态 pill */
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #1e293b;
-  border: 1px solid #334155;
-  color: #cbd5e1;
-  font-size: 12px;
-  cursor: pointer;
-}
-.help-btn:hover {
-  color: #f1f5f9;
-  border-color: #475569;
-}
-.help-btn svg {
-  display: block;
-}
-.actions-hint {
-  font-size: 12px;
-  align-self: center;
-  min-width: 0;
-}
-.actions-hint.bad {
-  color: #f87171;
 }
 .banner {
   background: #3f1d1d;
@@ -76,33 +32,6 @@ h2 {
   color: #f0a5a5 !important;
   opacity: 0.85;
 }
-.pill {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #1e293b;
-  border: 1px solid #334155;
-  color: #94a3b8;
-}
-.pill.ok,
-.pill.succeeded {
-  color: #6ee7b7;
-  border-color: #065f46;
-}
-.pill.bad,
-.pill.failed {
-  color: #fca5a5;
-  border-color: #7f1d1d;
-}
-.pill.running,
-.pill.mock {
-  color: #93c5fd;
-  border-color: #1e40af;
-}
-.pill.real {
-  color: #fcd34d;
-  border-color: #78350f;
-}
 .layout {
   display: grid;
   /* 0 下限而不是 320/360px：固定下限会在窄屏上把网格轨道撑得比视口还宽，
@@ -110,64 +39,23 @@ h2 {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
 }
-.card {
-  background: #111827;
-  border: 1px solid #1f2937;
-  border-radius: 10px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  /* 网格项默认 min-width:auto = 内容最小宽度，会被里面的宽表格反向撑爆轨道 */
-  min-width: 0;
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /*
+   * 竖屏：两张卡不再竖着叠成一条长页 —— 参数表单一长，看队列进度就得滚到顶，
+   * 进度又在下不来。改成和 prompt-editor 一样「一次显示一屏」，切换条是 ViewSwitch.vue
+   * （它也在同一个断点出现，否则切了没得切）。
+   */
+  .view-param .pane-queue,
+  .view-queue .pane-param {
+    display: none;
+  }
 }
-.card.wide {
-  grid-column: 1 / -1;
-}
-.card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-/* 右半边：说明文字 + 操作按钮（窄屏时允许换行，别把标题挤走） */
-.head-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.btn.small {
-  padding: 4px 10px;
-  font-size: 12px;
-}
-.desc {
-  font-size: 12px;
-  color: #64748b;
-  margin: 0;
-}
-.actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-.btn {
-  border-radius: 6px;
-  border: 1px solid #334155;
-  background: #1e293b;
-  color: #e2e8f0;
-  padding: 8px 16px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.btn.primary {
-  background: #4f46e5;
-  border-color: #4f46e5;
-  font-weight: 600;
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+
+@media (max-width: 640px) {
+  .page {
+    padding: 12px;
+  }
 }
